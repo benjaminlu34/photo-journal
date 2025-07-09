@@ -30,20 +30,21 @@ export function ContentBlock({ block }: ContentBlockProps) {
 
   const [, drop] = useDrop({
     accept: "content-block",
-    hover: (item: DragItem, monitor) => {
+    drop: (item: DragItem, monitor) => {
       if (item.id === block.id) return;
       
-      const hoverBoundingRect = blockRef.current?.getBoundingClientRect();
-      if (!hoverBoundingRect) return;
-
+      const workspaceElement = document.querySelector('[data-workspace="true"]');
+      if (!workspaceElement) return;
+      
+      const workspaceRect = workspaceElement.getBoundingClientRect();
       const clientOffset = monitor.getClientOffset();
       if (!clientOffset) return;
 
-      // Calculate new position
+      // Calculate new position relative to workspace
       const newPosition: Position = {
         ...block.position,
-        x: clientOffset.x - hoverBoundingRect.width / 2,
-        y: clientOffset.y - hoverBoundingRect.height / 2,
+        x: clientOffset.x - workspaceRect.left - block.position.width / 2,
+        y: clientOffset.y - workspaceRect.top - block.position.height / 2,
       };
 
       updateBlockPosition(item.id, newPosition);
@@ -293,7 +294,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
           <span className="text-lg filter drop-shadow-lg">{getBlockIcon()}</span>
-          <span className="text-xs text-white/60 font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             {new Date(block.createdAt).toLocaleTimeString([], { 
               hour: '2-digit', 
               minute: '2-digit' 
@@ -304,7 +305,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
           <Button
             size="sm"
             variant="ghost"
-            className="w-7 h-7 p-0 glass-button text-white hover:text-primary-300"
+            className="w-7 h-7 p-0 glass-button text-foreground hover:text-primary"
             onClick={resetRotation}
           >
             <RotateCcw className="w-3 h-3" />
@@ -312,7 +313,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
           <Button
             size="sm"
             variant="ghost"
-            className="w-7 h-7 p-0 glass-button text-white hover:text-red-400"
+            className="w-7 h-7 p-0 glass-button text-foreground hover:text-destructive"
             onClick={() => deleteContentBlock(block.id)}
           >
             <Trash2 className="w-3 h-3" />

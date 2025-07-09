@@ -193,38 +193,38 @@
     100% { background-position: 0% 50%; }
   }
 
-  /* Content Block Styles with Neumorphic Effects */
+  /* Content Block Styles - Purple/Blue Theme */
   .content-block-sticky {
     background: linear-gradient(145deg, 
-      rgba(255, 218, 62, 0.95), 
-      rgba(255, 200, 40, 0.85));
-    border: 1px solid rgba(255, 218, 62, 0.2);
+      rgba(147, 197, 253, 0.9), 
+      rgba(129, 140, 248, 0.8));
+    border: 1px solid rgba(99, 102, 241, 0.2);
     box-shadow: 
-      4px 4px 8px rgba(0, 0, 0, 0.3),
-      -4px -4px 8px rgba(255, 218, 62, 0.1),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.08),
+      -4px -4px 8px rgba(255, 255, 255, 0.8),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
   }
 
   .content-block-coral {
     background: linear-gradient(145deg, 
-      rgba(255, 114, 94, 0.95), 
-      rgba(255, 99, 79, 0.85));
-    border: 1px solid rgba(255, 114, 94, 0.2);
+      rgba(196, 181, 253, 0.9), 
+      rgba(167, 139, 250, 0.8));
+    border: 1px solid rgba(139, 92, 246, 0.2);
     box-shadow: 
-      4px 4px 8px rgba(0, 0, 0, 0.3),
-      -4px -4px 8px rgba(255, 114, 94, 0.1),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.08),
+      -4px -4px 8px rgba(255, 255, 255, 0.8),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
   }
 
   .content-block-lavender {
     background: linear-gradient(145deg, 
-      rgba(206, 147, 216, 0.95), 
-      rgba(196, 137, 206, 0.85));
-    border: 1px solid rgba(206, 147, 216, 0.2);
+      rgba(221, 214, 254, 0.9), 
+      rgba(196, 181, 253, 0.8));
+    border: 1px solid rgba(139, 92, 246, 0.2);
     box-shadow: 
-      4px 4px 8px rgba(0, 0, 0, 0.3),
-      -4px -4px 8px rgba(206, 147, 216, 0.1),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.08),
+      -4px -4px 8px rgba(255, 255, 255, 0.8),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
   }
 
   /* Neumorphic Inset Variant for Interactive Elements */
@@ -234,6 +234,62 @@
     box-shadow: 
       inset 4px 4px 8px rgba(0, 0, 0, 0.08),
       inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+  }
+
+  /* Additional neumorphic content block styles */
+  .neumorphic-content-block {
+    @apply neumorphic-card;
+  }
+
+  .neumorphic-panel {
+    @apply neumorphic-card;
+  }
+
+  .shadow-floating {
+    box-shadow: 
+      16px 16px 32px rgba(0, 0, 0, 0.15),
+      -16px -16px 32px rgba(255, 255, 255, 0.9),
+      inset 1px 1px 3px rgba(255, 255, 255, 0.6);
+  }
+
+  /* Content Block Styles */
+  .content-block-sticky {
+    background: linear-gradient(145deg, hsl(60, 85%, 95%), hsl(60, 85%, 88%));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow: 
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.8);
+  }
+
+  .content-block-lavender {
+    background: linear-gradient(145deg, hsl(270, 50%, 95%), hsl(270, 50%, 88%));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.8);
+  }
+
+  .content-block-coral {
+    background: linear-gradient(145deg, hsl(260, 50%, 95%), hsl(260, 50%, 88%));
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    box-shadow: 
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.8);
+  }
+
+  .glass-card {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.6));
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(10px);
+    box-shadow: 
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.8);
+  }
+
+  .glass-button {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
   /* Enhanced scrollbars */

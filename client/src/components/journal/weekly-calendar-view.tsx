@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from "date-fns";
 
 export function WeeklyCalendarView() {
-  const { currentDate, setCurrentDate, createContentBlock } = useJournal();
+  const { currentDate, setCurrentDate, setViewMode, createContentBlock } = useJournal();
   const [currentWeek, setCurrentWeek] = useState(currentDate);
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -75,9 +75,13 @@ export function WeeklyCalendarView() {
           return (
             <div
               key={day.toISOString()}
-              className={`neumorphic-content-block p-4 flex flex-col min-h-[300px] ${
+              className={`neumorphic-content-block p-4 flex flex-col min-h-[300px] cursor-pointer hover:shadow-floating transition-all ${
                 isSelected ? "ring-2 ring-primary-500" : ""
               }`}
+              onClick={() => {
+                setCurrentDate(day);
+                setViewMode("daily");
+              }}
             >
               {/* Day Header */}
               <div className="flex items-center justify-between mb-3">

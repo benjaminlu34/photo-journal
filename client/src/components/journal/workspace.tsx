@@ -92,8 +92,8 @@ export function JournalWorkspace() {
           <div className="w-20 h-20 gradient-button rounded-full flex items-center justify-center mx-auto mb-6 animate-glow">
             <Plus className="w-10 h-10 text-white" />
           </div>
-          <h3 className="text-2xl font-bold text-white mb-4">Begin Your Story</h3>
-          <p className="text-white/70 mb-6 leading-relaxed">Create your first journal entry by adding beautiful content blocks</p>
+          <h3 className="text-2xl font-bold text-foreground mb-4">Begin Your Story</h3>
+          <p className="text-muted-foreground mb-6 leading-relaxed">Create your first journal entry by adding beautiful content blocks</p>
           <Button onClick={addQuickNote} className="gradient-button text-white font-semibold px-6 py-3 rounded-xl">
             <Plus className="w-4 h-4 mr-2" />
             Add First Note
@@ -109,7 +109,8 @@ export function JournalWorkspace() {
         workspaceRef.current = node;
         drop(node);
       }}
-      className={`flex-1 relative overflow-auto ${isOver ? "bg-primary-500/10" : ""}`}
+      data-workspace="true"
+      className={`flex-1 relative overflow-hidden min-h-screen ${isOver ? "bg-primary/10" : ""}`}
     >
       {/* Content Blocks */}
       {currentEntry.contentBlocks.map((block) => (
@@ -126,11 +127,11 @@ export function JournalWorkspace() {
 
       {/* Drop Zone Indicator */}
       {isOver && (
-        <div className="absolute inset-4 neumorphic-card border-2 border-dashed border-primary-400/50 rounded-3xl flex items-center justify-center animate-glow">
+        <div className="absolute inset-4 neumorphic-card border-2 border-dashed border-primary/50 rounded-3xl flex items-center justify-center">
           <div className="text-center">
-            <Plus className="w-16 h-16 text-primary-400 mx-auto mb-4 animate-bounce-gentle" />
-            <p className="text-white font-semibold text-xl">Drop your content here</p>
-            <p className="text-white/60 mt-2">Create something beautiful</p>
+            <Plus className="w-16 h-16 text-primary mx-auto mb-4" />
+            <p className="text-foreground font-semibold text-xl">Drop your content here</p>
+            <p className="text-muted-foreground mt-2">Create something beautiful</p>
           </div>
         </div>
       )}

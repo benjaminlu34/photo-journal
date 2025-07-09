@@ -7,7 +7,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, 
 import type { ContentBlockType } from "@/types/journal";
 
 export function WeeklyCreativeView() {
-  const { currentDate, setCurrentDate, createContentBlock } = useJournal();
+  const { currentDate, setCurrentDate, setViewMode, createContentBlock } = useJournal();
   const [currentWeek, setCurrentWeek] = useState(currentDate);
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -113,7 +113,13 @@ export function WeeklyCreativeView() {
               }`}
             >
               {/* Day Card */}
-              <div className="neumorphic-content-block p-6 min-h-[350px] flex flex-col">
+              <div 
+                className="neumorphic-content-block p-6 min-h-[350px] flex flex-col cursor-pointer hover:shadow-floating transition-all"
+                onClick={() => {
+                  setCurrentDate(day);
+                  setViewMode("daily");
+                }}
+              >
                 {/* Day Header */}
                 <div className="text-center mb-4">
                   <div className="text-2xl mb-2">{getMoodEmoji(index)}</div>
@@ -182,13 +188,13 @@ export function WeeklyCreativeView() {
                 {/* Mock Creative Content Preview */}
                 <div className="mt-4 space-y-2">
                   {index === 1 && (
-                    <div className="bg-yellow-100 p-2 rounded-lg">
-                      <div className="text-xs text-yellow-700">📝 Morning thoughts</div>
+                    <div className="bg-indigo-100 p-2 rounded-lg">
+                      <div className="text-xs text-indigo-700">📝 Morning thoughts</div>
                     </div>
                   )}
                   {index === 3 && (
-                    <div className="bg-pink-100 p-2 rounded-lg">
-                      <div className="text-xs text-pink-700">📸 Sunset photo</div>
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <div className="text-xs text-blue-700">📸 Sunset photo</div>
                     </div>
                   )}
                   {index === 5 && (

@@ -17,7 +17,7 @@ import {
 } from "date-fns";
 
 export function MonthlyView() {
-  const { currentDate, setCurrentDate } = useJournal();
+  const { currentDate, setCurrentDate, setViewMode } = useJournal();
   const [currentMonth, setCurrentMonth] = useState(currentDate);
 
   const monthStart = startOfMonth(currentMonth);
@@ -96,11 +96,11 @@ export function MonthlyView() {
           <div className="text-xs text-secondary-500">Photos Captured</div>
         </div>
         <div className="neumorphic-content-block p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-600">31</div>
+          <div className="text-2xl font-bold text-indigo-600">31</div>
           <div className="text-xs text-secondary-500">Notes Written</div>
         </div>
         <div className="neumorphic-content-block p-4 text-center">
-          <div className="text-2xl font-bold text-pink-600">8</div>
+          <div className="text-2xl font-bold text-purple-600">8</div>
           <div className="text-xs text-secondary-500">Voice Memos</div>
         </div>
       </div>
@@ -128,7 +128,10 @@ export function MonthlyView() {
             return (
               <div
                 key={day.toISOString()}
-                onClick={() => setCurrentDate(day)}
+                onClick={() => {
+                  setCurrentDate(day);
+                  setViewMode("daily");
+                }}
                 className={`
                   relative p-3 min-h-[100px] rounded-xl cursor-pointer transition-all group
                   ${isSelected 
@@ -159,7 +162,7 @@ export function MonthlyView() {
                       memory.type === "photo" 
                         ? "bg-blue-100 text-blue-700" 
                         : memory.type === "note"
-                          ? "bg-yellow-100 text-yellow-700"
+                          ? "bg-indigo-100 text-indigo-700"
                           : "bg-purple-100 text-purple-700"
                     }`}>
                       {memory.content}
