@@ -18,6 +18,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const [editContent, setEditContent] = useState(block.content);
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const blockRef = useRef<HTMLDivElement>(null);
 
   const [{ isDragging: dragMonitor }, drag] = useDrag({
@@ -54,6 +55,74 @@ export function ContentBlock({ block }: ContentBlockProps) {
   useEffect(() => {
     setIsDragging(dragMonitor);
   }, [dragMonitor]);
+
+  // Handle manual dragging
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isEditing || isResizing) return;
+    
+    const rect = blockRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const workspace = document.querySelector('[data-workspace="true"]');
+      if (!workspace) return;
+      
+      const workspaceRect = workspace.getBoundingClientRect();
+      const newX = e.clientX - workspaceRect.left - dragOffset.x;
+      const newY = e.clientY - workspaceRect.top - dragOffset.y;
+      
+      updateBlockPosition(block.id, {
+        ...block.position,
+        x: Math.max(0, Math.min(newX, workspaceRect.width - block.position.width)),
+        y: Math.max(0, Math.min(newY, workspaceRect.height - block.position.height))
+      });
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setIsDragging(false);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    setIsDragging(true);
+  };
+
+  // Handle resizing
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = block.position.width;
+    const startHeight = block.position.height;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(150, startWidth + (e.clientX - startX));
+      const newHeight = Math.max(100, startHeight + (e.clientY - startY));
+      
+      updateBlockPosition(block.id, {
+        ...block.position,
+        width: newWidth,
+        height: newHeight
+      });
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setIsResizing(false);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    setIsResizing(true);
+  };
 
   const saveContent = () => {
     updateContentBlock(block.id, { content: editContent });
@@ -275,20 +344,26 @@ export function ContentBlock({ block }: ContentBlockProps) {
         blockRef.current = node;
         drag(drop(node));
       }}
-      className={`absolute p-4 rounded-2xl transition-all cursor-move group interactive ${getBlockColor()} ${
-        isDragging ? "opacity-50 scale-105" : ""
-      }`}
+      onMouseDown={handleMouseDown}
+      className={`absolute p-4 rounded-2xl transition-all group interactive ${getBlockColor()} ${
+        isDragging ? "opacity-80 scale-105 cursor-grabbing" : "cursor-grab"
+      } ${isResizing ? "select-none" : ""}`}
       style={{
         left: block.position.x,
         top: block.position.y,
         width: block.position.width,
         height: block.position.height,
         transform: `rotate(${block.position.rotation}deg)`,
-        zIndex: isDragging ? 1000 : 1,
+        zIndex: isDragging || isResizing ? 1000 : 1,
       }}
     >
       {/* Resize Handle */}
-      <div className="absolute -bottom-2 -right-2 w-4 h-4 gradient-button rounded-full cursor-se-resize opacity-0 group-hover:opacity-100 transition-all duration-300" />
+      <div 
+        className="absolute -bottom-2 -right-2 w-6 h-6 gradient-button rounded-full cursor-se-resize opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center" 
+        onMouseDown={handleResizeMouseDown}
+      >
+        <div className="w-2 h-2 border-r-2 border-b-2 border-white/50"></div>
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

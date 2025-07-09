@@ -252,45 +252,7 @@
       inset 1px 1px 3px rgba(255, 255, 255, 0.6);
   }
 
-  /* Content Block Styles */
-  .content-block-sticky {
-    background: linear-gradient(145deg, hsl(60, 85%, 95%), hsl(60, 85%, 88%));
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.1),
-      -8px -8px 16px rgba(255, 255, 255, 0.8);
-  }
 
-  .content-block-lavender {
-    background: linear-gradient(145deg, hsl(270, 50%, 95%), hsl(270, 50%, 88%));
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.1),
-      -8px -8px 16px rgba(255, 255, 255, 0.8);
-  }
-
-  .content-block-coral {
-    background: linear-gradient(145deg, hsl(260, 50%, 95%), hsl(260, 50%, 88%));
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.1),
-      -8px -8px 16px rgba(255, 255, 255, 0.8);
-  }
-
-  .glass-card {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.6));
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    backdrop-filter: blur(10px);
-    box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.1),
-      -8px -8px 16px rgba(255, 255, 255, 0.8);
-  }
-
-  .glass-button {
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
 
   /* Enhanced scrollbars */
   ::-webkit-scrollbar {

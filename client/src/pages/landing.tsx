@@ -54,8 +54,8 @@ export default function Landing() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
           <Card className="neumorphic-card border-none">
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 content-block-sticky rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Palette className="w-6 h-6 text-yellow-800" />
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Palette className="w-6 h-6 text-indigo-600" />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Drag & Drop Content</h3>
               <p className="text-sm text-muted-foreground">
@@ -90,8 +90,8 @@ export default function Landing() {
 
           <Card className="neumorphic-card border-none">
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 content-block-lavender rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Heart className="w-6 h-6 text-purple-800" />
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Heart className="w-6 h-6 text-purple-600" />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Neumorphic Design</h3>
               <p className="text-sm text-muted-foreground">

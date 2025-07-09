@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { JournalProvider } from "@/contexts/journal-context";
+import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
 import { JournalSidebar } from "@/components/journal/sidebar";
 import { JournalWorkspace } from "@/components/journal/workspace";
@@ -13,6 +13,7 @@ import { CalendarPlus } from "lucide-react";
 function HomeContent() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
+  const { currentDate } = useJournal();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -57,7 +58,7 @@ function HomeContent() {
             <div className="flex items-center space-x-6">
               <h2 className="text-2xl font-bold text-secondary-800">Daily Pinboard</h2>
               <p className="text-secondary-500">
-                {new Date().toLocaleDateString("en-US", { 
+                {currentDate.toLocaleDateString("en-US", { 
                   weekday: "long", 
                   month: "long", 
                   day: "numeric" 

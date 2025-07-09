@@ -73,31 +73,33 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="w-80 neumorphic-card border-r border-white/10 flex flex-col">
+    <div className="w-80 bg-background border-r border-border flex flex-col" style={{
+      background: "linear-gradient(135deg, hsl(250, 50%, 98%) 0%, hsl(270, 50%, 96%) 100%)"
+    }}>
       {/* Header */}
-      <div className="p-6 border-b border-white/10">
+      <div className="p-6 border-b border-border/20">
         <div className="flex items-center space-x-4 mb-4">
-          <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold text-lg animate-glow">
+          <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold text-lg">
             <Heart className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Connect & Create</h1>
-            <p className="text-sm text-white/70">Share moments with loved ones ✨</p>
+            <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
+            <p className="text-sm text-muted-foreground">Express yourself beautifully ✨</p>
           </div>
         </div>
       </div>
 
       {/* Date Navigation */}
-      <div className="p-6 border-b border-white/10">
+      <div className="p-6 border-b border-border/20">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-white">
+          <h2 className="text-lg font-bold text-foreground">
             {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
           </h2>
           <div className="flex space-x-2">
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-white"
+              className="w-10 h-10 p-0 neumorphic-button text-foreground"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -105,7 +107,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-white"
+              className="w-10 h-10 p-0 neumorphic-button text-foreground"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />
@@ -116,7 +118,7 @@ export function JournalSidebar() {
         {/* Mini Calendar */}
         <div className="grid grid-cols-7 gap-1 text-center text-sm mb-4">
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-            <div key={`weekday-${index}`} className="text-white/50 font-semibold py-2">
+            <div key={`weekday-${index}`} className="text-muted-foreground font-semibold py-2">
               {day}
             </div>
           ))}
@@ -130,8 +132,8 @@ export function JournalSidebar() {
                   : isSelected(date)
                   ? "gradient-button text-white font-bold animate-glow"
                   : isToday(date)
-                  ? "neumorphic-button text-white font-semibold"
-                  : "text-white/70 hover:neumorphic-button interactive"
+                  ? "neumorphic-button text-foreground font-semibold"
+                  : "text-muted-foreground hover:neumorphic-button interactive"
               }`}
               onClick={() => date && setCurrentDate(date)}
             >
@@ -144,7 +146,7 @@ export function JournalSidebar() {
       {/* Your Circle */}
       <div className="p-6 flex-1">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-white">Your Circle</h3>
+          <h3 className="text-lg font-bold text-foreground">Friends Online</h3>
           <Badge variant="secondary" className="gradient-button text-white px-3 py-1 animate-bounce-gentle">
             Online
           </Badge>
@@ -170,12 +172,12 @@ export function JournalSidebar() {
                 />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-white">
+                <p className="font-semibold text-foreground">
                   {friend.firstName && friend.lastName
                     ? `${friend.firstName} ${friend.lastName}`
                     : friend.email?.split("@")[0] || "Unknown"}
                 </p>
-                <p className="text-sm text-white/60">{friend.lastSeen}</p>
+                <p className="text-sm text-muted-foreground">{friend.lastSeen}</p>
               </div>
             </div>
           ))}
@@ -183,13 +185,13 @@ export function JournalSidebar() {
 
         {/* Week's Happenings */}
         <div className="mt-8">
-          <h4 className="text-sm font-bold text-white mb-4 flex items-center">
+          <h4 className="text-sm font-bold text-foreground mb-4 flex items-center">
             <CalendarDays className="w-4 h-4 text-primary-400 mr-2" />
             WEEK'S HAPPENINGS
           </h4>
-          <div className="text-sm text-white/70 space-y-3">
+          <div className="text-sm text-muted-foreground space-y-3">
             <div className="neumorphic-inset p-3 rounded-lg">✨ You created 3 new journal entries</div>
-            <div className="neumorphic-inset p-3 rounded-lg">💫 {friends.length > 0 ? friends[0].firstName || "A friend" : "Someone"} shared memories about <span className="text-white font-semibold">summer vibes</span></div>
+            <div className="neumorphic-inset p-3 rounded-lg">💫 {friends.length > 0 ? friends[0].firstName || "A friend" : "Someone"} shared memories about <span className="text-foreground font-semibold">summer vibes</span></div>
             <div className="neumorphic-inset p-3 rounded-lg">🎨 New content blocks added: photos, notes</div>
           </div>
         </div>
