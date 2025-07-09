@@ -115,8 +115,8 @@ export function JournalSidebar() {
 
         {/* Mini Calendar */}
         <div className="grid grid-cols-7 gap-1 text-center text-sm mb-4">
-          {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
-            <div key={day} className="text-secondary-400 font-medium py-2">
+          {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+            <div key={`weekday-${index}`} className="text-secondary-400 font-medium py-2">
               {day}
             </div>
           ))}
