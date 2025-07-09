@@ -38,12 +38,12 @@ function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButton
   return (
     <button
       ref={drag}
-      className={`w-full flex items-center space-x-3 p-3 rounded-xl neumorphic-button hover:bg-primary-50 transition-colors ${
+      className={`w-full flex items-center space-x-3 p-4 rounded-xl glass-button interactive ${
         isDragging ? "opacity-50 scale-95" : ""
       }`}
     >
-      <Icon className={`w-5 h-5 ${color}`} />
-      <span className="text-sm font-medium text-secondary-700">{label}</span>
+      <Icon className={`w-5 h-5 ${color} filter drop-shadow-md`} />
+      <span className="text-sm font-semibold text-white">{label}</span>
     </button>
   );
 }
@@ -113,56 +113,56 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="w-80 neumorphic-panel border-l border-primary-100 flex flex-col">
+    <div className="w-80 glass-card border-l border-white/10 flex flex-col">
       {/* Header Tabs */}
-      <div className="border-b border-primary-100 p-4">
+      <div className="border-b border-white/10 p-6">
         <div className="flex items-center space-x-4">
           <Button
             size="sm"
-            className="flex items-center space-x-2 px-4 py-2 bg-primary-50 text-primary-600 rounded-xl font-medium"
+            className="gradient-button text-white font-semibold px-4 py-2 rounded-xl"
           >
-            <FolderOpen className="w-4 h-4" />
+            <FolderOpen className="w-4 h-4 mr-2" />
             <span>Content Library</span>
           </Button>
-          <span className="text-secondary-400">|</span>
-          <div className="flex items-center space-x-1 text-secondary-500">
-            <span className="text-sm font-medium">M</span>
-            <span className="text-sm font-medium">T</span>
-            <span className="text-sm font-medium text-primary-600">W</span>
+          <span className="text-white/40">|</span>
+          <div className="flex items-center space-x-2 text-white/60">
+            <span className="text-sm font-medium glass-button px-2 py-1 rounded">M</span>
+            <span className="text-sm font-medium glass-button px-2 py-1 rounded">T</span>
+            <span className="text-sm font-medium gradient-button px-2 py-1 rounded text-white">W</span>
           </div>
         </div>
 
         {/* Search */}
-        <div className="mt-4 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-secondary-400" />
+        <div className="mt-6 relative">
+          <Search className="absolute left-3 top-3 w-4 h-4 text-white/40" />
           <Input
             type="text"
             placeholder="Search your content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 border-primary-200 focus:ring-primary-300 focus:border-transparent bg-primary-25"
+            className="pl-10 glass-button text-white placeholder:text-white/50 border-white/20 focus:border-primary-400 bg-transparent"
           />
         </div>
       </div>
 
       {/* Recent Entries */}
-      <div className="p-4 border-b border-primary-100">
-        <h3 className="font-semibold text-secondary-800 mb-3 flex items-center">
-          <Clock className="w-4 h-4 text-primary-500 mr-2" />
+      <div className="p-6 border-b border-white/10">
+        <h3 className="font-bold text-white mb-4 flex items-center">
+          <Clock className="w-4 h-4 text-primary-400 mr-2" />
           Recent Entries
         </h3>
         <div className="space-y-3">
           {recentEntries.map((entry) => (
             <div
               key={entry.id}
-              className="flex items-start space-x-3 p-3 rounded-xl hover:bg-primary-50 transition-colors cursor-pointer"
+              className="flex items-start space-x-3 p-3 rounded-xl glass-button interactive cursor-pointer"
             >
-              <div className={`w-8 h-8 ${entry.color} rounded-lg flex items-center justify-center text-white flex-shrink-0`}>
-                <entry.icon className="w-4 h-4" />
+              <div className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0`}>
+                <entry.icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-secondary-800 text-sm">{entry.title}</h4>
-                <p className="text-xs text-secondary-500 truncate">{entry.description}</p>
+                <h4 className="font-semibold text-white text-sm">{entry.title}</h4>
+                <p className="text-xs text-white/60 truncate">{entry.description}</p>
               </div>
             </div>
           ))}
@@ -170,13 +170,13 @@ export function CollaborationPanel() {
       </div>
 
       {/* Content Types */}
-      <div className="p-4 border-b border-primary-100">
-        <h3 className="font-semibold text-secondary-800 mb-3 flex items-center">
-          <FolderOpen className="w-4 h-4 text-primary-500 mr-2" />
+      <div className="p-6 border-b border-white/10">
+        <h3 className="font-bold text-white mb-4 flex items-center">
+          <FolderOpen className="w-4 h-4 text-primary-400 mr-2" />
           Add Content
         </h3>
-        <p className="text-xs text-secondary-500 mb-3">Drag these to your journal workspace</p>
-        <div className="space-y-2">
+        <p className="text-xs text-white/60 mb-4">Drag these to your journal workspace</p>
+        <div className="space-y-3">
           {contentTypes.map((contentType) => (
             <ContentTypeButton key={contentType.type} {...contentType} />
           ))}
@@ -184,29 +184,30 @@ export function CollaborationPanel() {
       </div>
 
       {/* Media Gallery */}
-      <div className="p-4 flex-1">
-        <h3 className="font-semibold text-secondary-800 mb-3 flex items-center">
-          <Image className="w-4 h-4 text-primary-500 mr-2" />
+      <div className="p-6 flex-1">
+        <h3 className="font-bold text-white mb-4 flex items-center">
+          <Image className="w-4 h-4 text-primary-400 mr-2" />
           Media Gallery
         </h3>
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           {mediaItems.map((item) => (
-            <img
-              key={item.id}
-              src={item.url}
-              alt={item.alt}
-              className="rounded-lg object-cover w-full h-20 cursor-pointer hover:opacity-80 transition-opacity"
-            />
+            <div key={item.id} className="glass-card rounded-lg overflow-hidden interactive">
+              <img
+                src={item.url}
+                alt={item.alt}
+                className="w-full h-20 object-cover"
+              />
+            </div>
           ))}
         </div>
 
         {/* File List */}
-        <div className="space-y-2">
-          <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-primary-50 transition-colors cursor-pointer">
-            <FileIcon className="w-5 h-5 text-red-500" />
+        <div className="space-y-3">
+          <div className="flex items-center space-x-3 p-3 rounded-lg glass-button interactive cursor-pointer">
+            <FileIcon className="w-5 h-5 text-red-400" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-secondary-800 truncate">presentation.pdf</p>
-              <p className="text-xs text-secondary-500">1.8 MB</p>
+              <p className="text-sm font-semibold text-white truncate">presentation.pdf</p>
+              <p className="text-xs text-white/60">1.8 MB</p>
             </div>
           </div>
         </div>

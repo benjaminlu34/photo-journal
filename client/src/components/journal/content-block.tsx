@@ -66,19 +66,19 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const getBlockColor = () => {
     switch (block.type) {
       case "sticky_note":
-        return "bg-warm-yellow";
+        return "content-block-sticky";
       case "photo":
-        return "bg-white";
+        return "glass-card";
       case "text":
-        return "bg-white";
+        return "glass-card";
       case "checklist":
-        return "bg-primary-100";
+        return "content-block-lavender";
       case "audio":
-        return "bg-warm-lavender";
+        return "content-block-coral";
       case "drawing":
-        return "bg-primary-50";
+        return "glass-card";
       default:
-        return "bg-white";
+        return "glass-card";
     }
   };
 
@@ -274,7 +274,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
         blockRef.current = node;
         drag(drop(node));
       }}
-      className={`absolute p-4 rounded-2xl neumorphic-content-block transition-all cursor-move group ${getBlockColor()} ${
+      className={`absolute p-4 rounded-2xl transition-all cursor-move group interactive ${getBlockColor()} ${
         isDragging ? "opacity-50 scale-105" : ""
       }`}
       style={{
@@ -287,24 +287,24 @@ export function ContentBlock({ block }: ContentBlockProps) {
       }}
     >
       {/* Resize Handle */}
-      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-primary-500 border-2 border-white rounded-full cursor-se-resize opacity-0 hover:opacity-100 transition-opacity" />
+      <div className="absolute -bottom-2 -right-2 w-4 h-4 gradient-button rounded-full cursor-se-resize opacity-0 group-hover:opacity-100 transition-all duration-300" />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <span className="text-sm">{getBlockIcon()}</span>
-          <span className="text-xs text-secondary-500 font-medium">
+          <span className="text-lg filter drop-shadow-lg">{getBlockIcon()}</span>
+          <span className="text-xs text-white/60 font-medium">
             {new Date(block.createdAt).toLocaleTimeString([], { 
               hour: '2-digit', 
               minute: '2-digit' 
             })}
           </span>
         </div>
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
           <Button
             size="sm"
             variant="ghost"
-            className="w-6 h-6 p-0"
+            className="w-7 h-7 p-0 glass-button text-white hover:text-primary-300"
             onClick={resetRotation}
           >
             <RotateCcw className="w-3 h-3" />
@@ -312,7 +312,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
           <Button
             size="sm"
             variant="ghost"
-            className="w-6 h-6 p-0 text-red-500 hover:text-red-700"
+            className="w-7 h-7 p-0 glass-button text-white hover:text-red-400"
             onClick={() => deleteContentBlock(block.id)}
           >
             <Trash2 className="w-3 h-3" />

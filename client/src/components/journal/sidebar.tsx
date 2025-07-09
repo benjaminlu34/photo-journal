@@ -73,31 +73,31 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="w-80 neumorphic-panel border-r border-primary-100 flex flex-col">
+    <div className="w-80 glass-card border-r border-white/10 flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b border-primary-100">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold text-lg shadow-soft">
-            <Heart className="w-5 h-5" />
+      <div className="p-6 border-b border-white/10">
+        <div className="flex items-center space-x-4 mb-4">
+          <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold text-lg animate-glow">
+            <Heart className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-secondary-800">Connect & Create</h1>
-            <p className="text-sm text-secondary-500">Share moments with loved ones</p>
+            <h1 className="text-2xl font-bold text-white">Connect & Create</h1>
+            <p className="text-sm text-white/70">Share moments with loved ones ✨</p>
           </div>
         </div>
       </div>
 
       {/* Date Navigation */}
-      <div className="p-6 border-b border-primary-100">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-secondary-800">
+      <div className="p-6 border-b border-white/10">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-bold text-white">
             {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
           </h2>
           <div className="flex space-x-2">
             <Button
               size="sm"
               variant="outline"
-              className="w-8 h-8 p-0 neumorphic-button"
+              className="w-10 h-10 p-0 glass-button text-white"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -105,7 +105,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-8 h-8 p-0 neumorphic-button"
+              className="w-10 h-10 p-0 glass-button text-white"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />
@@ -116,7 +116,7 @@ export function JournalSidebar() {
         {/* Mini Calendar */}
         <div className="grid grid-cols-7 gap-1 text-center text-sm mb-4">
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-            <div key={`weekday-${index}`} className="text-secondary-400 font-medium py-2">
+            <div key={`weekday-${index}`} className="text-white/50 font-semibold py-2">
               {day}
             </div>
           ))}
@@ -124,14 +124,14 @@ export function JournalSidebar() {
           {getDaysInMonth().map((date, index) => (
             <div
               key={index}
-              className={`py-2 cursor-pointer rounded transition-colors ${
+              className={`py-2 cursor-pointer rounded-lg transition-all ${
                 !date
                   ? ""
                   : isSelected(date)
-                  ? "bg-primary-500 text-white font-semibold shadow-soft"
+                  ? "gradient-button text-white font-bold animate-glow"
                   : isToday(date)
-                  ? "bg-primary-100 text-primary-700 font-medium"
-                  : "text-secondary-600 hover:bg-primary-50"
+                  ? "glass-button text-white font-semibold"
+                  : "text-white/70 hover:glass-button interactive"
               }`}
               onClick={() => date && setCurrentDate(date)}
             >
@@ -143,54 +143,54 @@ export function JournalSidebar() {
 
       {/* Your Circle */}
       <div className="p-6 flex-1">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-secondary-800">Your Circle</h3>
-          <Badge variant="secondary" className="bg-primary-500 text-white">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-white">Your Circle</h3>
+          <Badge variant="secondary" className="gradient-button text-white px-3 py-1 animate-bounce-gentle">
             Online
           </Badge>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {getOnlineFriends().map((friend) => (
             <div
               key={friend.id}
-              className="flex items-center space-x-3 p-3 rounded-xl hover:bg-primary-50 transition-colors cursor-pointer"
+              className="flex items-center space-x-3 p-3 rounded-xl glass-button interactive cursor-pointer"
             >
               <div className="relative">
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-12 h-12 glass-card">
                   <AvatarImage src={friend.profileImageUrl || ""} />
-                  <AvatarFallback className="bg-primary-200 text-primary-700">
+                  <AvatarFallback className="gradient-button text-white font-bold">
                     {(friend.firstName?.[0] || friend.email?.[0] || "?").toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div
-                  className={`w-3 h-3 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white ${
-                    friend.isOnline ? "bg-green-400" : "bg-yellow-400"
+                  className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${
+                    friend.isOnline ? "bg-green-400 animate-glow" : "bg-yellow-400"
                   }`}
                 />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-secondary-800">
+                <p className="font-semibold text-white">
                   {friend.firstName && friend.lastName
                     ? `${friend.firstName} ${friend.lastName}`
                     : friend.email?.split("@")[0] || "Unknown"}
                 </p>
-                <p className="text-sm text-secondary-500">{friend.lastSeen}</p>
+                <p className="text-sm text-white/60">{friend.lastSeen}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* Week's Happenings */}
-        <div className="mt-6">
-          <h4 className="text-sm font-semibold text-secondary-700 mb-3 flex items-center">
-            <CalendarDays className="w-4 h-4 text-primary-500 mr-2" />
+        <div className="mt-8">
+          <h4 className="text-sm font-bold text-white mb-4 flex items-center">
+            <CalendarDays className="w-4 h-4 text-primary-400 mr-2" />
             WEEK'S HAPPENINGS
           </h4>
-          <div className="text-sm text-secondary-500 space-y-2">
-            <div>• You created 3 new journal entries</div>
-            <div>• {friends.length > 0 ? friends[0].firstName || "A friend" : "Someone"} shared memories about <span className="text-secondary-700">summer vibes</span></div>
-            <div>• New content blocks added: photos, notes</div>
+          <div className="text-sm text-white/70 space-y-3">
+            <div className="glass-button p-3 rounded-lg">✨ You created 3 new journal entries</div>
+            <div className="glass-button p-3 rounded-lg">💫 {friends.length > 0 ? friends[0].firstName || "A friend" : "Someone"} shared memories about <span className="text-white font-semibold">summer vibes</span></div>
+            <div className="glass-button p-3 rounded-lg">🎨 New content blocks added: photos, notes</div>
           </div>
         </div>
       </div>

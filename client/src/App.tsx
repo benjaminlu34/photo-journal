@@ -26,11 +26,16 @@ function Router() {
 }
 
 function App() {
+  // Enable dark mode by default for our stunning glassmorphism theme
+  document.documentElement.classList.add('dark');
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <div className="dark">
+          <Toaster />
+          <Router />
+        </div>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -87,18 +87,14 @@ export function JournalWorkspace() {
 
   if (!currentEntry) {
     return (
-      <div className="flex-1 flex items-center justify-center" style={{
-        background: "linear-gradient(135deg, hsl(220, 14%, 97%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 95%) 100%)",
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(139, 126, 200, 0.1) 1px, transparent 0)",
-        backgroundSize: "20px 20px"
-      }}>
-        <div className="text-center neumorphic-content-block p-8">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-soft">
-            <Plus className="w-8 h-8 text-primary-500" />
+      <div className="flex-1 flex items-center justify-center relative">
+        <div className="text-center glass-card p-12 rounded-2xl max-w-md mx-auto animate-float">
+          <div className="w-20 h-20 gradient-button rounded-full flex items-center justify-center mx-auto mb-6 animate-glow">
+            <Plus className="w-10 h-10 text-white" />
           </div>
-          <h3 className="text-lg font-semibold text-secondary-800 mb-2">No journal entry yet</h3>
-          <p className="text-secondary-500 mb-4">Start creating your daily journal by adding content blocks</p>
-          <Button onClick={addQuickNote} className="bg-primary-500 hover:bg-primary-600 neumorphic-button">
+          <h3 className="text-2xl font-bold text-white mb-4">Begin Your Story</h3>
+          <p className="text-white/70 mb-6 leading-relaxed">Create your first journal entry by adding beautiful content blocks</p>
+          <Button onClick={addQuickNote} className="gradient-button text-white font-semibold px-6 py-3 rounded-xl">
             <Plus className="w-4 h-4 mr-2" />
             Add First Note
           </Button>
@@ -113,12 +109,7 @@ export function JournalWorkspace() {
         workspaceRef.current = node;
         drop(node);
       }}
-      className={`flex-1 relative overflow-auto ${isOver ? "bg-primary-50" : ""}`}
-      style={{
-        background: "linear-gradient(135deg, hsl(220, 14%, 97%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 95%) 100%)",
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(139, 126, 200, 0.1) 1px, transparent 0)",
-        backgroundSize: "20px 20px"
-      }}
+      className={`flex-1 relative overflow-auto ${isOver ? "bg-primary-500/10" : ""}`}
     >
       {/* Content Blocks */}
       {currentEntry.contentBlocks.map((block) => (
@@ -128,17 +119,18 @@ export function JournalWorkspace() {
       {/* Floating Add Button */}
       <Button
         onClick={addQuickNote}
-        className="fixed bottom-8 right-96 w-14 h-14 bg-primary-500 text-white rounded-full shadow-floating hover:bg-primary-600 hover:shadow-floating transition-all group z-50"
+        className="fixed bottom-8 right-96 w-16 h-16 gradient-button rounded-full group z-50 animate-glow"
       >
-        <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+        <Plus className="w-8 h-8 text-white group-hover:rotate-90 transition-transform duration-300" />
       </Button>
 
       {/* Drop Zone Indicator */}
       {isOver && (
-        <div className="absolute inset-4 border-2 border-dashed border-primary-300 bg-primary-50/50 rounded-2xl flex items-center justify-center">
+        <div className="absolute inset-4 glass-card border-2 border-dashed border-primary-400/50 rounded-3xl flex items-center justify-center animate-glow">
           <div className="text-center">
-            <Plus className="w-12 h-12 text-primary-400 mx-auto mb-2" />
-            <p className="text-primary-600 font-medium">Drop content here</p>
+            <Plus className="w-16 h-16 text-primary-400 mx-auto mb-4 animate-bounce-gentle" />
+            <p className="text-white font-semibold text-xl">Drop your content here</p>
+            <p className="text-white/60 mt-2">Create something beautiful</p>
           </div>
         </div>
       )}

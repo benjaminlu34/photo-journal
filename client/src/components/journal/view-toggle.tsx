@@ -14,17 +14,17 @@ export function ViewToggle() {
   ];
 
   return (
-    <div className="flex items-center space-x-2 bg-primary-50 p-1 rounded-xl">
+    <div className="flex items-center space-x-1 glass-card p-2 rounded-2xl">
       {views.map(({ mode, label, icon: Icon }) => (
         <Button
           key={mode}
-          variant={viewMode === mode ? "default" : "ghost"}
+          variant="ghost"
           size="sm"
           onClick={() => setViewMode(mode)}
-          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+          className={`px-6 py-3 rounded-xl font-semibold transition-all ${
             viewMode === mode
-              ? "bg-white text-primary-600 shadow-soft hover:shadow-neumorphic"
-              : "text-secondary-500 hover:bg-white hover:shadow-soft"
+              ? "gradient-button text-white animate-glow"
+              : "text-white/60 hover:glass-button hover:text-white"
           }`}
         >
           <Icon className="w-4 h-4 mr-2" />
