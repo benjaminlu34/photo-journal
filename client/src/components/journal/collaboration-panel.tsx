@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useDrag } from "react-dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import type { DragItem, ContentBlockType } from "@/types/journal";
+import type { ContentBlockType, Position } from "@/types/journal";
 import {
   Search,
   FolderOpen,
@@ -27,20 +26,43 @@ interface ContentTypeButtonProps {
 }
 
 function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButtonProps) {
-  const [{ isDragging }, drag] = useDrag({
-    type: "new-content",
-    item: (): DragItem => ({ type: "new-content", id: "", blockType: type }),
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  });
+  const { createContentBlock } = useJournal();
+
+  const getDefaultContent = (type: ContentBlockType) => {
+    switch (type) {
+      case "sticky_note":
+        return { text: "New note..." };
+      case "text":
+        return { text: "Write your thoughts..." };
+      case "checklist":
+        return { items: [{ text: "New task", completed: false }] };
+      case "photo":
+        return { url: "", caption: "" };
+      case "audio":
+        return { url: "", duration: "0:00" };
+      case "drawing":
+        return { strokes: [] };
+      default:
+        return {};
+    }
+  };
+
+  const handleClick = () => {
+    const position: Position = {
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 300 + 100,
+      width: 240,
+      height: 180,
+      rotation: Math.random() * 6 - 3,
+    };
+    
+    createContentBlock(type, getDefaultContent(type), position);
+  };
 
   return (
     <button
-      ref={drag}
-      className={`w-full flex items-center space-x-3 p-4 rounded-xl bg-purple-50 hover:bg-purple-100 transition-all duration-200 shadow-lg hover:shadow-xl ${
-        isDragging ? "opacity-50 scale-95" : ""
-      }`}
+      onClick={handleClick}
+      className="w-full flex items-center space-x-3 p-4 rounded-xl bg-purple-50 hover:bg-purple-100 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-102"
     >
       <Icon className={`w-5 h-5 ${color} filter drop-shadow-md`} />
       <span className="text-sm font-semibold text-gray-800">{label}</span>

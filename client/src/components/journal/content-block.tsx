@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useDrag, useDrop } from "react-dnd";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useJournal } from "@/contexts/journal-context";
-import type { ContentBlockData, Position, DragItem } from "@/types/journal";
+import type { ContentBlockData, Position } from "@/types/journal";
 import { Trash2, GripVertical, RotateCcw, Play, Pause } from "lucide-react";
 
 interface ContentBlockProps {
@@ -18,133 +17,117 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const [editContent, setEditContent] = useState(block.content);
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [localPosition, setLocalPosition] = useState(block.position);
+  
+  // Performance optimization: use refs for live drag state
   const blockRef = useRef<HTMLDivElement>(null);
+  const livePosition = useRef(block.position);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const moveRAF = useRef<number>(0);
+  const workspaceRect = useRef<DOMRect | null>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [{ isDragging: dragMonitor }, drag] = useDrag({
-    type: "content-block",
-    item: (): DragItem => ({ type: "content-block", id: block.id }),
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  });
-
-  const [, drop] = useDrop({
-    accept: "content-block",
-    drop: (item: DragItem, monitor) => {
-      if (item.id === block.id) return;
-      
-      const workspaceElement = document.querySelector('[data-workspace="true"]');
-      if (!workspaceElement) return;
-      
-      const workspaceRect = workspaceElement.getBoundingClientRect();
-      const clientOffset = monitor.getClientOffset();
-      if (!clientOffset) return;
-
-      // Calculate new position relative to workspace
-      const newPosition: Position = {
-        ...block.position,
-        x: clientOffset.x - workspaceRect.left - block.position.width / 2,
-        y: clientOffset.y - workspaceRect.top - block.position.height / 2,
-      };
-
-      updateBlockPosition(item.id, newPosition);
-    },
-  });
-
-  useEffect(() => {
-    setIsDragging(dragMonitor);
-  }, [dragMonitor]);
-
-  // Debounced position update function
-  const debouncedUpdatePosition = useCallback((newPosition: Position) => {
-    setLocalPosition(newPosition);
+  // GPU-accelerated visual update system
+  const updateVisualPosition = useCallback(() => {
+    if (!blockRef.current) return;
     
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
+    if (!moveRAF.current) {
+      moveRAF.current = requestAnimationFrame(() => {
+        if (blockRef.current) {
+          const pos = livePosition.current;
+          blockRef.current.style.transform = 
+            `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${pos.rotation}deg)`;
+        }
+        moveRAF.current = 0;
+      });
     }
-    
-    updateTimeoutRef.current = setTimeout(() => {
-      updateBlockPosition(block.id, newPosition);
-    }, 150); // 150ms debounce
-  }, [block.id, updateBlockPosition]);
+  }, []);
 
-  // Cleanup timeout on unmount
+  // Update live position when block position changes from server
+  useEffect(() => {
+    livePosition.current = block.position;
+    updateVisualPosition();
+  }, [block.position, updateVisualPosition]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
+      if (moveRAF.current) {
+        cancelAnimationFrame(moveRAF.current);
+      }
     };
   }, []);
 
-  // Handle manual dragging
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (isEditing || isResizing) return;
+  // Optimized pointer event system
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || isEditing || isResizing) return;
+    
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    
+    // Cache workspace geometry once per drag
+    const workspace = document.querySelector('[data-workspace="true"]');
+    if (!workspace) return;
+    workspaceRect.current = workspace.getBoundingClientRect();
     
     const rect = blockRef.current?.getBoundingClientRect();
     if (!rect) return;
     
-    setDragOffset({
+    dragOffset.current = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
-    });
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const workspace = document.querySelector('[data-workspace="true"]');
-      if (!workspace) return;
-      
-      const workspaceRect = workspace.getBoundingClientRect();
-      const newX = e.clientX - workspaceRect.left - dragOffset.x;
-      const newY = e.clientY - workspaceRect.top - dragOffset.y;
-      
-      const newPosition = {
-        ...localPosition,
-        x: Math.max(0, Math.min(newX, workspaceRect.width - localPosition.width)),
-        y: Math.max(0, Math.min(newY, workspaceRect.height - localPosition.height))
-      };
-      
-      debouncedUpdatePosition(newPosition);
     };
-    
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      setIsDragging(false);
-      
-      // Force final update on mouse up
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-        updateBlockPosition(block.id, localPosition);
-      }
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    setIsDragging(true);
   };
 
-  // Handle resizing
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || !workspaceRect.current) return;
+    
+    const newX = e.clientX - workspaceRect.current.left - dragOffset.current.x;
+    const newY = e.clientY - workspaceRect.current.top - dragOffset.current.y;
+    
+    // Update live position immediately
+    livePosition.current = {
+      ...livePosition.current,
+      x: Math.max(0, Math.min(newX, workspaceRect.current.width - livePosition.current.width)),
+      y: Math.max(0, Math.min(newY, workspaceRect.current.height - livePosition.current.height))
+    };
+    
+    // GPU-accelerated visual update
+    updateVisualPosition();
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    setIsDragging(false);
+    workspaceRect.current = null;
+    
+    // Single server update per drag
+    updateBlockPosition(block.id, livePosition.current);
+  };
+
+  // Optimized resize handler
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = localPosition.width;
-    const startHeight = localPosition.height;
+    const startWidth = livePosition.current.width;
+    const startHeight = livePosition.current.height;
     
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = Math.max(150, startWidth + (e.clientX - startX));
       const newHeight = Math.max(100, startHeight + (e.clientY - startY));
       
-      const newPosition = {
-        ...localPosition,
+      livePosition.current = {
+        ...livePosition.current,
         width: newWidth,
         height: newHeight
       };
       
-      debouncedUpdatePosition(newPosition);
+      updateVisualPosition();
     };
     
     const handleMouseUp = () => {
@@ -152,11 +135,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
       document.removeEventListener('mouseup', handleMouseUp);
       setIsResizing(false);
       
-      // Force final update on mouse up
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-        updateBlockPosition(block.id, localPosition);
-      }
+      // Single server update per resize
+      updateBlockPosition(block.id, livePosition.current);
     };
     
     document.addEventListener('mousemove', handleMouseMove);
@@ -170,9 +150,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
   };
 
   const resetRotation = () => {
-    const newPosition = { ...localPosition, rotation: 0 };
-    setLocalPosition(newPosition);
-    updateBlockPosition(block.id, newPosition);
+    livePosition.current = { ...livePosition.current, rotation: 0 };
+    updateVisualPosition();
+    updateBlockPosition(block.id, livePosition.current);
   };
 
   const getBlockColor = () => {
@@ -382,21 +362,21 @@ export function ContentBlock({ block }: ContentBlockProps) {
 
   return (
     <div
-      ref={(node) => {
-        blockRef.current = node;
-        drag(drop(node));
-      }}
-      onMouseDown={handleMouseDown}
+      ref={blockRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       className={`absolute p-4 rounded-2xl transition-all group interactive ${getBlockColor()} ${
         isDragging ? "opacity-80 scale-105 cursor-grabbing" : "cursor-grab"
       } ${isResizing ? "select-none" : ""}`}
       style={{
-        left: localPosition.x,
-        top: localPosition.y,
-        width: localPosition.width,
-        height: localPosition.height,
-        transform: `rotate(${localPosition.rotation}deg)`,
+        width: livePosition.current.width,
+        height: livePosition.current.height,
         zIndex: isDragging || isResizing ? 1000 : 1,
+        // Initial position - will be overridden by transform in updateVisualPosition
+        left: 0,
+        top: 0,
+        transform: `translate3d(${livePosition.current.x}px, ${livePosition.current.y}px, 0) rotate(${livePosition.current.rotation}deg)`,
       }}
     >
       {/* Resize Handle */}

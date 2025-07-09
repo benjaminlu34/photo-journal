@@ -1,12 +1,11 @@
 import { useRef } from "react";
-import { useDrop } from "react-dnd";
 import { Button } from "@/components/ui/button";
 import { ContentBlock } from "./content-block";
 import { WeeklyCalendarView } from "./weekly-calendar-view";
 import { WeeklyCreativeView } from "./weekly-creative-view";
 import { MonthlyView } from "./monthly-view";
 import { useJournal } from "@/contexts/journal-context";
-import type { DragItem, Position, ContentBlockType } from "@/types/journal";
+import type { Position, ContentBlockType } from "@/types/journal";
 import { Plus } from "lucide-react";
 
 export function JournalWorkspace() {
@@ -25,34 +24,8 @@ export function JournalWorkspace() {
     return <MonthlyView />;
   }
 
-  // Daily view (default)
+  // Daily view (default) - optimized workspace
   const workspaceRef = useRef<HTMLDivElement>(null);
-
-  const [{ isOver }, drop] = useDrop({
-    accept: ["content-block", "new-content"],
-    drop: (item: DragItem, monitor) => {
-      const offset = monitor.getClientOffset();
-      const workspaceRect = workspaceRef.current?.getBoundingClientRect();
-      
-      if (!offset || !workspaceRect) return;
-
-      const position: Position = {
-        x: offset.x - workspaceRect.left - 120,
-        y: offset.y - workspaceRect.top - 80,
-        width: 240,
-        height: 180,
-        rotation: Math.random() * 6 - 3,
-      };
-
-      if (item.type === "new-content" && item.blockType) {
-        const defaultContent = getDefaultContent(item.blockType);
-        createContentBlock(item.blockType, defaultContent, position);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: false, // Disable the drop zone overlay
-    }),
-  });
 
   const getDefaultContent = (type: ContentBlockType) => {
     switch (type) {
@@ -105,10 +78,7 @@ export function JournalWorkspace() {
 
   return (
     <div
-      ref={(node) => {
-        workspaceRef.current = node;
-        drop(node);
-      }}
+      ref={workspaceRef}
       data-workspace="true"
       className="flex-1 relative overflow-hidden min-h-screen bg-white"
       style={{
