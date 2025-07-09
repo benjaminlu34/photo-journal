@@ -65,7 +65,6 @@ export function ContentBlock({ block }: ContentBlockProps) {
     if (e.button !== 0 || isEditing || isResizing) return;
     
     e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     
     // Cache workspace geometry once per drag
@@ -74,12 +73,15 @@ export function ContentBlock({ block }: ContentBlockProps) {
     workspaceRect.current = workspace.getBoundingClientRect();
     
     dragOffset.current = {
-      x: e.clientX - livePosition.current.x,
-      y: e.clientY - livePosition.current.y
+      x: e.clientX - workspaceRect.current!.left - livePosition.current.x,
+      y: e.clientY - workspaceRect.current!.top - livePosition.current.y
     };
+    
+    document.addEventListener('pointermove', moveBlock as any);
+    document.addEventListener('pointerup', endMove as any);
   };
 
-  const moveBlock = (e: React.PointerEvent) => {
+  const moveBlock = (e: PointerEvent) => {
     if (!isDragging || !workspaceRect.current) return;
     
     const newX = e.clientX - workspaceRect.current.left - dragOffset.current.x;
@@ -96,10 +98,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
     updateVisualPosition();
   };
 
-  const endMove = (e: React.PointerEvent) => {
+  const endMove = (e: PointerEvent) => {
     if (!isDragging) return;
     
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    document.removeEventListener('pointermove', moveBlock as any);
+    document.removeEventListener('pointerup', endMove as any);
     setIsDragging(false);
     workspaceRect.current = null;
     
@@ -133,13 +136,15 @@ export function ContentBlock({ block }: ContentBlockProps) {
       // Apply deltas based on resize direction
       if (direction.includes('e')) newPos.width = Math.max(150, startPos.width + deltaX);
       if (direction.includes('w')) {
-        newPos.width = Math.max(150, startPos.width - deltaX);
-        newPos.x = Math.max(0, startPos.x + deltaX);
+        const clamped = Math.min(deltaX, startPos.width - 150);
+        newPos.width = startPos.width - clamped;
+        newPos.x = Math.max(0, startPos.x + clamped);
       }
       if (direction.includes('s')) newPos.height = Math.max(100, startPos.height + deltaY);
       if (direction.includes('n')) {
-        newPos.height = Math.max(100, startPos.height - deltaY);
-        newPos.y = Math.max(0, startPos.y + deltaY);
+        const clamped = Math.min(deltaY, startPos.height - 100);
+        newPos.height = startPos.height - clamped;
+        newPos.y = Math.max(0, startPos.y + clamped);
       }
       
       livePosition.current = newPos;
@@ -410,8 +415,6 @@ export function ContentBlock({ block }: ContentBlockProps) {
       {/* Dedicated Move Grip - Top Bar */}
       <div
         onPointerDown={startMove}
-        onPointerMove={moveBlock}
-        onPointerUp={endMove}
         className={`absolute top-0 left-0 w-full h-8 rounded-t-2xl cursor-grab transition-all ${
           isDragging ? "cursor-grabbing" : ""
         }`}
