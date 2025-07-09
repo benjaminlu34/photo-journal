@@ -97,7 +97,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-foreground"
+              className="w-10 h-10 p-0 neumorphic-button text-purple-800"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -105,7 +105,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-foreground"
+              className="w-10 h-10 p-0 neumorphic-button text-purple-800"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />

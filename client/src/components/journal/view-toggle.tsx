@@ -24,7 +24,7 @@ export function ViewToggle() {
           className={`px-6 py-3 rounded-xl font-semibold transition-all ${
             viewMode === mode
               ? "gradient-button text-white animate-glow"
-              : "text-white/60 hover:glass-button hover:text-white"
+              : "text-purple-600 hover:bg-purple-100 hover:text-purple-700"
           }`}
         >
           <Icon className="w-4 h-4 mr-2" />

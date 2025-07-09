@@ -60,10 +60,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
     };
   }, []);
 
-  // Optimized pointer event system
-  const onPointerDown = (e: React.PointerEvent) => {
+  // Dedicated move grip system (prevents move/resize conflicts)
+  const startMove = (e: React.PointerEvent) => {
     if (e.button !== 0 || isEditing || isResizing) return;
     
+    e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     
@@ -72,16 +73,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
     if (!workspace) return;
     workspaceRect.current = workspace.getBoundingClientRect();
     
-    const rect = blockRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
     dragOffset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: e.clientX - livePosition.current.x,
+      y: e.clientY - livePosition.current.y
     };
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
+  const moveBlock = (e: React.PointerEvent) => {
     if (!isDragging || !workspaceRect.current) return;
     
     const newX = e.clientX - workspaceRect.current.left - dragOffset.current.x;
@@ -98,7 +96,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
     updateVisualPosition();
   };
 
-  const onPointerUp = (e: React.PointerEvent) => {
+  const endMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
     
     e.currentTarget.releasePointerCapture(e.pointerId);
@@ -109,39 +107,72 @@ export function ContentBlock({ block }: ContentBlockProps) {
     updateBlockPosition(block.id, livePosition.current);
   };
 
-  // Optimized resize handler
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
+  // Dedicated resize system with direction-specific handles
+  const startResize = (e: React.PointerEvent, direction: string) => {
+    if (e.button !== 0 || isEditing || isDragging) return;
+    
     e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsResizing(true);
+    
+    // Cache workspace geometry once per resize
+    const workspace = document.querySelector('[data-workspace="true"]');
+    if (!workspace) return;
+    workspaceRect.current = workspace.getBoundingClientRect();
+    
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = livePosition.current.width;
-    const startHeight = livePosition.current.height;
+    const startPos = { ...livePosition.current };
     
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = Math.max(150, startWidth + (e.clientX - startX));
-      const newHeight = Math.max(100, startHeight + (e.clientY - startY));
+    const handleResize = (e: PointerEvent) => {
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
       
-      livePosition.current = {
-        ...livePosition.current,
-        width: newWidth,
-        height: newHeight
-      };
+      let newPos = { ...startPos };
       
+      // Apply deltas based on resize direction
+      if (direction.includes('e')) newPos.width = Math.max(150, startPos.width + deltaX);
+      if (direction.includes('w')) {
+        newPos.width = Math.max(150, startPos.width - deltaX);
+        newPos.x = Math.max(0, startPos.x + deltaX);
+      }
+      if (direction.includes('s')) newPos.height = Math.max(100, startPos.height + deltaY);
+      if (direction.includes('n')) {
+        newPos.height = Math.max(100, startPos.height - deltaY);
+        newPos.y = Math.max(0, startPos.y + deltaY);
+      }
+      
+      livePosition.current = newPos;
       updateVisualPosition();
     };
     
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+    const handleResizeEnd = () => {
+      document.removeEventListener('pointermove', handleResize);
+      document.removeEventListener('pointerup', handleResizeEnd);
       setIsResizing(false);
+      workspaceRect.current = null;
       
       // Single server update per resize
       updateBlockPosition(block.id, livePosition.current);
     };
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    setIsResizing(true);
+    document.addEventListener('pointermove', handleResize);
+    document.addEventListener('pointerup', handleResizeEnd);
+  };
+
+  // Get appropriate cursor for resize direction
+  const getResizeCursor = (direction: string) => {
+    const cursors: Record<string, string> = {
+      'n': 'ns-resize',
+      'e': 'ew-resize',
+      's': 'ns-resize',
+      'w': 'ew-resize',
+      'ne': 'nesw-resize',
+      'nw': 'nwse-resize',
+      'se': 'nwse-resize',
+      'sw': 'nesw-resize'
+    };
+    return cursors[direction] || 'default';
   };
 
   const saveContent = () => {
@@ -363,11 +394,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
   return (
     <div
       ref={blockRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      className={`absolute p-4 rounded-2xl transition-all group interactive ${getBlockColor()} ${
-        isDragging ? "opacity-80 scale-105 cursor-grabbing" : "cursor-grab"
+      className={`absolute rounded-2xl transition-all group interactive ${getBlockColor()} ${
+        isDragging ? "opacity-80 scale-105" : ""
       } ${isResizing ? "select-none" : ""}`}
       style={{
         width: livePosition.current.width,
@@ -379,13 +407,50 @@ export function ContentBlock({ block }: ContentBlockProps) {
         transform: `translate3d(${livePosition.current.x}px, ${livePosition.current.y}px, 0) rotate(${livePosition.current.rotation}deg)`,
       }}
     >
-      {/* Resize Handle */}
-      <div 
-        className="absolute -bottom-2 -right-2 w-6 h-6 gradient-button rounded-full cursor-se-resize opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center" 
-        onMouseDown={handleResizeMouseDown}
-      >
-        <div className="w-2 h-2 border-r-2 border-b-2 border-white/50"></div>
-      </div>
+      {/* Dedicated Move Grip - Top Bar */}
+      <div
+        onPointerDown={startMove}
+        onPointerMove={moveBlock}
+        onPointerUp={endMove}
+        className={`absolute top-0 left-0 w-full h-8 rounded-t-2xl cursor-grab transition-all ${
+          isDragging ? "cursor-grabbing" : ""
+        }`}
+        style={{
+          background: `linear-gradient(135deg, 
+            ${getBlockColor().includes('red') ? 'rgba(239, 68, 68, 0.1)' : 
+              getBlockColor().includes('blue') ? 'rgba(59, 130, 246, 0.1)' : 
+              getBlockColor().includes('green') ? 'rgba(34, 197, 94, 0.1)' : 
+              getBlockColor().includes('yellow') ? 'rgba(245, 158, 11, 0.1)' : 
+              getBlockColor().includes('purple') ? 'rgba(168, 85, 247, 0.1)' : 
+              'rgba(107, 114, 128, 0.1)'} 0%, 
+            rgba(0, 0, 0, 0.02) 100%)`
+        }}
+      />
+
+      {/* Resize Handles - 8 directional handles */}
+      {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((direction) => (
+        <div
+          key={direction}
+          className={`absolute w-2 h-2 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+            isResizing ? 'opacity-100' : ''
+          }`}
+          style={{
+            cursor: getResizeCursor(direction),
+            ...(direction === 'nw' && { top: -4, left: -4 }),
+            ...(direction === 'n' && { top: -4, left: '50%', transform: 'translateX(-50%)' }),
+            ...(direction === 'ne' && { top: -4, right: -4 }),
+            ...(direction === 'e' && { top: '50%', right: -4, transform: 'translateY(-50%)' }),
+            ...(direction === 'se' && { bottom: -4, right: -4 }),
+            ...(direction === 's' && { bottom: -4, left: '50%', transform: 'translateX(-50%)' }),
+            ...(direction === 'sw' && { bottom: -4, left: -4 }),
+            ...(direction === 'w' && { top: '50%', left: -4, transform: 'translateY(-50%)' }),
+          }}
+          onPointerDown={(e) => startResize(e, direction)}
+        />
+      ))}
+
+      {/* Content Area */}
+      <div className="p-4 pt-12 h-full">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -418,9 +483,10 @@ export function ContentBlock({ block }: ContentBlockProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1">
-        {renderContent()}
+        {/* Content */}
+        <div className="flex-1">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );
