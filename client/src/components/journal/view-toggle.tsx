@@ -14,7 +14,7 @@ export function ViewToggle() {
   ];
 
   return (
-    <div className="flex items-center space-x-1 glass-card p-2 rounded-2xl">
+    <div className="flex items-center space-x-1 neumorphic-card p-2 rounded-2xl">
       {views.map(({ mode, label, icon: Icon }) => (
         <Button
           key={mode}

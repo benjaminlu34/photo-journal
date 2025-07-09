@@ -73,7 +73,7 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="w-80 glass-card border-r border-white/10 flex flex-col">
+    <div className="w-80 neumorphic-card border-r border-white/10 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center space-x-4 mb-4">

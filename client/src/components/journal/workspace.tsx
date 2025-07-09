@@ -88,7 +88,7 @@ export function JournalWorkspace() {
   if (!currentEntry) {
     return (
       <div className="flex-1 flex items-center justify-center relative">
-        <div className="text-center glass-card p-12 rounded-2xl max-w-md mx-auto animate-float">
+        <div className="text-center neumorphic-card p-12 rounded-2xl max-w-md mx-auto">
           <div className="w-20 h-20 gradient-button rounded-full flex items-center justify-center mx-auto mb-6 animate-glow">
             <Plus className="w-10 h-10 text-white" />
           </div>
@@ -126,7 +126,7 @@ export function JournalWorkspace() {
 
       {/* Drop Zone Indicator */}
       {isOver && (
-        <div className="absolute inset-4 glass-card border-2 border-dashed border-primary-400/50 rounded-3xl flex items-center justify-center animate-glow">
+        <div className="absolute inset-4 neumorphic-card border-2 border-dashed border-primary-400/50 rounded-3xl flex items-center justify-center animate-glow">
           <div className="text-center">
             <Plus className="w-16 h-16 text-primary-400 mx-auto mb-4 animate-bounce-gentle" />
             <p className="text-white font-semibold text-xl">Drop your content here</p>
