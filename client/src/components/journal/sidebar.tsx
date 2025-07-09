@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronLeft, ChevronRight, Heart, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, CalendarDays, Calendar } from "lucide-react";
 
 export function JournalSidebar() {
   const { currentDate, setCurrentDate, friends } = useJournal();
@@ -76,13 +76,34 @@ export function JournalSidebar() {
     <div className="w-80 bg-surface-elevated border-r border-purple-100 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-border/20">
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold text-lg">
-            <Heart className="w-6 h-6" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 rounded-xl neu-button flex items-center justify-center text-white font-semibold text-lg">
+              <Heart className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
+              <p className="text-sm text-muted-foreground">Express yourself beautifully ✨</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
-            <p className="text-sm text-muted-foreground">Express yourself beautifully ✨</p>
+          <div className="flex space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="neu-card px-3 py-2 text-gray-700"
+              onClick={() => window.location.href = "/api/logout"}
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              Calendar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="neu-card px-3 py-2 text-gray-700"
+              onClick={() => window.location.href = "/api/logout"}
+            >
+              Logout
+            </Button>
           </div>
         </div>
       </div>
@@ -97,7 +118,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neu-button text-white"
+              className="w-10 h-10 p-0 neu-card text-gray-700"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -105,7 +126,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neu-button text-white"
+              className="w-10 h-10 p-0 neu-card text-gray-700"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />
@@ -114,7 +135,7 @@ export function JournalSidebar() {
         </div>
 
         {/* Mini Calendar */}
-        <div className="grid grid-cols-7 gap-1 text-center text-sm mb-4">
+        <div className="grid grid-cols-7 gap-2 text-center text-sm mb-4">
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
             <div key={`weekday-${index}`} className="text-muted-foreground font-semibold py-2">
               {day}
@@ -124,14 +145,14 @@ export function JournalSidebar() {
           {getDaysInMonth().map((date, index) => (
             <div
               key={index}
-              className={`py-2 cursor-pointer rounded-lg transition-all ${
+              className={`h-10 w-10 mx-auto flex items-center justify-center cursor-pointer rounded-xl transition-all ${
                 !date
                   ? ""
                   : isSelected(date)
-                  ? "gradient-button text-white font-bold animate-glow"
+                  ? "neu-button active text-white font-bold"
                   : isToday(date)
-                  ? "neu-button text-white font-semibold"
-                  : "text-muted-foreground hover:neu-button hover:text-white interactive"
+                  ? "neu-card border-2 border-purple-300 text-purple-700 font-semibold"
+                  : "text-muted-foreground hover:neu-card hover:text-purple-700 interactive"
               }`}
               onClick={() => date && setCurrentDate(date)}
             >

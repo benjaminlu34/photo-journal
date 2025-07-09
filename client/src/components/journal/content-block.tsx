@@ -394,7 +394,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
   return (
     <div
       ref={blockRef}
-      className={`absolute rounded-2xl transition-all group interactive ${getBlockColor()} ${
+      className={`absolute rounded-2xl transition-all group interactive ${getBlockColor()} hover:sticky-note ${
         isDragging ? "opacity-80 scale-105" : ""
       } ${isResizing ? "select-none" : ""}`}
       style={{

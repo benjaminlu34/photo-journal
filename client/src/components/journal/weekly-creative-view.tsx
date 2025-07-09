@@ -59,7 +59,7 @@ export function WeeklyCreativeView() {
   };
 
   return (
-    <div className="flex-1 p-6 bg-white">
+    <div className="flex-1 p-6 bg-surface">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -74,7 +74,7 @@ export function WeeklyCreativeView() {
             variant="outline"
             size="sm"
             onClick={() => navigateWeek("prev")}
-            className="neumorphic-button"
+            className="neu-card text-gray-700"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -82,7 +82,7 @@ export function WeeklyCreativeView() {
             variant="outline"
             size="sm"
             onClick={() => setCurrentWeek(new Date())}
-            className="neumorphic-button"
+            className="neu-nav-pill text-gray-700"
           >
             This Week
           </Button>
@@ -90,7 +90,7 @@ export function WeeklyCreativeView() {
             variant="outline"
             size="sm"
             onClick={() => navigateWeek("next")}
-            className="neumorphic-button"
+            className="neu-card text-gray-700"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
@@ -112,7 +112,7 @@ export function WeeklyCreativeView() {
             >
               {/* Day Card */}
               <div 
-                className="neumorphic-content-block p-6 min-h-[350px] flex flex-col cursor-pointer hover:shadow-floating transition-all"
+                className="neu-card p-6 min-h-[350px] flex flex-col cursor-pointer hover:shadow-neu-active transition-all"
                 onClick={() => {
                   setCurrentDate(day);
                   setViewMode("daily");
@@ -149,7 +149,7 @@ export function WeeklyCreativeView() {
                     size="sm"
                     variant="outline"
                     onClick={() => addCreativeContent(day, "photo")}
-                    className="neumorphic-button text-xs justify-start"
+                    className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Camera className="w-3 h-3 mr-2" />
                     Capture Memory
@@ -158,7 +158,7 @@ export function WeeklyCreativeView() {
                     size="sm"
                     variant="outline"
                     onClick={() => addCreativeContent(day, "drawing")}
-                    className="neumorphic-button text-xs justify-start"
+                    className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Palette className="w-3 h-3 mr-2" />
                     Draw Something
@@ -167,7 +167,7 @@ export function WeeklyCreativeView() {
                     size="sm"
                     variant="outline"
                     onClick={() => addCreativeContent(day, "audio")}
-                    className="neumorphic-button text-xs justify-start"
+                    className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Music className="w-3 h-3 mr-2" />
                     Voice Note
@@ -176,7 +176,7 @@ export function WeeklyCreativeView() {
                     size="sm"
                     variant="outline"
                     onClick={() => addCreativeContent(day, "sticky_note")}
-                    className="neumorphic-button text-xs justify-start"
+                    className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Heart className="w-3 h-3 mr-2" />
                     Quick Thought
@@ -207,7 +207,7 @@ export function WeeklyCreativeView() {
               <Button
                 size="sm"
                 onClick={() => addCreativeContent(day, "sticky_note")}
-                className="absolute -top-2 -right-2 w-8 h-8 p-0 bg-primary-500 text-white rounded-full shadow-floating opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                className="absolute -top-2 -right-2 w-8 h-8 p-0 neu-button text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -217,7 +217,7 @@ export function WeeklyCreativeView() {
       </div>
 
       {/* Weekly Creative Summary */}
-      <div className="mt-8 neumorphic-panel p-6">
+      <div className="mt-8 neu-card p-6">
         <h3 className="text-lg font-semibold text-secondary-800 mb-4 flex items-center">
           <Heart className="w-5 h-5 text-primary-500 mr-2" />
           This Week's Creative Journey
