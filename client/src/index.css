@@ -203,6 +203,10 @@
     background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%);
   }
 
+  body.user-select-none {
+    user-select: none !important;
+  }
+
   /* Old utilities kept for compatibility */
 
   .glass-morphism {

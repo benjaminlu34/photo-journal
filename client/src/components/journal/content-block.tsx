@@ -65,6 +65,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
     if (e.button !== 0 || isEditing || isResizing) return;
     
     e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    document.body.classList.add('user-select-none');
     setIsDragging(true);
     
     // Cache workspace geometry once per drag
@@ -84,6 +86,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const moveBlock = (e: PointerEvent) => {
     if (!isDragging || !workspaceRect.current) return;
     
+    e.preventDefault(); // suppress browser drag-select fallback
     const newX = e.clientX - workspaceRect.current.left - dragOffset.current.x;
     const newY = e.clientY - workspaceRect.current.top - dragOffset.current.y;
     
@@ -103,6 +106,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
     
     document.removeEventListener('pointermove', moveBlock as any);
     document.removeEventListener('pointerup', endMove as any);
+    document.body.classList.remove('user-select-none');
     setIsDragging(false);
     workspaceRect.current = null;
     
@@ -301,48 +305,100 @@ export function ContentBlock({ block }: ContentBlockProps) {
 
       case "photo":
         return (
-          <div className="space-y-2">
+          <div className="h-full relative">
             {block.content.url ? (
-              <div className="space-y-2">
+              <div className="relative h-full group/photo overflow-hidden rounded-lg">
                 <img 
                   src={block.content.url} 
                   alt={block.content.caption || "Photo"} 
-                  className="w-full h-32 object-cover rounded-lg shadow-soft"
+                  className="w-full h-full object-cover"
                 />
-                {isEditing && (
-                  <input
-                    type="text"
-                    placeholder="Add caption..."
-                    value={editContent.caption || ""}
-                    onChange={(e) => setEditContent({ ...editContent, caption: e.target.value })}
-                    className="w-full text-xs p-1 border rounded"
-                  />
-                )}
-                {!isEditing && block.content.caption && (
-                  <p className="text-xs text-secondary-600">{block.content.caption}</p>
+                {isEditing ? (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/80 p-3">
+                    <input
+                      type="text"
+                      placeholder="Add caption..."
+                      value={editContent.caption || ""}
+                      onChange={(e) => setEditContent({ ...editContent, caption: e.target.value })}
+                      className="w-full bg-transparent text-white text-sm placeholder-gray-300 border-none outline-none mb-2"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveContent();
+                        if (e.key === 'Escape') setIsEditing(false);
+                      }}
+                    />
+                    <div className="flex justify-end space-x-2">
+                      <Button size="sm" onClick={saveContent} className="text-xs py-1 px-3 neu-button">Save</Button>
+                      <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="text-xs py-1 px-3">Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {block.content.caption && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white p-3">
+                        <p className="text-sm font-medium">{block.content.caption}</p>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover/photo:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                      <div className="opacity-0 group-hover/photo:opacity-100 transition-opacity duration-200 flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-white/90 hover:bg-white text-black text-xs py-1 px-3"
+                          onClick={() => setIsEditing(true)}
+                        >
+                          {block.content.caption ? "Edit" : "Caption"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="bg-white/90 hover:bg-white text-black text-xs py-1 px-3"
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (file) {
+                                const url = URL.createObjectURL(file);
+                                updateContentBlock(block.id, { 
+                                  content: { ...block.content, url, fileName: file.name } 
+                                });
+                              }
+                            };
+                            input.click();
+                          }}
+                        >
+                          Replace
+                        </Button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
-              <div className="border-2 border-dashed border-primary-300 rounded-lg p-4 text-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
+              <div 
+                className="border-2 border-dashed border-primary-300 rounded-lg h-full flex flex-col justify-center items-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/30 transition-colors group"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
                     if (file) {
                       const url = URL.createObjectURL(file);
                       updateContentBlock(block.id, { 
                         content: { ...block.content, url, fileName: file.name } 
                       });
                     }
-                  }}
-                  className="hidden"
-                  id={`photo-upload-${block.id}`}
-                />
-                <label htmlFor={`photo-upload-${block.id}`} className="cursor-pointer">
-                  <div className="text-primary-500 text-2xl mb-2">📸</div>
-                  <p className="text-xs text-secondary-500">Click to upload photo</p>
-                </label>
+                  };
+                  input.click();
+                }}
+              >
+                <div className="text-primary-500 text-5xl mb-3 group-hover:scale-110 transition-transform">📸</div>
+                <p className="text-sm font-semibold text-primary-700 mb-1">Upload Photo</p>
+                <p className="text-xs text-secondary-500">JPG, PNG, or GIF</p>
+                <p className="text-xs text-secondary-400 mt-2">Click to browse files</p>
               </div>
             )}
           </div>
@@ -350,42 +406,148 @@ export function ContentBlock({ block }: ContentBlockProps) {
 
       case "audio":
         return (
-          <div className="space-y-2">
+          <div className="h-full flex flex-col">
             {block.content.url ? (
-              <div className="flex items-center space-x-3">
-                <Button size="sm" variant="outline" className="w-8 h-8 p-0 neu-button text-white">
-                  <Play className="w-3 h-3" />
-                </Button>
-                <div className="flex-1">
-                  <div className="bg-primary-200 h-2 rounded-full overflow-hidden shadow-soft-inset">
-                    <div className="bg-primary-500 h-full w-1/3 rounded-full"></div>
+              <div className="flex-1 flex flex-col justify-center space-y-4 p-2">
+                <div className="flex items-center justify-center">
+                  <div className="neu-card p-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100">
+                    <div className="text-4xl mb-2 text-center">🎤</div>
+                    <p className="text-sm font-semibold text-center text-purple-700">
+                      {block.content.fileName || "Audio Recording"}
+                    </p>
                   </div>
-                  <p className="text-xs text-primary-700 mt-1">
-                    {block.content.duration || "0:00"}
-                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="w-10 h-10 p-0 neu-button rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white border-none hover:scale-110 transition-transform"
+                  >
+                    <Play className="w-4 h-4" />
+                  </Button>
+                  <div className="flex-1">
+                    <div className="bg-gradient-to-r from-purple-200 to-blue-200 h-3 rounded-full overflow-hidden shadow-neu-inset">
+                      <div className="bg-gradient-to-r from-purple-500 to-blue-500 h-full w-1/3 rounded-full transition-all duration-300"></div>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <p className="text-xs text-purple-600 font-medium">0:23</p>
+                      <p className="text-xs text-gray-500">{block.content.duration || "1:45"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs text-gray-500 hover:text-purple-600"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'audio/*';
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          updateContentBlock(block.id, { 
+                            content: { ...block.content, url, fileName: file.name, duration: "0:00" } 
+                          });
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    Replace Audio
+                  </Button>
                 </div>
               </div>
             ) : (
-              <div className="border-2 border-dashed border-primary-300 rounded-lg p-4 text-center">
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
+              <div 
+                className="h-full border-2 border-dashed border-purple-300 rounded-lg flex flex-col justify-center items-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors group"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'audio/*';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
                     if (file) {
                       const url = URL.createObjectURL(file);
-                      updateContentBlock(block.id, { 
-                        content: { ...block.content, url, fileName: file.name, duration: "0:00" } 
+                      const audio = new Audio(url);
+                      audio.addEventListener('loadedmetadata', () => {
+                        const minutes = Math.floor(audio.duration / 60);
+                        const seconds = Math.floor(audio.duration % 60);
+                        const duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        updateContentBlock(block.id, { 
+                          content: { ...block.content, url, fileName: file.name, duration } 
+                        });
                       });
                     }
-                  }}
-                  className="hidden"
-                  id={`audio-upload-${block.id}`}
-                />
-                <label htmlFor={`audio-upload-${block.id}`} className="cursor-pointer">
-                  <div className="text-primary-500 text-2xl mb-2">🎤</div>
-                  <p className="text-xs text-secondary-500">Click to upload audio</p>
-                </label>
+                  };
+                  input.click();
+                }}
+              >
+                <div className="text-purple-500 text-5xl mb-3 group-hover:scale-110 transition-transform">🎤</div>
+                <p className="text-sm font-semibold text-purple-700 mb-1">Upload Audio</p>
+                <p className="text-xs text-secondary-500 mb-2">MP3, WAV, or M4A</p>
+                <div className="flex items-center space-x-2 text-xs text-secondary-400">
+                  <span>Record or upload</span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case "drawing":
+        return (
+          <div className="h-full relative">
+            {block.content.strokes && block.content.strokes.length > 0 ? (
+              <div className="h-full neu-card rounded-lg overflow-hidden group/drawing">
+                <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
+                  {block.content.strokes.map((stroke: any, index: number) => (
+                    <path
+                      key={index}
+                      d={stroke.path}
+                      stroke={stroke.color || "#4f46e5"}
+                      strokeWidth={stroke.width || 2}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                </svg>
+                <div className="absolute inset-0 bg-black/0 group-hover/drawing:bg-black/10 transition-all duration-200 flex items-center justify-center">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="opacity-0 group-hover/drawing:opacity-100 transition-opacity bg-white/90 hover:bg-white text-black text-xs py-1 px-3"
+                    onClick={() => {
+                      // Placeholder for drawing editor
+                      updateContentBlock(block.id, { 
+                        content: { ...block.content, strokes: [] } 
+                      });
+                    }}
+                  >
+                    Edit Drawing
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="h-full border-2 border-dashed border-green-300 rounded-lg flex flex-col justify-center items-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors group"
+                onClick={() => {
+                  // Create a simple drawing placeholder
+                  const sampleStrokes = [
+                    { path: "M50,150 Q150,50 250,150 T350,150", color: "#10b981", width: 3 },
+                    { path: "M100,200 L150,100 L200,200 L250,100 L300,200", color: "#3b82f6", width: 2 }
+                  ];
+                  updateContentBlock(block.id, { 
+                    content: { ...block.content, strokes: sampleStrokes } 
+                  });
+                }}
+              >
+                <div className="text-green-500 text-5xl mb-3 group-hover:scale-110 transition-transform">🎨</div>
+                <p className="text-sm font-semibold text-green-700 mb-1">Create Drawing</p>
+                <p className="text-xs text-secondary-500 mb-2">Sketch, doodle, or diagram</p>
+                <p className="text-xs text-secondary-400">Click to start drawing</p>
               </div>
             )}
           </div>
@@ -399,9 +561,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
   return (
     <div
       ref={blockRef}
-      className={`absolute rounded-2xl transition-all group interactive ${getBlockColor()} hover:sticky-note ${
+      className={`absolute rounded-2xl group interactive ${getBlockColor()} hover:sticky-note ${
         isDragging ? "opacity-80 scale-105" : ""
-      } ${isResizing ? "select-none" : ""}`}
+      } ${isResizing ? "select-none" : ""} ${
+        !isDragging && !isResizing ? "transition-shadow duration-200" : ""
+      }`}
       style={{
         width: livePosition.current.width,
         height: livePosition.current.height,

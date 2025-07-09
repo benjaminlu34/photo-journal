@@ -133,6 +133,12 @@ Preferred communication style: Simple, everyday language.
 - `REPL_ID`: Replit environment identifier
 - `ISSUER_URL`: OIDC provider URL for authentication
 
+### Recent Changes (July 2025)
+- **Drag System Overhaul**: Fixed jump-to-upper-left bug, improved responsiveness with document event listeners, enhanced performance with proper RAF handling
+- **Upload System Enhancement**: Made all form factors (photo, audio, drawing) fully functional with improved UI/UX
+- **Anti-Selection System**: Added user-select-none during drag operations to prevent text selection issues
+- **Visual Improvements**: Enhanced upload interfaces with hover states, progress indicators, and better file handling
+
 ### Scalability Considerations
 - Stateless server design enables horizontal scaling
 - PostgreSQL connection pooling for database efficiency
