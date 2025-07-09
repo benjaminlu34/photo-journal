@@ -75,8 +75,8 @@ export function WeeklyCalendarView() {
           return (
             <div
               key={day.toISOString()}
-              className={`neumorphic-content-block p-4 flex flex-col min-h-[300px] cursor-pointer hover:shadow-floating transition-all ${
-                isSelected ? "ring-2 ring-primary-500" : ""
+              className={`bg-white p-4 flex flex-col min-h-[300px] cursor-pointer hover:shadow-lg transition-all rounded-lg border border-purple-100 ${
+                isSelected ? "ring-2 ring-purple-500" : ""
               }`}
               onClick={() => {
                 setCurrentDate(day);

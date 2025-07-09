@@ -45,17 +45,15 @@ export function MonthlyView() {
   };
 
   return (
-    <div className="flex-1 p-6" style={{
-      background: "linear-gradient(135deg, hsl(220, 14%, 98%) 0%, hsl(249, 75%, 99%) 50%, hsl(270, 50%, 98%) 100%)"
-    }}>
+    <div className="flex-1 p-6 bg-white">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-3xl font-bold text-secondary-800 flex items-center">
-            <Calendar className="w-8 h-8 text-primary-500 mr-3" />
+          <h2 className="text-3xl font-bold text-gray-800 flex items-center">
+            <Calendar className="w-8 h-8 text-purple-500 mr-3" />
             {format(currentMonth, "MMMM yyyy")}
           </h2>
-          <p className="text-secondary-500 mt-1">Your month of memories and moments</p>
+          <p className="text-gray-600 mt-1">Your month of memories and moments</p>
         </div>
         <div className="flex items-center space-x-2">
           <Button

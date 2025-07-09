@@ -59,17 +59,15 @@ export function WeeklyCreativeView() {
   };
 
   return (
-    <div className="flex-1 p-6" style={{
-      background: "linear-gradient(135deg, hsl(270, 50%, 98%) 0%, hsl(249, 75%, 99%) 50%, hsl(220, 14%, 97%) 100%)"
-    }}>
+    <div className="flex-1 p-6 bg-white">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-secondary-800 flex items-center">
-            <Palette className="w-7 h-7 text-primary-500 mr-3" />
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+            <Palette className="w-7 h-7 text-purple-500 mr-3" />
             Creative Week
           </h2>
-          <p className="text-secondary-500 mt-1">{format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}</p>
+          <p className="text-gray-600 mt-1">{format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}</p>
         </div>
         <div className="flex items-center space-x-2">
           <Button

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [localPosition, setLocalPosition] = useState(block.position);
   const blockRef = useRef<HTMLDivElement>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [{ isDragging: dragMonitor }, drag] = useDrag({
     type: "content-block",
@@ -56,6 +58,28 @@ export function ContentBlock({ block }: ContentBlockProps) {
     setIsDragging(dragMonitor);
   }, [dragMonitor]);
 
+  // Debounced position update function
+  const debouncedUpdatePosition = useCallback((newPosition: Position) => {
+    setLocalPosition(newPosition);
+    
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    updateTimeoutRef.current = setTimeout(() => {
+      updateBlockPosition(block.id, newPosition);
+    }, 150); // 150ms debounce
+  }, [block.id, updateBlockPosition]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Handle manual dragging
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isEditing || isResizing) return;
@@ -76,17 +100,25 @@ export function ContentBlock({ block }: ContentBlockProps) {
       const newX = e.clientX - workspaceRect.left - dragOffset.x;
       const newY = e.clientY - workspaceRect.top - dragOffset.y;
       
-      updateBlockPosition(block.id, {
-        ...block.position,
-        x: Math.max(0, Math.min(newX, workspaceRect.width - block.position.width)),
-        y: Math.max(0, Math.min(newY, workspaceRect.height - block.position.height))
-      });
+      const newPosition = {
+        ...localPosition,
+        x: Math.max(0, Math.min(newX, workspaceRect.width - localPosition.width)),
+        y: Math.max(0, Math.min(newY, workspaceRect.height - localPosition.height))
+      };
+      
+      debouncedUpdatePosition(newPosition);
     };
     
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       setIsDragging(false);
+      
+      // Force final update on mouse up
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateBlockPosition(block.id, localPosition);
+      }
     };
     
     document.addEventListener('mousemove', handleMouseMove);
@@ -99,24 +131,32 @@ export function ContentBlock({ block }: ContentBlockProps) {
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = block.position.width;
-    const startHeight = block.position.height;
+    const startWidth = localPosition.width;
+    const startHeight = localPosition.height;
     
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = Math.max(150, startWidth + (e.clientX - startX));
       const newHeight = Math.max(100, startHeight + (e.clientY - startY));
       
-      updateBlockPosition(block.id, {
-        ...block.position,
+      const newPosition = {
+        ...localPosition,
         width: newWidth,
         height: newHeight
-      });
+      };
+      
+      debouncedUpdatePosition(newPosition);
     };
     
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       setIsResizing(false);
+      
+      // Force final update on mouse up
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateBlockPosition(block.id, localPosition);
+      }
     };
     
     document.addEventListener('mousemove', handleMouseMove);
@@ -130,7 +170,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
   };
 
   const resetRotation = () => {
-    updateBlockPosition(block.id, { ...block.position, rotation: 0 });
+    const newPosition = { ...localPosition, rotation: 0 };
+    setLocalPosition(newPosition);
+    updateBlockPosition(block.id, newPosition);
   };
 
   const getBlockColor = () => {
@@ -349,11 +391,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
         isDragging ? "opacity-80 scale-105 cursor-grabbing" : "cursor-grab"
       } ${isResizing ? "select-none" : ""}`}
       style={{
-        left: block.position.x,
-        top: block.position.y,
-        width: block.position.width,
-        height: block.position.height,
-        transform: `rotate(${block.position.rotation}deg)`,
+        left: localPosition.x,
+        top: localPosition.y,
+        width: localPosition.width,
+        height: localPosition.height,
+        transform: `rotate(${localPosition.rotation}deg)`,
         zIndex: isDragging || isResizing ? 1000 : 1,
       }}
     >
