@@ -50,7 +50,7 @@ export function JournalWorkspace() {
       }
     },
     collect: (monitor) => ({
-      isOver: monitor.isOver(),
+      isOver: false, // Disable the drop zone overlay
     }),
   });
 
@@ -110,7 +110,10 @@ export function JournalWorkspace() {
         drop(node);
       }}
       data-workspace="true"
-      className={`flex-1 relative overflow-hidden min-h-screen ${isOver ? "bg-primary/10" : ""}`}
+      className="flex-1 relative overflow-hidden min-h-screen bg-white"
+      style={{
+        background: "linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 0.8) 100%)"
+      }}
     >
       {/* Content Blocks */}
       {currentEntry.contentBlocks.map((block) => (
@@ -120,21 +123,10 @@ export function JournalWorkspace() {
       {/* Floating Add Button */}
       <Button
         onClick={addQuickNote}
-        className="fixed bottom-8 right-96 w-16 h-16 gradient-button rounded-full group z-50 animate-glow"
+        className="fixed bottom-8 right-96 w-16 h-16 gradient-button rounded-full group z-50 shadow-lg hover:shadow-xl transition-all duration-300"
       >
         <Plus className="w-8 h-8 text-white group-hover:rotate-90 transition-transform duration-300" />
       </Button>
-
-      {/* Drop Zone Indicator */}
-      {isOver && (
-        <div className="absolute inset-4 neumorphic-card border-2 border-dashed border-primary/50 rounded-3xl flex items-center justify-center">
-          <div className="text-center">
-            <Plus className="w-16 h-16 text-primary mx-auto mb-4" />
-            <p className="text-foreground font-semibold text-xl">Drop your content here</p>
-            <p className="text-muted-foreground mt-2">Create something beautiful</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

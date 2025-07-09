@@ -53,11 +53,11 @@ function HomeContent() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-primary-100 px-8 py-4 shadow-soft">
+        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
-              <h2 className="text-2xl font-bold text-secondary-800">Daily Pinboard</h2>
-              <p className="text-secondary-500">
+              <h2 className="text-2xl font-bold text-gray-800">Daily Pinboard</h2>
+              <p className="text-gray-600">
                 {currentDate.toLocaleDateString("en-US", { 
                   weekday: "long", 
                   month: "long", 
@@ -73,7 +73,7 @@ function HomeContent() {
             <div className="flex items-center space-x-4">
               <Button
                 variant="outline"
-                className="px-4 py-2 rounded-xl text-secondary-600 font-medium hover:text-primary-600 transition-colors neumorphic-button"
+                className="px-4 py-2 rounded-xl text-gray-600 font-medium hover:text-purple-600 transition-colors neumorphic-button"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
@@ -82,7 +82,7 @@ function HomeContent() {
               <Button
                 variant="outline"
                 onClick={() => window.location.href = "/api/logout"}
-                className="text-secondary-600 hover:text-red-600"
+                className="text-gray-600 hover:text-red-600 neumorphic-button"
               >
                 Logout
               </Button>

@@ -38,12 +38,12 @@ function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButton
   return (
     <button
       ref={drag}
-      className={`w-full flex items-center space-x-3 p-4 rounded-xl glass-button interactive ${
+      className={`w-full flex items-center space-x-3 p-4 rounded-xl bg-purple-50 hover:bg-purple-100 transition-all duration-200 shadow-lg hover:shadow-xl ${
         isDragging ? "opacity-50 scale-95" : ""
       }`}
     >
       <Icon className={`w-5 h-5 ${color} filter drop-shadow-md`} />
-      <span className="text-sm font-semibold text-white">{label}</span>
+      <span className="text-sm font-semibold text-gray-800">{label}</span>
     </button>
   );
 }
@@ -113,56 +113,56 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="w-80 neumorphic-card border-l border-white/10 flex flex-col">
+    <div className="w-80 bg-white border-l border-purple-100 flex flex-col shadow-xl">
       {/* Header Tabs */}
-      <div className="border-b border-white/10 p-6">
+      <div className="border-b border-purple-100 p-6">
         <div className="flex items-center space-x-4">
           <Button
             size="sm"
-            className="gradient-button text-white font-semibold px-4 py-2 rounded-xl"
+            className="gradient-button text-white font-semibold px-4 py-2 rounded-xl shadow-lg"
           >
             <FolderOpen className="w-4 h-4 mr-2" />
             <span>Content Library</span>
           </Button>
-          <span className="text-white/40">|</span>
-          <div className="flex items-center space-x-2 text-white/60">
-            <span className="text-sm font-medium glass-button px-2 py-1 rounded">M</span>
-            <span className="text-sm font-medium glass-button px-2 py-1 rounded">T</span>
+          <span className="text-gray-400">|</span>
+          <div className="flex items-center space-x-2 text-gray-600">
+            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">M</span>
+            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">T</span>
             <span className="text-sm font-medium gradient-button px-2 py-1 rounded text-white">W</span>
           </div>
         </div>
 
         {/* Search */}
         <div className="mt-6 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-white/40" />
+          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
           <Input
             type="text"
             placeholder="Search your content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 glass-button text-white placeholder:text-white/50 border-white/20 focus:border-primary-400 bg-transparent"
+            className="pl-10 bg-gray-50 text-gray-800 placeholder:text-gray-500 border-gray-200 focus:border-primary-400"
           />
         </div>
       </div>
 
       {/* Recent Entries */}
-      <div className="p-6 border-b border-white/10">
-        <h3 className="font-bold text-white mb-4 flex items-center">
-          <Clock className="w-4 h-4 text-primary-400 mr-2" />
+      <div className="p-6 border-b border-purple-100">
+        <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+          <Clock className="w-4 h-4 text-purple-500 mr-2" />
           Recent Entries
         </h3>
         <div className="space-y-3">
           {recentEntries.map((entry) => (
             <div
               key={entry.id}
-              className="flex items-start space-x-3 p-3 rounded-xl glass-button interactive cursor-pointer"
+              className="flex items-start space-x-3 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 cursor-pointer transition-colors"
             >
-              <div className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0`}>
+              <div className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-lg`}>
                 <entry.icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-white text-sm">{entry.title}</h4>
-                <p className="text-xs text-white/60 truncate">{entry.description}</p>
+                <h4 className="font-semibold text-gray-800 text-sm">{entry.title}</h4>
+                <p className="text-xs text-gray-600 truncate">{entry.description}</p>
               </div>
             </div>
           ))}
@@ -170,12 +170,12 @@ export function CollaborationPanel() {
       </div>
 
       {/* Content Types */}
-      <div className="p-6 border-b border-white/10">
-        <h3 className="font-bold text-white mb-4 flex items-center">
-          <FolderOpen className="w-4 h-4 text-primary-400 mr-2" />
+      <div className="p-6 border-b border-purple-100">
+        <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+          <FolderOpen className="w-4 h-4 text-purple-500 mr-2" />
           Add Content
         </h3>
-        <p className="text-xs text-white/60 mb-4">Drag these to your journal workspace</p>
+        <p className="text-xs text-gray-600 mb-4">Drag these to your journal workspace</p>
         <div className="space-y-3">
           {contentTypes.map((contentType) => (
             <ContentTypeButton key={contentType.type} {...contentType} />
@@ -185,13 +185,13 @@ export function CollaborationPanel() {
 
       {/* Media Gallery */}
       <div className="p-6 flex-1">
-        <h3 className="font-bold text-white mb-4 flex items-center">
-          <Image className="w-4 h-4 text-primary-400 mr-2" />
+        <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+          <Image className="w-4 h-4 text-purple-500 mr-2" />
           Media Gallery
         </h3>
         <div className="grid grid-cols-2 gap-3 mb-6">
           {mediaItems.map((item) => (
-            <div key={item.id} className="glass-card rounded-lg overflow-hidden interactive">
+            <div key={item.id} className="bg-purple-50 rounded-lg overflow-hidden hover:bg-purple-100 transition-colors shadow-lg">
               <img
                 src={item.url}
                 alt={item.alt}

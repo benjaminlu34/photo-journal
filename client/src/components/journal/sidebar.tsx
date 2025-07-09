@@ -73,9 +73,7 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="w-80 bg-background border-r border-border flex flex-col" style={{
-      background: "linear-gradient(135deg, hsl(250, 50%, 98%) 0%, hsl(270, 50%, 96%) 100%)"
-    }}>
+    <div className="w-80 bg-white border-r border-purple-100 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-border/20">
         <div className="flex items-center space-x-4 mb-4">
