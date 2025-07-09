@@ -85,12 +85,13 @@
 }
 
 @layer utilities {
+
   /* Light Neumorphic Design System */
   .neumorphic-card {
+
     @apply relative;
-    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
     border: 1px solid rgba(99, 102, 241, 0.1);
-    box-shadow: 
+    box-shadow:
       12px 12px 24px rgba(0, 0, 0, 0.12),
       -12px -12px 24px rgba(255, 255, 255, 0.9),
       inset 2px 2px 4px rgba(255, 255, 255, 0.6),
@@ -99,9 +100,9 @@
   }
 
   .neumorphic-card:hover {
-    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted)));
+
     border-color: rgba(99, 102, 241, 0.15);
-    box-shadow: 
+    box-shadow:
       16px 16px 32px rgba(0, 0, 0, 0.15),
       -16px -16px 32px rgba(255, 255, 255, 0.95),
       inset 3px 3px 6px rgba(255, 255, 255, 0.7),
@@ -110,10 +111,11 @@
   }
 
   .neumorphic-button {
+    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
+
     @apply relative cursor-pointer select-none;
-    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
     border: 1px solid rgba(99, 102, 241, 0.1);
-    box-shadow: 
+    box-shadow:
       6px 6px 12px rgba(0, 0, 0, 0.08),
       -6px -6px 12px rgba(255, 255, 255, 0.7),
       inset 1px 1px 2px rgba(255, 255, 255, 0.5);
@@ -121,9 +123,10 @@
   }
 
   .neumorphic-button:hover {
-    background: linear-gradient(145deg, hsl(var(--muted)), hsl(var(--card)));
+    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
+
     border-color: rgba(99, 102, 241, 0.2);
-    box-shadow: 
+    box-shadow:
       8px 8px 16px rgba(0, 0, 0, 0.1),
       -8px -8px 16px rgba(255, 255, 255, 0.8),
       inset 1px 1px 3px rgba(255, 255, 255, 0.6);
@@ -132,9 +135,9 @@
 
   .neumorphic-button:active,
   .neumorphic-pressed {
-    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
+    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
     border-color: rgba(99, 102, 241, 0.25);
-    box-shadow: 
+    box-shadow:
       inset 4px 4px 8px rgba(0, 0, 0, 0.1),
       inset -4px -4px 8px rgba(255, 255, 255, 0.9),
       2px 2px 4px rgba(0, 0, 0, 0.05);
@@ -160,7 +163,7 @@
   .gradient-button {
     background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
     border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow: 
+    box-shadow:
       0 4px 20px rgba(139, 92, 246, 0.3),
       inset 0 1px 1px rgba(255, 255, 255, 0.1);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -168,7 +171,7 @@
 
   .gradient-button:hover {
     transform: translateY(-1px);
-    box-shadow: 
+    box-shadow:
       0 6px 30px rgba(139, 92, 246, 0.4),
       inset 0 1px 1px rgba(255, 255, 255, 0.15);
     filter: brightness(1.1);
@@ -189,40 +192,48 @@
   }
 
   @keyframes gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
   }
 
   /* Content Block Styles - Purple/Blue Theme */
   .content-block-sticky {
-    background: linear-gradient(145deg, 
-      rgba(254, 202, 202, 0.9), 
-      rgba(252, 165, 165, 0.8));
+    background: linear-gradient(145deg,
+        rgba(254, 202, 202, 0.9),
+        rgba(252, 165, 165, 0.8));
     border: 1px solid rgba(239, 68, 68, 0.2);
-    box-shadow: 
+    box-shadow:
       4px 4px 8px rgba(0, 0, 0, 0.08),
       -4px -4px 8px rgba(255, 255, 255, 0.8),
       inset 1px 1px 2px rgba(255, 255, 255, 0.5);
   }
 
   .content-block-coral {
-    background: linear-gradient(145deg, 
-      rgba(196, 181, 253, 0.9), 
-      rgba(167, 139, 250, 0.8));
+    background: linear-gradient(145deg,
+        rgba(196, 181, 253, 0.9),
+        rgba(167, 139, 250, 0.8));
     border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow: 
+    box-shadow:
       4px 4px 8px rgba(0, 0, 0, 0.08),
       -4px -4px 8px rgba(255, 255, 255, 0.8),
       inset 1px 1px 2px rgba(255, 255, 255, 0.5);
   }
 
   .content-block-lavender {
-    background: linear-gradient(145deg, 
-      rgba(221, 214, 254, 0.9), 
-      rgba(196, 181, 253, 0.8));
+    background: linear-gradient(145deg,
+        rgba(221, 214, 254, 0.9),
+        rgba(196, 181, 253, 0.8));
     border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow: 
+    box-shadow:
       4px 4px 8px rgba(0, 0, 0, 0.08),
       -4px -4px 8px rgba(255, 255, 255, 0.8),
       inset 1px 1px 2px rgba(255, 255, 255, 0.5);
@@ -230,9 +241,8 @@
 
   /* Neumorphic Inset Variant for Interactive Elements */
   .neumorphic-inset {
-    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
     border: 1px solid rgba(99, 102, 241, 0.1);
-    box-shadow: 
+    box-shadow:
       inset 4px 4px 8px rgba(0, 0, 0, 0.08),
       inset -4px -4px 8px rgba(255, 255, 255, 0.7);
   }
@@ -247,7 +257,7 @@
   }
 
   .shadow-floating {
-    box-shadow: 
+    box-shadow:
       16px 16px 32px rgba(0, 0, 0, 0.15),
       -16px -16px 32px rgba(255, 255, 255, 0.9),
       inset 1px 1px 3px rgba(255, 255, 255, 0.6);
@@ -328,22 +338,48 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes gentle-bounce {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-4px); }
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-4px);
+    }
   }
 
   @keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
-    50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    }
+
+    50% {
+      box-shadow: 0 0 40px rgba(139, 92, 246, 0.6);
+    }
   }
 }
