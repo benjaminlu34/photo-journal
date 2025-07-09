@@ -89,53 +89,54 @@
   /* Enhanced Neumorphic Design System */
   .neumorphic-card {
     @apply relative;
-    background: rgba(26, 26, 37, 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(139, 92, 246, 0.1);
+    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
+    border: 1px solid rgba(139, 92, 246, 0.08);
     box-shadow: 
-      0 8px 32px rgba(0, 0, 0, 0.3),
-      inset 0 1px 2px rgba(255, 255, 255, 0.05);
+      8px 8px 16px rgba(0, 0, 0, 0.4),
+      -8px -8px 16px rgba(139, 92, 246, 0.02),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.03);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .neumorphic-card:hover {
-    background: rgba(26, 26, 37, 0.9);
-    border-color: rgba(139, 92, 246, 0.2);
+    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted)));
+    border-color: rgba(139, 92, 246, 0.12);
     box-shadow: 
-      0 12px 48px rgba(139, 92, 246, 0.15),
-      inset 0 1px 2px rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
+      12px 12px 24px rgba(0, 0, 0, 0.5),
+      -12px -12px 24px rgba(139, 92, 246, 0.03),
+      inset 1px 1px 3px rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
   }
 
   .neumorphic-button {
     @apply relative cursor-pointer select-none;
-    background: rgba(26, 26, 37, 0.6);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
+    border: 1px solid rgba(139, 92, 246, 0.1);
     box-shadow: 
-      0 4px 16px rgba(0, 0, 0, 0.2),
-      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      6px 6px 12px rgba(0, 0, 0, 0.3),
+      -6px -6px 12px rgba(139, 92, 246, 0.02),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.05);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .neumorphic-button:hover {
-    background: rgba(26, 26, 37, 0.8);
-    border-color: rgba(139, 92, 246, 0.3);
+    background: linear-gradient(145deg, hsl(var(--muted)), hsl(var(--card)));
+    border-color: rgba(139, 92, 246, 0.15);
     box-shadow: 
-      0 8px 24px rgba(139, 92, 246, 0.1),
-      inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      8px 8px 16px rgba(0, 0, 0, 0.4),
+      -8px -8px 16px rgba(139, 92, 246, 0.03),
+      inset 1px 1px 3px rgba(255, 255, 255, 0.08);
     transform: translateY(-1px);
   }
 
   .neumorphic-button:active,
   .neumorphic-pressed {
-    background: rgba(15, 15, 23, 0.8);
-    border-color: rgba(139, 92, 246, 0.4);
+    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
+    border-color: rgba(139, 92, 246, 0.2);
     box-shadow: 
-      inset 0 4px 8px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(139, 92, 246, 0.1);
+      inset 4px 4px 8px rgba(0, 0, 0, 0.4),
+      inset -4px -4px 8px rgba(139, 92, 246, 0.02),
+      2px 2px 4px rgba(0, 0, 0, 0.2);
     transform: translateY(1px);
   }
 
@@ -192,38 +193,47 @@
     100% { background-position: 0% 50%; }
   }
 
-  /* Content Block Styles */
+  /* Content Block Styles with Neumorphic Effects */
   .content-block-sticky {
-    background: linear-gradient(135deg, 
-      rgba(255, 218, 62, 0.9), 
-      rgba(255, 200, 40, 0.9));
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 218, 62, 0.3);
+    background: linear-gradient(145deg, 
+      rgba(255, 218, 62, 0.95), 
+      rgba(255, 200, 40, 0.85));
+    border: 1px solid rgba(255, 218, 62, 0.2);
     box-shadow: 
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(255, 218, 62, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.3),
+      -4px -4px 8px rgba(255, 218, 62, 0.1),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
   }
 
   .content-block-coral {
-    background: linear-gradient(135deg, 
-      rgba(255, 114, 94, 0.9), 
-      rgba(255, 99, 79, 0.9));
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 114, 94, 0.3);
+    background: linear-gradient(145deg, 
+      rgba(255, 114, 94, 0.95), 
+      rgba(255, 99, 79, 0.85));
+    border: 1px solid rgba(255, 114, 94, 0.2);
     box-shadow: 
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(255, 114, 94, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.3),
+      -4px -4px 8px rgba(255, 114, 94, 0.1),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
   }
 
   .content-block-lavender {
-    background: linear-gradient(135deg, 
-      rgba(206, 147, 216, 0.9), 
-      rgba(196, 137, 206, 0.9));
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(206, 147, 216, 0.3);
+    background: linear-gradient(145deg, 
+      rgba(206, 147, 216, 0.95), 
+      rgba(196, 137, 206, 0.85));
+    border: 1px solid rgba(206, 147, 216, 0.2);
     box-shadow: 
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(206, 147, 216, 0.2);
+      4px 4px 8px rgba(0, 0, 0, 0.3),
+      -4px -4px 8px rgba(206, 147, 216, 0.1),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.2);
+  }
+
+  /* Neumorphic Inset Variant for Interactive Elements */
+  .neumorphic-inset {
+    background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
+    border: 1px solid rgba(139, 92, 246, 0.08);
+    box-shadow: 
+      inset 4px 4px 8px rgba(0, 0, 0, 0.3),
+      inset -4px -4px 8px rgba(139, 92, 246, 0.02);
   }
 
   /* Enhanced scrollbars */
