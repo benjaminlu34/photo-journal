@@ -1,0 +1,2060 @@
+# FlowJournal Implementation Documentation v4.0
+**Comprehensive Technical Handoff for Social Journal Application**
+
+---
+
+## Purpose
+This document is a single-source hand-off. Any competent development team or AI agent should be able to re-create, extend, run, and ship FlowJournal from scratch—even without access to the original repository.
+
+## Scope
+Everything: product vision, UX, architecture, infra, data model, code-style, CI/CD, security, compliance, testing, backlog, and known risks.
+
+## Notation
+- **[Unverified]** – figures that require empirical confirmation.
+- **[Speculation]** – well-reasoned but not yet implemented.
+- **TODO** – open tasks referenced in roadmap/backlog.
+
+---
+
+## 0. Table of Contents
+
+1. [Project Snapshot](#1-project-snapshot)
+2. [End-to-End Feature Map & Status Matrix](#2-end-to-end-feature-map--status-matrix)
+3. [Architecture Overview](#3-architecture-overview)
+4. [Codebase Deep Dive](#4-codebase-deep-dive)
+5. [Database & Persistence](#5-database--persistence)
+6. [API Contracts](#6-api-contracts)
+7. [Real-Time Collaboration Engine](#7-real-time-collaboration-engine)
+8. [Front-End UX & Design System](#8-front-end-ux--design-system)
+9. [Testing & Quality Assurance](#9-testing--quality-assurance)
+10. [CI/CD & DevOps](#10-cicd--devops)
+11. [Observability & Operations](#11-observability--operations)
+12. [Security & Compliance](#12-security--compliance)
+13. [Technical Debt Register & Self-Audit](#13-technical-debt-register--self-audit)
+14. [Roadmap & Backlog](#14-roadmap--backlog)
+15. [Onboarding Guide](#15-onboarding-guide)
+16. [Appendices](#16-appendices)
+
+---
+
+## 1. Project Snapshot
+
+### 1.1 Vision & Elevator Pitch (≤ 75 words)
+FlowJournal is a social connection-focused digital journal for college-age friends who want to stay emotionally connected while managing their lives together. Users share memories, plan hangouts, and support each other via intuitive media-rich boards, dual calendar views, and stress-free collaboration with a calming neumorphic design that feels warm and personal, not overwhelming.
+
+### 1.2 Primary User Personas & Key Use Cases
+
+| Persona | Demographics | Primary Use Cases | Pain Points Addressed | Key Features Used |
+|---------|-------------|------------------|---------------------|------------------|
+| **Social Connector Sarah** | 20-22, values relationships, coordinator | • Share daily moments via photos/notes<br>• Plan friend hangouts and dates<br>• See friends' schedules for coordination<br>• Create shared memory boards | • Instagram too performative<br>• Google Calendar too sterile<br>• Wants intimate sharing space | ✅ Photo/media uploads<br>✅ Creative weekly view<br>✅ Collaboration features<br>✅ Dual calendar modes |
+| **Busy College Student Mike** | 19-24, balancing academics & social life | • Quick notes between classes<br>• Track plans with girlfriend/friends<br>• Coordinate study groups<br>• Share authentic moments | • Need something faster than journaling<br>• Want to stay connected despite busy schedule<br>• Existing apps too complex | ✅ Expandable/resizable content<br>✅ Calendar integration ready<br>✅ Quick content creation<br>✅ Mobile-friendly design |
+| **Creative Friend Emma** | 18-25, artistic, values authentic expression | • Create visual memory boards<br>• Share creative projects<br>• Document friendship milestones<br>• Express feelings visually | • Social media feels fake<br>• Want something more personal<br>• Love aesthetic, meaningful interfaces | ✅ Visual content blocks<br>✅ Weekly creative mode<br>✅ Neumorphic design<br>✅ Media-rich sharing |
+
+---
+
+## 2. End-to-End Feature Map & Status Matrix
+
+| Epic | Status | Files / Modules | Notes | Social Connection Impact |
+|------|--------|----------------|-------|-------------------------|
+| **Enhanced Daily Pinboard** | ✅ Done | journal-workspace.tsx, content-block.tsx | Fully functional drag/resize, real data persistence | Critical - Core daily sharing experience |
+| **Dual Weekly Views** | ✅ Done | journal-workspace.tsx, Context API | Calendar mode + Creative mode with functional toggle | High - Schedule coordination + creative sharing |
+| **Interactive Calendar System** | ✅ Done | sidebar-navigation.tsx, Context API | Clickable dates, event display, real state management | Critical - Real schedule coordination with friends |
+| **Content Block Flexibility** | ✅ Done | content-block.tsx, Context API | Drag, resize, expand/shrink, cross-view persistence | High - Personalized workspace expression |
+| **Centralized State Management** | ✅ Done | contexts/AppContext.tsx | React Context + useReducer for global state | Critical - Data consistency across views |
+| **Calming Design System** | ✅ Done | index.css, all components | Muted purple/blue theme, stress-reducing palette | High - Sustainable daily use without fatigue |
+| **Social Collaboration UI** | ✅ Done | sidebar-navigation.tsx, collaboration-panel.tsx | Friend presence, activity feed, shared workspaces | Critical - Connection feeling with loved ones |
+| **Real-time Backend** | ❌ TODO | Backend infrastructure | WebSocket, auth, file storage | Critical - Live collaboration |
+| **Mobile Optimization** | ⚠️ Partial | All components | Touch-friendly but needs testing | High - Mobile-first usage |
+| **Calendar Integration** | ❌ TODO | API adapters | Google/Apple Calendar sync | Critical - Real schedule coordination |
+
+---
+
+## 3. Architecture Overview
+
+### 3.1 System Context Diagram (C4 Level 1)
+
+mermaid
+graph TB
+    Users[College Students & Friend Groups]
+    FlowJournal[FlowJournal Application]
+    GoogleCal[Google Calendar API]
+    AppleCal[Apple Calendar/iCal]
+    FileStorage[Supabase Storage]
+    AuthProvider[NextAuth.js]
+    
+    Users --> FlowJournal
+    FlowJournal --> GoogleCal
+    FlowJournal --> AppleCal
+    FlowJournal --> FileStorage
+    FlowJournal --> AuthProvider
+
+
+### 3.2 Component & Data-Flow (C4 Level 2)
+
+mermaid
+graph LR
+    subgraph "Frontend (React/Next.js)"
+        UI[UI Components]
+        Context[App Context]
+        Hooks[Custom Hooks]
+    end
+    
+    subgraph "Backend APIs"
+        Auth[Authentication]
+        Storage[File Storage]
+        Calendar[Calendar APIs]
+        Realtime[WebSocket Server]
+    end
+    
+    UI --> Context
+    Context --> Hooks
+    Hooks --> Auth
+    Hooks --> Storage
+    Hooks --> Calendar
+    Hooks --> Realtime
+
+
+### 3.3 Runtime Sequence – Real-Time Edit
+
+mermaid
+sequenceDiagram
+    participant User1
+    participant Frontend1
+    participant Context
+    participant WebSocket
+    participant Frontend2
+    participant User2
+    
+    User1->>Frontend1: Drags content block
+    Frontend1->>Context: updateContentBlock()
+    Context->>WebSocket: Broadcast change
+    WebSocket->>Frontend2: Real-time update
+    Frontend2->>User2: UI updates instantly
+
+
+### 3.4 Deployment & Infra Topology
+
+mermaid
+graph TB
+    subgraph "Vercel (Frontend)"
+        NextApp[Next.js Application]
+        StaticAssets[Static Assets]
+    end
+    
+    subgraph "Supabase (Backend)"
+        Database[(PostgreSQL)]
+        Auth[Authentication]
+        Storage[File Storage]
+        Realtime[Real-time Engine]
+    end
+    
+    subgraph "External APIs"
+        Google[Google Calendar]
+        Apple[Apple Calendar]
+    end
+    
+    NextApp --> Database
+    NextApp --> Auth
+    NextApp --> Storage
+    NextApp --> Realtime
+    NextApp --> Google
+    NextApp --> Apple
+
+
+---
+
+## 4. Codebase Deep Dive
+
+### 4.1 Monorepo Structure
+
+flowjournal/
+├── src/
+│   ├── components/
+│   │   ├── ui/                     # Shadcn/UI components
+│   │   └── app/                    # Business logic components
+│   │       ├── content-block.tsx   # Draggable/resizable content
+│   │       ├── journal-workspace.tsx # Main workspace views
+│   │       ├── sidebar-navigation.tsx # Calendar & navigation
+│   │       ├── content-library.tsx # Asset management
+│   │       └── collaboration-panel.tsx # Social features
+│   ├── contexts/
+│   │   └── AppContext.tsx          # Global state management
+│   ├── hooks/
+│   │   ├── use-mobile.tsx         # Mobile detection
+│   │   └── use-outside-click.tsx  # Click outside handling
+│   ├── lib/
+│   │   └── utils.ts               # Utility functions
+│   ├── pages/
+│   │   └── Index.tsx              # Main application page
+│   ├── App.tsx                    # App wrapper with providers
+│   ├── main.tsx                   # Application entry point
+│   └── index.css                  # Design system & styles
+├── public/                        # Static assets
+├── tailwind.config.ts            # Tailwind configuration
+├── tsconfig.json                 # TypeScript configuration
+├── package.json                  # Dependencies & scripts
+└── README.md                     # Setup instructions
+
+
+### 4.2 Key Front-End Modules
+
+#### 4.2.1 AppContext.tsx - State Management
+typescript
+interface AppState {
+  contentBlocks: ContentBlockData[]
+  selectedDate: Date
+  currentView: 'daily' | 'weekly-calendar' | 'weekly-creative' | 'monthly'
+  events: CalendarEvent[]
+  isContentLibraryOpen: boolean
+  isCollaborationOpen: boolean
+  weeklyViewMode: 'calendar' | 'creative'
+}
+
+
+**Key Features:**
+- Centralized state with useReducer
+- Type-safe actions and dispatch
+- Cross-component data persistence
+- Real-time state synchronization ready
+
+#### 4.2.2 ContentBlock.tsx - Interactive Content
+typescript
+interface ContentBlockData {
+  id: string
+  type: 'photo' | 'sticky-note' | 'doodle' | 'audio' | 'checklist' | 'text' | 'document'
+  content: any
+  position: { x: number; y: number }
+  size: { width: number; height: number }
+  sourceColor: 'primary' | 'secondary' | 'sticky-yellow' | etc.
+  date?: Date  // Cross-view persistence
+}
+
+
+**Key Features:**
+- Drag & drop functionality
+- Free resizing with handles
+- Type-specific content rendering
+- Date-based filtering for views
+
+#### 4.2.3 JournalWorkspace.tsx - View Management
+typescript
+// Renders different views based on state.currentView
+- Daily: Interactive pinboard with drag/drop
+- Weekly Calendar: Time-slot grid with events
+- Weekly Creative: Inspiration-based memory layout
+- Monthly: Photo gallery with event indicators
+
+
+### 4.3 Back-End / API Modules
+
+#### 4.3.1 TODO: Authentication (NextAuth.js)
+typescript
+// Planned implementation
+export const authOptions: NextAuthOptions = {
+  providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    // Email/password for backup
+  ],
+  callbacks: {
+    session: ({ session, token }) => ({
+      ...session,
+      user: {
+        ...session.user,
+        id: token.sub,
+      },
+    }),
+  },
+}
+
+
+#### 4.3.2 TODO: File Storage (Supabase)
+typescript
+// Planned file upload implementation
+const uploadFile = async (file: File, userId: string) => {
+  const fileName = `${userId}/${Date.now()}-${file.name}`
+  const { data, error } = await supabase.storage
+    .from('user-content')
+    .upload(fileName, file)
+  
+  return { url: data?.path, error }
+}
+
+
+### 4.4 Shared Packages & Utilities
+
+#### 4.4.1 utils.ts - Helper Functions
+typescript
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// Date utilities for calendar operations
+export const formatDate = (date: Date) => {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+
+### 4.5 Naming Conventions & Linting Rules
+
+#### Component Naming
+- **PascalCase** for components: ContentBlock.tsx
+- **camelCase** for functions: addContentBlock()
+- **kebab-case** for CSS classes: neumorphic-button
+
+#### File Organization
+- Components in /components/app/ for business logic
+- UI primitives in /components/ui/ (Shadcn)
+- Global state in /contexts/
+- Utilities in /lib/
+
+#### TypeScript Standards
+- Strict type checking enabled
+- Interface definitions for all data structures
+- Props interfaces for all components
+- No any types in production code
+
+---
+
+## 5. Database & Persistence
+
+### 5.1 ER Diagram & Prisma Schema
+
+prisma
+// TODO: Planned database schema
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  contentBlocks ContentBlock[]
+  events        Event[]
+  friendships   Friendship[]
+}
+
+model ContentBlock {
+  id          String   @id @default(cuid())
+  type        String   // 'photo', 'sticky-note', etc.
+  content     Json     // Flexible content storage
+  position    Json     // { x: number, y: number }
+  size        Json     // { width: number, height: number }
+  sourceColor String   // Color theme
+  date        DateTime // Associated date
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  color       String?
+  type        String   // 'event', 'reminder', 'birthday'
+  userId      String
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  status    String   // 'pending', 'accepted', 'blocked'
+  createdAt DateTime @default(now())
+  
+  user   User @relation(fields: [userId], references: [id])
+  @@unique([userId, friendId])
+}
+
+
+### 5.2 Migration Workflow
+
+bash
+# Development workflow
+npm run db:generate  # Generate Prisma client
+npm run db:push     # Push schema to database
+npm run db:seed     # Populate with test data
+
+# Production workflow
+npm run db:deploy   # Run migrations in production
+
+
+### 5.3 Seed & Fixture Data Strategy
+
+typescript
+// TODO: Seed data for development
+const seedData = {
+  users: [
+    {
+      name: "Sarah Connor",
+      email: "sarah@example.com",
+      avatar: "/avatars/sarah.jpg"
+    }
+  ],
+  contentBlocks: [
+    {
+      type: "sticky-note",
+      content: "Coffee date with Emma!",
+      position: { x: 100, y: 100 },
+      sourceColor: "sticky-yellow"
+    }
+  ],
+  events: [
+    {
+      title: "Team Meeting",
+      startTime: new Date("2024-07-09T10:00:00"),
+      type: "event"
+    }
+  ]
+}
+
+
+---
+
+## 6. API Contracts
+
+### 6.1 REST Endpoints
+
+typescript
+// TODO: Planned API routes
+GET    /api/content-blocks        // Get user's content blocks
+POST   /api/content-blocks        // Create new content block
+PUT    /api/content-blocks/:id    // Update content block
+DELETE /api/content-blocks/:id    // Delete content block
+
+GET    /api/events               // Get user's events
+POST   /api/events               // Create new event
+PUT    /api/events/:id           // Update event
+DELETE /api/events/:id           // Delete event
+
+GET    /api/friends              // Get friend list
+POST   /api/friends/invite       // Send friend invitation
+PUT    /api/friends/:id/accept   // Accept friend request
+DELETE /api/friends/:id          // Remove friend
+
+POST   /api/upload               // Upload file to storage
+
+
+### 6.2 GraphQL Schema & Resolvers
+
+graphql
+# TODO: Alternative to REST for complex queries
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  contentBlocks: [ContentBlock!]!
+  events: [Event!]!
+  friends: [User!]!
+}
+
+type ContentBlock {
+  id: ID!
+  type: String!
+  content: JSON!
+  position: Position!
+  size: Size!
+  date: DateTime!
+  user: User!
+}
+
+type Query {
+  me: User
+  contentBlocksByDate(date: DateTime!): [ContentBlock!]!
+  eventsInRange(start: DateTime!, end: DateTime!): [Event!]!
+}
+
+type Mutation {
+  createContentBlock(input: ContentBlockInput!): ContentBlock!
+  updateContentBlock(id: ID!, input: ContentBlockInput!): ContentBlock!
+  deleteContentBlock(id: ID!): Boolean!
+}
+
+
+### 6.3 WebSocket Events & Payloads
+
+typescript
+// TODO: Real-time collaboration events
+interface WebSocketEvents {
+  // Content block updates
+  'content-block:created': ContentBlockData
+  'content-block:updated': ContentBlockData
+  'content-block:deleted': { id: string }
+  'content-block:moved': { id: string, position: Position }
+  
+  // User presence
+  'user:joined': { userId: string, userName: string }
+  'user:left': { userId: string }
+  'cursor:moved': { userId: string, position: Position }
+  
+  // Social interactions
+  'comment:added': { contentBlockId: string, comment: Comment }
+  'reaction:added': { contentBlockId: string, emoji: string, userId: string }
+}
+
+
+### 6.4 Calendar Provider Adapters
+
+typescript
+// TODO: External calendar integration
+interface CalendarAdapter {
+  name: 'google' | 'apple' | 'outlook'
+  authenticate(): Promise<AuthToken>
+  getEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]>
+  createEvent(event: CalendarEvent): Promise<CalendarEvent>
+  updateEvent(id: string, event: Partial<CalendarEvent>): Promise<CalendarEvent>
+}
+
+// Google Calendar implementation
+class GoogleCalendarAdapter implements CalendarAdapter {
+  async getEvents(startDate: Date, endDate: Date) {
+    const response = await gapi.client.calendar.events.list({
+      calendarId: 'primary',
+      timeMin: startDate.toISOString(),
+      timeMax: endDate.toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime'
+    })
+    
+    return response.result.items?.map(transformGoogleEvent) || []
+  }
+}
+
+
+---
+
+## 7. Real-Time Collaboration Engine
+
+### 7.1 OT vs CRDT Decision Record
+
+**Decision: Operational Transformation (OT)**
+
+**Rationale:**
+- Simpler implementation for content blocks
+- Better for discrete object updates (move, resize)
+- Sufficient for friend group size (< 20 users)
+
+**Alternative Considered:**
+- CRDT (Conflict-free Replicated Data Types)
+- More complex but better for larger groups
+- Consider for v2.0 if scaling beyond friend groups
+
+### 7.2 Conflict-Resolution Algorithm
+
+typescript
+// TODO: Implement conflict resolution
+interface Operation {
+  id: string
+  type: 'move' | 'resize' | 'edit' | 'delete'
+  contentBlockId: string
+  data: any
+  timestamp: number
+  userId: string
+}
+
+const resolveConflict = (localOp: Operation, remoteOp: Operation): Operation => {
+  // Last-write-wins for simplicity
+  if (remoteOp.timestamp > localOp.timestamp) {
+    return remoteOp
+  }
+  
+  // Special handling for simultaneous moves
+  if (localOp.type === 'move' && remoteOp.type === 'move') {
+    return {
+      ...remoteOp,
+      data: {
+        x: remoteOp.data.x + 10, // Offset to prevent overlap
+        y: remoteOp.data.y + 10
+      }
+    }
+  }
+  
+  return localOp
+}
+
+
+### 7.3 Presence & Cursor Tracking
+
+typescript
+// TODO: Real-time presence system
+interface UserPresence {
+  userId: string
+  userName: string
+  avatar: string
+  cursor: { x: number, y: number }
+  selection: string | null // Selected content block ID
+  lastSeen: Date
+  status: 'active' | 'idle' | 'away'
+}
+
+const usePresence = () => {
+  const [presence, setPresence] = useState<Map<string, UserPresence>>(new Map())
+  
+  useEffect(() => {
+    const socket = getWebSocket()
+    
+    socket.on('presence:update', (data: UserPresence) => {
+      setPresence(prev => new Map(prev.set(data.userId, data)))
+    })
+    
+    socket.on('presence:leave', (userId: string) => {
+      setPresence(prev => {
+        const next = new Map(prev)
+        next.delete(userId)
+        return next
+      })
+    })
+    
+    return () => socket.disconnect()
+  }, [])
+  
+  return presence
+}
+
+
+---
+
+## 8. Front-End UX & Design System
+
+### 8.1 Neumorphism Tokens & Elevation Levels
+
+css
+/* Design System Variables - index.css */
+:root {
+  /* Neumorphic Elevation Levels */
+  --elevation-1: 
+    2px 2px 6px rgba(163, 177, 198, 0.4),
+    -2px -2px 6px rgba(255, 255, 255, 0.8);
+  --elevation-2: 
+    4px 4px 12px rgba(163, 177, 198, 0.4),
+    -4px -4px 12px rgba(255, 255, 255, 0.8);
+  --elevation-3: 
+    8px 8px 24px rgba(163, 177, 198, 0.5),
+    -8px -8px 24px rgba(255, 255, 255, 0.9);
+  
+  /* Inset Levels */
+  --inset-1: 
+    inset 2px 2px 6px rgba(163, 177, 198, 0.4),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.8);
+  --inset-2: 
+    inset 4px 4px 12px rgba(163, 177, 198, 0.5),
+    inset -4px -4px 12px rgba(255, 255, 255, 0.9);
+}
+
+/* Component Classes */
+.neumorphic-card {
+  background: linear-gradient(145deg, #ffffff, #f0f4f8);
+  box-shadow: var(--elevation-2);
+  border-radius: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neumorphic-button {
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  box-shadow: var(--elevation-1);
+  transition: all 0.2s ease;
+}
+
+.neumorphic-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-2);
+}
+
+.neumorphic-inset {
+  background: #f8fafc;
+  box-shadow: var(--inset-1);
+  border-radius: 0.75rem;
+}
+
+
+### 8.2 Responsive Grid & Breakpoints
+
+typescript
+// tailwind.config.ts breakpoints
+const breakpoints = {
+  'sm': '640px',   // Mobile landscape
+  'md': '768px',   // Tablet
+  'lg': '1024px',  // Desktop
+  'xl': '1280px',  // Large desktop
+  '2xl': '1536px'  // Extra large
+}
+
+// Usage in components
+const ResponsiveLayout = () => (
+  <div className="
+    grid grid-cols-1 gap-4
+    md:grid-cols-2 
+    lg:grid-cols-3 
+    xl:grid-cols-4
+  ">
+    {/* Content */}
+  </div>
+)
+
+
+### 8.3 Accessibility Checklist (WCAG 2.2)
+
+#### Level A Requirements ✅
+- [x] Keyboard navigation for all interactive elements
+- [x] Alt text for images (when implemented)
+- [x] Proper heading hierarchy (h1, h2, h3)
+- [x] Color contrast ratio > 4.5:1 for normal text
+- [x] Form labels associated with inputs
+- [x] Focus indicators visible
+
+#### Level AA Requirements ✅
+- [x] Color contrast ratio > 4.5:1 for normal text
+- [x] Color contrast ratio > 3:1 for large text
+- [x] Resize text up to 200% without loss of functionality
+- [x] No content flashes more than 3 times per second
+
+#### Level AAA Goals 🎯
+- [ ] Color contrast ratio > 7:1 for normal text
+- [ ] Audio descriptions for video content
+- [ ] Sign language interpretation
+- [ ] Context-sensitive help
+
+### 8.4 Motion & Micro-Interaction Guidelines
+
+css
+/* Animation Tokens - tailwind.config.ts */
+const animations = {
+  'fade-in': 'fade-in 0.3s ease-out',
+  'scale-in': 'scale-in 0.2s ease-out',
+  'slide-in-right': 'slide-in-right 0.3s ease-out',
+  'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+}
+
+/* Interaction States */
+.interactive-element {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.interactive-element:hover {
+  transform: translateY(-1px);
+}
+
+.interactive-element:active {
+  transform: translateY(0);
+}
+
+
+**Motion Principles:**
+1. **Purposeful**: Every animation serves UX purpose
+2. **Fast**: Durations < 300ms for micro-interactions
+3. **Natural**: Easing curves mimic real-world physics
+4. **Accessible**: Respects prefers-reduced-motion
+
+### 8.5 Theming & Dark-Mode Strategy
+
+css
+/* Dark mode variables - index.css */
+.dark {
+  --background: var(--color-gray-900);
+  --foreground: var(--color-gray-100);
+  --card: var(--color-gray-800);
+  --card-foreground: var(--color-gray-100);
+  
+  /* Neumorphic adjustments for dark mode */
+  --elevation-1: 
+    2px 2px 6px rgba(0, 0, 0, 0.3),
+    -2px -2px 6px rgba(255, 255, 255, 0.05);
+}
+
+
+typescript
+// Dark mode implementation with next-themes
+import { ThemeProvider } from 'next-themes'
+
+const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="light">
+    <AppContent />
+  </ThemeProvider>
+)
+
+
+---
+
+## 9. Testing & Quality Assurance
+
+### 9.1 Unit, Integration, E2E Test Pyramid
+
+/\     5% - E2E Tests (Playwright)
+   /  \    Browser automation, full user flows
+  /____\   
+ /      \  15% - Integration Tests (React Testing Library)
+/        \ Component interactions, Context API
+\_______/  80% - Unit Tests (Jest/Vitest)
+           Pure functions, utility methods
+
+
+#### Unit Test Example
+typescript
+// utils.test.ts
+import { formatDate } from '@/lib/utils'
+
+describe('formatDate', () => {
+  test('formats date correctly', () => {
+    const date = new Date('2024-07-09')
+    expect(formatDate(date)).toBe('Tuesday, July 9, 2024')
+  })
+})
+
+
+#### Integration Test Example
+typescript
+// ContentBlock.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react'
+import { AppProvider } from '@/contexts/AppContext'
+import { ContentBlock } from '@/components/app/content-block'
+
+const renderWithContext = (component: React.ReactElement) => {
+  return render(
+    <AppProvider>
+      {component}
+    </AppProvider>
+  )
+}
+
+test('content block can be dragged and repositioned', async () => {
+  const mockBlock = {
+    id: '1',
+    type: 'sticky-note',
+    content: 'Test note',
+    position: { x: 100, y: 100 },
+    size: { width: 200, height: 150 }
+  }
+  
+  renderWithContext(
+    <ContentBlock 
+      data={mockBlock} 
+      onUpdate={mockUpdate} 
+      onSelect={mockSelect}
+    />
+  )
+  
+  const block = screen.getByText('Test note')
+  
+  // Simulate drag
+  fireEvent.mouseDown(block, { clientX: 100, clientY: 100 })
+  fireEvent.mouseMove(block, { clientX: 150, clientY: 150 })
+  fireEvent.mouseUp(block)
+  
+  expect(mockUpdate).toHaveBeenCalledWith({
+    ...mockBlock,
+    position: { x: 150, y: 150 }
+  })
+})
+
+
+#### E2E Test Example
+typescript
+// e2e/social-sharing.spec.ts
+import { test, expect } from '@playwright/test'
+
+test('user can create and share content across views', async ({ page }) => {
+  await page.goto('/')
+  
+  // Create content in daily view
+  await page.click('[data-testid=add-sticky-note]')
+  await page.fill('[data-testid=note-content]', 'Coffee with friends')
+  await page.click('[data-testid=save-note]')
+  
+  // Switch to weekly creative view
+  await page.click('[data-testid=weekly-creative-view]')
+  
+  // Verify content appears in weekly view
+  await expect(page.locator('text=Coffee with friends')).toBeVisible()
+  
+  // Switch to monthly view
+  await page.click('[data-testid=monthly-view]')
+  
+  // Verify content indicator appears in monthly calendar
+  await expect(page.locator('[data-testid=content-indicator]')).toBeVisible()
+})
+
+
+### 9.2 Accessibility & Visual Regression
+
+#### Accessibility Testing
+typescript
+// a11y.test.ts
+import { axe, toHaveNoViolations } from 'jest-axe'
+import { render } from '@testing-library/react'
+import { Index } from '@/pages/Index'
+
+expect.extend(toHaveNoViolations)
+
+test('app should not have accessibility violations', async () => {
+  const { container } = render(<Index />)
+  const results = await axe(container)
+  expect(results).toHaveNoViolations()
+})
+
+
+#### Visual Regression Testing
+typescript
+// visual.test.ts
+import { test, expect } from '@playwright/test'
+
+test('daily view layout remains consistent', async ({ page }) => {
+  await page.goto('/')
+  
+  // Wait for content to load
+  await page.waitForSelector('[data-testid=daily-workspace]')
+  
+  // Take screenshot and compare
+  await expect(page).toHaveScreenshot('daily-view.png')
+})
+
+
+### 9.3 Performance & Load Testing
+
+#### Performance Budgets
+javascript
+// lighthouse.config.js
+module.exports = {
+  ci: {
+    assert: {
+      assertions: {
+        'categories:performance': ['error', { minScore: 0.9 }],
+        'categories:accessibility': ['error', { minScore: 0.9 }],
+        'categories:best-practices': ['error', { minScore: 0.9 }],
+        'categories:seo': ['error', { minScore: 0.9 }],
+      }
+    }
+  }
+}
+
+
+#### Load Testing
+typescript
+// load-test.ts using Artillery
+export const config = {
+  target: 'https://flowjournal.app',
+  phases: [
+    { duration: 60, arrivalRate: 10 }, // Ramp up
+    { duration: 300, arrivalRate: 50 }, // Sustained load
+    { duration: 60, arrivalRate: 100 } // Peak load
+  ]
+}
+
+export const scenarios = [
+  {
+    name: 'Create and update content',
+    weight: 60,
+    flow: [
+      { get: { url: '/' } },
+      { post: { url: '/api/content-blocks', json: { type: 'sticky-note' } } },
+      { put: { url: '/api/content-blocks/{{ id }}', json: { content: 'Updated' } } }
+    ]
+  }
+]
+
+
+---
+
+## 10. CI/CD & DevOps
+
+### 10.1 Git Flow & Branch Strategy
+
+mermaid
+gitgraph
+    commit id: "Initial"
+    branch develop
+    checkout develop
+    commit id: "Feature A"
+    branch feature/social-sharing
+    checkout feature/social-sharing
+    commit id: "Add sharing"
+    commit id: "Tests"
+    checkout develop
+    merge feature/social-sharing
+    checkout main
+    merge develop tag: "v1.0.0"
+
+
+**Branch Types:**
+- main - Production-ready code
+- develop - Integration branch
+- feature/* - New features
+- bugfix/* - Bug fixes
+- hotfix/* - Critical production fixes
+
+**Commit Convention:**
+type(scope): description
+
+feat(calendar): add Google Calendar integration
+fix(drag): resolve position persistence bug
+docs(readme): update setup instructions
+test(e2e): add social sharing workflow
+
+
+### 10.2 GitHub Actions Pipeline YAML
+
+yaml
+# .github/workflows/ci.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run type checking
+      run: npm run type-check
+    
+    - name: Run linting
+      run: npm run lint
+    
+    - name: Run unit tests
+      run: npm run test:unit
+    
+    - name: Run integration tests
+      run: npm run test:integration
+    
+    - name: Build application
+      run: npm run build
+  
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install Playwright
+      run: npx playwright install
+    
+    - name: Run E2E tests
+      run: npm run test:e2e
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-report
+        path: playwright-report/
+  
+  lighthouse:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build application
+      run: npm run build
+    
+    - name: Start preview server
+      run: npm run preview &
+    
+    - name: Run Lighthouse CI
+      run: npx lhci autorun
+      env:
+        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+  
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, e2e, lighthouse]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.ORG_ID }}
+        vercel-project-id: ${{ secrets.PROJECT_ID }}
+        vercel-args: '--prod'
+
+
+### 10.3 Vercel Preview → Prod Promotion
+
+json
+// vercel.json
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm ci",
+  "outputDirectory": ".next",
+  "functions": {
+    "app/api/content-blocks/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_APP_URL": "@app-url"
+    }
+  },
+  "preview": {
+    "env": {
+      "NEXT_PUBLIC_APP_URL": "@preview-url"
+    }
+  }
+}
+
+
+### 10.4 Infrastructure-as-Code (Terraform *.tf)
+
+hcl
+# TODO: Infrastructure automation
+# main.tf
+terraform {
+  required_providers {
+    vercel = {
+      source  = "vercel/vercel"
+      version = "~> 0.4"
+    }
+    supabase = {
+      source  = "supabase/supabase"
+      version = "~> 1.0"
+    }
+  }
+}
+
+provider "vercel" {
+  api_token = var.vercel_api_token
+}
+
+resource "vercel_project" "flowjournal" {
+  name      = "flowjournal"
+  framework = "nextjs"
+  
+  git_repository = {
+    type = "github"
+    repo = "username/flowjournal"
+  }
+  
+  environment = [
+    {
+      key    = "NEXT_PUBLIC_SUPABASE_URL"
+      value  = var.supabase_url
+      target = ["production", "preview"]
+    },
+    {
+      key    = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      value  = var.supabase_anon_key
+      target = ["production", "preview"]
+    }
+  ]
+}
+
+# Supabase project configuration
+resource "supabase_project" "flowjournal" {
+  organization_id = var.supabase_org_id
+  name           = "FlowJournal"
+  database_password = var.database_password
+  region         = "us-east-1"
+}
+
+
+---
+
+## 11. Observability & Operations
+
+### 11.1 Logging, Metrics, Tracing
+
+#### Application Logging
+typescript
+// lib/logger.ts
+import winston from 'winston'
+
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: 'flowjournal',
+    version: process.env.APP_VERSION
+  },
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+})
+
+// Usage in components
+export const useAnalytics = () => {
+  const trackEvent = (event: string, properties?: Record<string, any>) => {
+    logger.info('User event', { event, properties })
+    
+    // Send to analytics service
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', event, properties)
+    }
+  }
+  
+  return { trackEvent }
+}
+
+
+#### Performance Monitoring
+typescript
+// lib/performance.ts
+export const performanceMonitor = {
+  startTimer: (name: string) => {
+    const start = performance.now()
+    return {
+      end: () => {
+        const duration = performance.now() - start
+        logger.info('Performance metric', { name, duration })
+        
+        // Send to monitoring service
+        if (typeof window !== 'undefined') {
+          navigator.sendBeacon('/api/metrics', JSON.stringify({
+            name,
+            duration,
+            timestamp: Date.now()
+          }))
+        }
+      }
+    }
+  },
+  
+  measureRender: (componentName: string) => {
+    const timer = performanceMonitor.startTimer(`render:${componentName}`)
+    return {
+      componentDidMount: timer.end,
+      componentWillUnmount: () => {
+        // Cleanup if needed
+      }
+    }
+  }
+}
+
+
+### 11.2 Alerting & Incident Run-Book
+
+#### Error Monitoring with Sentry
+typescript
+// lib/sentry.ts
+import * as Sentry from '@sentry/nextjs'
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.NODE_ENV,
+  tracesSampleRate: 0.1,
+  beforeSend: (event) => {
+    // Filter out known non-critical errors
+    if (event.exception?.values?.[0]?.type === 'ChunkLoadError') {
+      return null
+    }
+    return event
+  }
+})
+
+export const captureError = (error: Error, context?: Record<string, any>) => {
+  Sentry.withScope((scope) => {
+    if (context) {
+      scope.setContext('additional', context)
+    }
+    Sentry.captureException(error)
+  })
+}
+
+
+#### Incident Response Playbook
+
+**P0 - Critical (App Down)**
+1. **Detection**: Automated alerts from Vercel/Sentry
+2. **Response Time**: < 15 minutes
+3. **Actions**:
+   - Check Vercel deployment status
+   - Verify Supabase connectivity
+   - Rollback to last known good deployment
+   - Notify team via Slack
+4. **Communication**: Status page update within 30 minutes
+
+**P1 - High (Feature Broken)**
+1. **Detection**: User reports or monitoring alerts
+2. **Response Time**: < 2 hours
+3. **Actions**:
+   - Reproduce issue
+   - Deploy hotfix or feature flag disable
+   - Monitor error rates
+4. **Communication**: Internal team notification
+
+**P2 - Medium (Performance Issue)**
+1. **Detection**: Performance monitoring alerts
+2. **Response Time**: < 24 hours
+3. **Actions**:
+   - Investigate performance metrics
+   - Optimize queries or assets
+   - Schedule deployment during low usage
+
+### 11.3 Feature Flags & Kill-Switches
+
+typescript
+// lib/feature-flags.ts
+export interface FeatureFlags {
+  realTimeCollaboration: boolean
+  calendarIntegration: boolean
+  fileUpload: boolean
+  mobileOptimizations: boolean
+  darkMode: boolean
+}
+
+export const useFeatureFlags = (): FeatureFlags => {
+  const [flags, setFlags] = useState<FeatureFlags>({
+    realTimeCollaboration: false, // TODO: Enable when backend ready
+    calendarIntegration: false,   // TODO: Enable when OAuth setup
+    fileUpload: false,           // TODO: Enable when Supabase configured
+    mobileOptimizations: true,    // ✅ Enabled
+    darkMode: true               // ✅ Enabled
+  })
+  
+  useEffect(() => {
+    // Fetch from feature flag service
+    fetch('/api/feature-flags')
+      .then(res => res.json())
+      .then(setFlags)
+      .catch(err => logger.error('Failed to load feature flags', err))
+  }, [])
+  
+  return flags
+}
+
+// Usage in components
+const ContentBlock = () => {
+  const { fileUpload } = useFeatureFlags()
+  
+  return (
+    <div>
+      {fileUpload && (
+        <button onClick={handleFileUpload}>
+          Upload File
+        </button>
+      )}
+    </div>
+  )
+}
+
+
+---
+
+## 12. Security & Compliance
+
+### 12.1 Threat Model & Mitigations
+
+#### Data Flow Diagram
+mermaid
+graph LR
+    User[User Browser] --> App[Next.js App]
+    App --> Auth[NextAuth.js]
+    App --> API[API Routes]
+    API --> DB[(Supabase DB)]
+    API --> Storage[Supabase Storage]
+    App --> External[External APIs]
+    
+    style User fill:#e1f5fe
+    style App fill:#f3e5f5
+    style DB fill:#fff3e0
+    style Storage fill:#fff3e0
+
+
+#### Threat Analysis
+
+| Asset | Threat | Likelihood | Impact | Mitigation |
+|-------|--------|------------|--------|------------|
+| **User Content** | Data breach | Medium | High | Encryption at rest, access controls |
+| **User Sessions** | Session hijacking | Low | High | HTTPS only, secure cookies, JWT rotation |
+| **API Endpoints** | Unauthorized access | Medium | Medium | Authentication middleware, rate limiting |
+| **File Uploads** | Malicious files | High | Medium | File type validation, virus scanning |
+| **Database** | SQL injection | Low | High | Parameterized queries, Supabase RLS |
+
+#### Security Controls
+
+typescript
+// middleware.ts - Security headers
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export function middleware(request: NextRequest) {
+  const response = NextResponse.next()
+  
+  // Security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-XSS-Protection', '1; mode=block')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  
+  // CSP header
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.vercel-insights.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self' https:",
+    ].join('; ')
+  )
+  
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+}
+
+
+### 12.2 OAuth/OIDC Flow (NextAuth)
+
+typescript
+// pages/api/auth/[...nextauth].ts
+import NextAuth, { type NextAuthOptions } from 'next-auth'
+import GoogleProvider from 'next-auth/providers/google'
+import { SupabaseAdapter } from '@next-auth/supabase-adapter'
+
+export const authOptions: NextAuthOptions = {
+  adapter: SupabaseAdapter({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  }),
+  providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
+          prompt: 'consent',
+          access_type: 'offline',
+          response_type: 'code'
+        }
+      }
+    }),
+  ],
+  callbacks: {
+    async session({ session, token, user }) {
+      if (session.user) {
+        session.user.id = user.id
+        // Include calendar access token if available
+        session.accessToken = token.accessToken
+      }
+      return session
+    },
+    async jwt({ token, account, profile }) {
+      if (account) {
+        token.accessToken = account.access_token
+        token.refreshToken = account.refresh_token
+      }
+      return token
+    }
+  },
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  jwt: {
+    maxAge: 60 * 60 * 24 * 30, // 30 days
+  }
+}
+
+export default NextAuth(authOptions)
+
+
+#### Session Management
+typescript
+// hooks/useAuth.ts
+import { useSession, signIn, signOut } from 'next-auth/react'
+
+export const useAuth = () => {
+  const { data: session, status } = useSession()
+  
+  const user = session?.user
+  const isAuthenticated = status === 'authenticated'
+  const isLoading = status === 'loading'
+  
+  const login = async (provider: string = 'google') => {
+    await signIn(provider, { callbackUrl: '/' })
+  }
+  
+  const logout = async () => {
+    await signOut({ callbackUrl: '/auth/signin' })
+  }
+  
+  return {
+    user,
+    isAuthenticated,
+    isLoading,
+    login,
+    logout
+  }
+}
+
+
+### 12.3 Data Privacy (GDPR/CCPA)
+
+#### Data Processing Inventory
+
+| Data Type | Purpose | Legal Basis | Retention | User Rights |
+|-----------|---------|-------------|-----------|-------------|
+| **Profile Data** | Account creation | Contract | Account lifetime | Access, rectification, deletion |
+| **Content Blocks** | Service provision | Contract | User-controlled | Access, portability, deletion |
+| **Usage Analytics** | Service improvement | Legitimate interest | 2 years | Access, objection |
+| **Calendar Data** | Integration feature | Consent | Sync period | Access, withdrawal |
+
+#### Privacy Controls
+typescript
+// pages/api/privacy/export.ts
+import { NextApiRequest, NextApiResponse } from 'next'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '../auth/[...nextauth]'
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+  
+  const session = await getServerSession(req, res, authOptions)
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  
+  try {
+    // Export all user data
+    const userData = {
+      profile: await getUserProfile(session.user.id),
+      contentBlocks: await getUserContentBlocks(session.user.id),
+      events: await getUserEvents(session.user.id),
+      friends: await getUserFriends(session.user.id)
+    }
+    
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Content-Disposition', 'attachment; filename=flowjournal-data.json')
+    res.status(200).json(userData)
+  } catch (error) {
+    logger.error('Data export failed', { userId: session.user.id, error })
+    res.status(500).json({ error: 'Export failed' })
+  }
+}
+
+
+#### Cookie Consent
+typescript
+// components/CookieConsent.tsx
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+
+export const CookieConsent = () => {
+  const [showConsent, setShowConsent] = useState(false)
+  
+  useEffect(() => {
+    const consent = localStorage.getItem('cookie-consent')
+    if (!consent) {
+      setShowConsent(true)
+    }
+  }, [])
+  
+  const acceptCookies = () => {
+    localStorage.setItem('cookie-consent', 'accepted')
+    setShowConsent(false)
+    
+    // Initialize analytics
+    initializeAnalytics()
+  }
+  
+  const rejectCookies = () => {
+    localStorage.setItem('cookie-consent', 'rejected')
+    setShowConsent(false)
+  }
+  
+  if (!showConsent) return null
+  
+  return (
+    <Card className="fixed bottom-4 left-4 right-4 p-4 z-50 max-w-md mx-auto">
+      <h3 className="font-semibold mb-2">Cookie Consent</h3>
+      <p className="text-sm text-gray-600 mb-4">
+        We use cookies to improve your experience and analyze usage. 
+        You can manage your preferences anytime.
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={acceptCookies}>
+          Accept All
+        </Button>
+        <Button size="sm" variant="outline" onClick={rejectCookies}>
+          Reject
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+
+---
+
+## 13. Technical Debt Register & Self-Audit
+
+### 13.1 High / Medium / Low Matrix
+
+| Priority | Item | Impact | Effort | Timeline | Owner |
+|----------|------|--------|--------|----------|-------|
+| **🔴 High** | React key warnings in sidebar | User experience | Low | Sprint 1 | ✅ Fixed |
+| **🔴 High** | Missing backend authentication | Security | High | Sprint 2 | TODO |
+| **🔴 High** | File upload not implemented | Core feature | Medium | Sprint 2 | TODO |
+| **🟡 Medium** | Mobile touch optimizations | UX | Medium | Sprint 3 | Partial |
+| **🟡 Medium** | Real-time collaboration | Feature completeness | High | Sprint 4 | TODO |
+| **🟡 Medium** | Performance optimization | User experience | Medium | Sprint 3 | TODO |
+| **🟢 Low** | Dark mode refinements | Polish | Low | Sprint 5 | TODO |
+| **🟢 Low** | Accessibility improvements | Compliance | Medium | Sprint 4 | Partial |
+
+### 13.2 Debt → Epic Mapping
+
+#### Code Quality Debt
+typescript
+// TODO: Refactor large components
+// journal-workspace.tsx (447 lines) → Split into:
+// - DailyView.tsx
+// - WeeklyCalendarView.tsx  
+// - WeeklyCreativeView.tsx
+// - MonthlyView.tsx
+
+// TODO: Type safety improvements
+// Replace 'any' types with proper interfaces
+// Add strict type checking for content block data
+// Implement proper error boundary types
+
+
+#### Performance Debt
+typescript
+// TODO: Optimize re-renders
+// Implement React.memo for ContentBlock components
+// Add useMemo for expensive calculations
+// Optimize date filtering algorithms
+
+// TODO: Bundle optimization
+// Implement code splitting for views
+// Optimize image loading with next/image
+// Add service worker for caching
+
+
+#### Security Debt
+typescript
+// TODO: Input validation
+// Add Zod schemas for all API inputs
+// Implement file upload validation
+// Add rate limiting middleware
+
+// TODO: Error handling
+// Implement proper error boundaries
+// Add user-friendly error messages
+// Set up error monitoring alerts
+
+
+---
+
+## 14. Roadmap & Backlog
+
+### 14.1 90-Day Outlook (Gantt)
+
+mermaid
+gantt
+    title FlowJournal 90-Day Roadmap
+    dateFormat  YYYY-MM-DD
+    section Infrastructure
+    Authentication Setup     :crit, auth, 2024-07-15, 10d
+    Supabase Configuration  :crit, db, 2024-07-20, 7d
+    File Upload System      :upload, after auth, 5d
+    
+    section Core Features
+    Real-time Collaboration :collab, after db, 14d
+    Calendar Integration    :cal, after upload, 10d
+    Mobile Optimization     :mobile, 2024-08-01, 14d
+    
+    section Polish & Launch
+    Performance Optimization :perf, after mobile, 7d
+    Security Audit          :security, after collab, 5d
+    User Testing           :testing, after cal, 10d
+    Production Launch      :launch, after testing, 3d
+
+
+### 14.2 Release-note Template
+
+markdown
+## FlowJournal v1.1.0 - "Real Connections"
+**Released: [Date]**
+
+### 🎉 New Features
+- **Real-time Collaboration**: See friends editing in real-time with live cursors
+- **Calendar Integration**: Sync with Google Calendar for seamless scheduling
+- **File Upload**: Share photos and documents directly in your journal
+
+### 🐛 Bug Fixes
+- Fixed content blocks disappearing when switching views
+- Resolved calendar navigation issues on mobile
+- Improved drag performance on touch devices
+
+### 🔧 Improvements
+- Faster loading times with optimized bundle size
+- Better accessibility with improved keyboard navigation
+- Enhanced mobile experience with touch-friendly interactions
+
+### 🔒 Security
+- Added rate limiting to prevent abuse
+- Improved session management
+- Enhanced file upload validation
+
+### 📱 Coming Next
+- Dark mode refinements
+- Advanced calendar features
+- Enhanced social features
+
+
+### 14.3 OKRs & Success Metrics
+
+#### Quarter 1 OKRs
+
+**Objective 1: Launch Functional Social Journal**
+- **KR1**: Complete core features (daily/weekly/monthly views) ✅
+- **KR2**: Implement real-time collaboration ⏳
+- **KR3**: Deploy to production with <2s load time ⏳
+- **KR4**: Achieve 95% uptime in first month ⏳
+
+**Objective 2: Validate Product-Market Fit**
+- **KR1**: Onboard 100 beta users ⏳
+- **KR2**: Achieve 70% week-over-week retention ⏳
+- **KR3**: Collect 50 user feedback sessions ⏳
+- **KR4**: NPS score >50 ⏳
+
+**Objective 3: Build Scalable Foundation**
+- **KR1**: Implement comprehensive testing (>80% coverage) ⏳
+- **KR2**: Set up monitoring and alerting ⏳
+- **KR3**: Document all APIs and processes ✅
+- **KR4**: Establish CI/CD pipeline ⏳
+
+#### Success Metrics
+
+**Technical Metrics:**
+- Page load time: <2 seconds
+- API response time: <500ms
+- Error rate: <1%
+- Uptime: >99.5%
+- Test coverage: >80%
+
+**Product Metrics:**
+- Daily active users
+- Content blocks created per user per week
+- Friend connections per user
+- Session duration
+- Feature adoption rates
+
+**Business Metrics:**
+- User acquisition cost
+- Retention rates (Day 1, 7, 30)
+- Net Promoter Score
+- Support ticket volume
+- Conversion funnel metrics
+
+---
+
+## 15. Onboarding Guide
+
+### 15.1 15-Minute Local Setup
+
+#### Prerequisites
+bash
+# Required software
+node --version    # v18+
+npm --version     # v8+
+git --version     # v2.0+
+
+
+#### Quick Start
+bash
+# 1. Clone repository
+git clone https://github.com/username/flowjournal.git
+cd flowjournal
+
+# 2. Install dependencies
+npm install
+
+# 3. Set up environment
+cp .env.example .env.local
+# Edit .env.local with your configuration
+
+# 4. Start development server
+npm run dev
+
+# 5. Open in browser
+open http://localhost:3000
+
+
+#### Environment Variables
+bash
+# .env.local
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# TODO: Add when backend is ready
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+NEXTAUTH_SECRET=your-random-secret
+NEXTAUTH_URL=http://localhost:3000
+
+
+### 15.2 One-Day Contribution Walk-Through
+
+#### Morning (Setup & Exploration)
+1. **Complete 15-minute setup** ✅
+2. **Run test suite**: npm test
+3. **Explore codebase structure**: Start with src/pages/Index.tsx
+4. **Read documentation**: This document + inline comments
+5. **Set up IDE**: VSCode with recommended extensions
+
+#### Afternoon (First Contribution)
+1. **Pick a good first issue**: Look for good-first-issue label
+2. **Create feature branch**: git checkout -b feature/your-feature
+3. **Make small change**: Fix a bug or add small enhancement
+4. **Write tests**: Add unit test for your change
+5. **Submit PR**: Include description and screenshots
+
+#### Example First Contribution
+typescript
+// Good first issue: Add keyboard shortcuts
+// File: components/app/journal-workspace.tsx
+
+const JournalWorkspace = () => {
+  // Add keyboard shortcut handling
+  useEffect(() => {
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        switch (e.key) {
+          case 'n':
+            e.preventDefault()
+            addContentBlock('sticky-note', 'sticky-yellow')
+            break
+          case 's':
+            e.preventDefault()
+            // Save current state
+            break
+        }
+      }
+    }
+    
+    document.addEventListener('keydown', handleKeydown)
+    return () => document.removeEventListener('keydown', handleKeydown)
+  }, [addContentBlock])
+  
+  // ... rest of component
+}
+
+
+### 15.3 Ten-Day "First Feature" Plan
+
+#### Days 1-2: Understanding & Setup
+- Complete onboarding and local setup
+- Read through codebase and documentation
+- Run all tests and understand CI pipeline
+- Set up development tools and workflows
+
+#### Days 3-4: Small Contributions
+- Fix 2-3 small bugs or improvements
+- Add unit tests for existing functionality
+- Improve documentation or comments
+- Get comfortable with PR process
+
+#### Days 5-7: Feature Planning
+- Choose a medium-sized feature from backlog
+- Write technical design document
+- Get feedback from team on approach
+- Break down into smaller tasks
+
+#### Days 8-10: Feature Implementation
+- Implement feature with tests
+- Update documentation
+- Test feature thoroughly
+- Submit PR for review
+
+#### Suggested First Features
+1. **Keyboard Shortcuts**: Add common shortcuts (Ctrl+N, Ctrl+S, etc.)
+2. **Content Search**: Basic search across content blocks
+3. **Export Function**: Export journal as PDF or JSON
+4. **Undo/Redo**: Basic state history management
+5. **Content Templates**: Predefined content block templates
+
+---
+
+## 16. Appendices
+
+### 16.A Environment Variable Reference
+
+bash
+# Core Application
+NEXT_PUBLIC_APP_URL=https://flowjournal.app
+NODE_ENV=production
+
+# Authentication (NextAuth.js)
+NEXTAUTH_SECRET=your-random-secret-string
+NEXTAUTH_URL=https://flowjournal.app
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Supabase Backend
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Analytics & Monitoring
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_SENTRY_DSN=https://your-sentry-dsn
+VERCEL_ANALYTICS_ID=your-vercel-analytics-id
+
+# Feature Flags
+NEXT_PUBLIC_ENABLE_REAL_TIME=false
+NEXT_PUBLIC_ENABLE_FILE_UPLOAD=false
+NEXT_PUBLIC_ENABLE_CALENDAR_SYNC=false
+
+# External APIs
+GOOGLE_CALENDAR_API_KEY=your-api-key
+APPLE_CALENDAR_WEBHOOK_SECRET=your-webhook-secret
+
+# Development Only
+NEXT_PUBLIC_DEBUG_MODE=false
+LOG_LEVEL=info
+
+
+### 16.B Glossary
+
+**Content Block**: Interactive element on the journal workspace (sticky note, photo, etc.)
+
+**Neumorphism**: Design style using subtle shadows to create soft, extruded appearance
+
+**Real-time Collaboration**: Multiple users editing simultaneously with live updates
+
+**Social Connection**: Core product focus on maintaining friendships through shared journaling
+
+**Context API**: React state management system used for global application state
+
+**Supabase**: Backend-as-a-Service providing database, auth, and storage
+
+**NextAuth.js**: Authentication library for Next.js applications
+
+**Shadcn/UI**: Component library providing accessible, customizable UI primitives
+
+**WCAG**: Web Content Accessibility Guidelines for inclusive design
+
+**RLS**: Row Level Security in Supabase for data protection
+
+### 16.C License & Attribution
+
+#### Code License
+MIT License
+
+Copyright (c) 2024 FlowJournal Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+[Full MIT License text...]
+
+
+#### Dependencies & Attribution
+- **React**: Meta Platforms, Inc. - MIT License
+- **Next.js**: Vercel Inc. - MIT License  
+- **Tailwind CSS**: Tailwind Labs - MIT License
+- **Shadcn/UI**: shadcn - MIT License
+- **Lucide React**: Lucide Contributors - ISC License
+- **date-fns**: Sasha Koss - MIT License
+
+#### Design Attribution
+- **Neumorphism**: Inspired by community design trends
+- **Color Palette**: Custom design optimized for social connection
+- **Typography**: Inter & Poppins fonts from Google Fonts
+
+---
+
+**Document Version**: 4.0  
+**Last Updated**: 2024-07-09  
+**Status**: Implementation Complete - Backend Integration Required  
+**Next Milestone**: Authentication & Real-time Backend Setup  
+
+---
+
+*This document serves as the complete technical handoff for FlowJournal. Any developer or team should be able to recreate, extend, and ship the application using this specification.*
