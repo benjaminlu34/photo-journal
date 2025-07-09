@@ -113,7 +113,7 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="w-80 bg-white shadow-neumorphic border-l border-primary-100 flex flex-col">
+    <div className="w-80 neumorphic-panel border-l border-primary-100 flex flex-col">
       {/* Header Tabs */}
       <div className="border-b border-primary-100 p-4">
         <div className="flex items-center space-x-4">

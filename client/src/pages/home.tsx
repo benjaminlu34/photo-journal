@@ -29,7 +29,9 @@ function HomeContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-100">
+      <div className="min-h-screen flex items-center justify-center" style={{
+        background: "linear-gradient(135deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 94%) 100%)"
+      }}>
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-secondary-600">Loading your journal...</p>
@@ -43,7 +45,7 @@ function HomeContent() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-primary-50 to-secondary-100">
+    <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
       <JournalSidebar />
 

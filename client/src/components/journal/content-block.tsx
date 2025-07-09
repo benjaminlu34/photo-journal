@@ -174,15 +174,48 @@ export function ContentBlock({ block }: ContentBlockProps) {
       case "photo":
         return (
           <div className="space-y-2">
-            {block.content.url && (
-              <img 
-                src={block.content.url} 
-                alt={block.content.caption || "Photo"} 
-                className="w-full h-32 object-cover rounded-lg"
-              />
-            )}
-            {block.content.caption && (
-              <p className="text-xs text-secondary-600">{block.content.caption}</p>
+            {block.content.url ? (
+              <div className="space-y-2">
+                <img 
+                  src={block.content.url} 
+                  alt={block.content.caption || "Photo"} 
+                  className="w-full h-32 object-cover rounded-lg shadow-soft"
+                />
+                {isEditing && (
+                  <input
+                    type="text"
+                    placeholder="Add caption..."
+                    value={editContent.caption || ""}
+                    onChange={(e) => setEditContent({ ...editContent, caption: e.target.value })}
+                    className="w-full text-xs p-1 border rounded"
+                  />
+                )}
+                {!isEditing && block.content.caption && (
+                  <p className="text-xs text-secondary-600">{block.content.caption}</p>
+                )}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-primary-300 rounded-lg p-4 text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      updateContentBlock(block.id, { 
+                        content: { ...block.content, url, fileName: file.name } 
+                      });
+                    }
+                  }}
+                  className="hidden"
+                  id={`photo-upload-${block.id}`}
+                />
+                <label htmlFor={`photo-upload-${block.id}`} className="cursor-pointer">
+                  <div className="text-primary-500 text-2xl mb-2">📸</div>
+                  <p className="text-xs text-secondary-500">Click to upload photo</p>
+                </label>
+              </div>
             )}
           </div>
         );
@@ -190,19 +223,43 @@ export function ContentBlock({ block }: ContentBlockProps) {
       case "audio":
         return (
           <div className="space-y-2">
-            <div className="flex items-center space-x-3">
-              <Button size="sm" variant="outline" className="w-8 h-8 p-0">
-                <Play className="w-3 h-3" />
-              </Button>
-              <div className="flex-1">
-                <div className="bg-purple-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-purple-500 h-full w-1/3 rounded-full"></div>
+            {block.content.url ? (
+              <div className="flex items-center space-x-3">
+                <Button size="sm" variant="outline" className="w-8 h-8 p-0 neumorphic-button">
+                  <Play className="w-3 h-3" />
+                </Button>
+                <div className="flex-1">
+                  <div className="bg-primary-200 h-2 rounded-full overflow-hidden shadow-soft-inset">
+                    <div className="bg-primary-500 h-full w-1/3 rounded-full"></div>
+                  </div>
+                  <p className="text-xs text-primary-700 mt-1">
+                    {block.content.duration || "0:00"}
+                  </p>
                 </div>
-                <p className="text-xs text-purple-700 mt-1">
-                  {block.content.duration || "0:00"}
-                </p>
               </div>
-            </div>
+            ) : (
+              <div className="border-2 border-dashed border-primary-300 rounded-lg p-4 text-center">
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      updateContentBlock(block.id, { 
+                        content: { ...block.content, url, fileName: file.name, duration: "0:00" } 
+                      });
+                    }
+                  }}
+                  className="hidden"
+                  id={`audio-upload-${block.id}`}
+                />
+                <label htmlFor={`audio-upload-${block.id}`} className="cursor-pointer">
+                  <div className="text-primary-500 text-2xl mb-2">🎤</div>
+                  <p className="text-xs text-secondary-500">Click to upload audio</p>
+                </label>
+              </div>
+            )}
           </div>
         );
 
@@ -212,13 +269,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
   };
 
   return (
-    <Card
+    <div
       ref={(node) => {
         blockRef.current = node;
         drag(drop(node));
       }}
-      className={`absolute p-4 rounded-2xl shadow-neumorphic transition-all cursor-move hover:shadow-lg ${getBlockColor()} ${
-        isDragging ? "opacity-50 scale-105" : "hover:-translate-y-1"
+      className={`absolute p-4 rounded-2xl neumorphic-content-block transition-all cursor-move group ${getBlockColor()} ${
+        isDragging ? "opacity-50 scale-105" : ""
       }`}
       style={{
         left: block.position.x,
@@ -267,6 +324,6 @@ export function ContentBlock({ block }: ContentBlockProps) {
       <div className="flex-1">
         {renderContent()}
       </div>
-    </Card>
+    </div>
   );
 }

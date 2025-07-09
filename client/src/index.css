@@ -82,35 +82,65 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased text-foreground;
+    background: linear-gradient(135deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 94%) 100%);
+    min-height: 100vh;
   }
 }
 
 @layer utilities {
   .shadow-neumorphic {
-    box-shadow: 0 4px 20px rgba(139, 126, 200, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 15px 15px 30px rgba(163, 177, 198, 0.6), -15px -15px 30px rgba(255, 255, 255, 0.8);
   }
   
   .shadow-neumorphic-inset {
-    box-shadow: inset 0 2px 4px rgba(139, 126, 200, 0.1);
+    box-shadow: inset 8px 8px 16px rgba(163, 177, 198, 0.4), inset -8px -8px 16px rgba(255, 255, 255, 0.7);
   }
   
   .shadow-soft {
-    box-shadow: 0 2px 8px rgba(139, 126, 200, 0.12);
+    box-shadow: 8px 8px 16px rgba(163, 177, 198, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.6);
+  }
+  
+  .shadow-floating {
+    box-shadow: 12px 12px 24px rgba(163, 177, 198, 0.5), -4px -4px 12px rgba(255, 255, 255, 0.7);
+  }
+  
+  .shadow-pressed {
+    box-shadow: inset 6px 6px 12px rgba(163, 177, 198, 0.5), inset -6px -6px 12px rgba(255, 255, 255, 0.8);
   }
   
   .neumorphic-button {
     background: linear-gradient(145deg, hsl(220, 14%, 98%), hsl(220, 14%, 91%));
-    box-shadow: 0 4px 20px rgba(139, 126, 200, 0.15);
+    box-shadow: 8px 8px 16px rgba(163, 177, 198, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.6);
     transition: all 0.2s ease;
   }
   
   .neumorphic-button:hover {
-    box-shadow: 0 6px 25px rgba(139, 126, 200, 0.2);
+    box-shadow: 12px 12px 24px rgba(163, 177, 198, 0.5), -4px -4px 12px rgba(255, 255, 255, 0.7);
+    transform: translateY(-1px);
   }
   
   .neumorphic-button:active {
-    box-shadow: inset 0 2px 4px rgba(139, 126, 200, 0.1);
+    box-shadow: inset 6px 6px 12px rgba(163, 177, 198, 0.5), inset -6px -6px 12px rgba(255, 255, 255, 0.8);
+    transform: translateY(0);
+  }
+  
+  .neumorphic-panel {
+    background: linear-gradient(145deg, hsl(220, 14%, 99%), hsl(220, 14%, 94%));
+    box-shadow: 15px 15px 30px rgba(163, 177, 198, 0.6), -15px -15px 30px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .neumorphic-content-block {
+    background: linear-gradient(145deg, hsl(220, 14%, 98%), hsl(220, 14%, 93%));
+    box-shadow: 8px 8px 20px rgba(163, 177, 198, 0.4), -4px -4px 12px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: all 0.3s ease;
+  }
+  
+  .neumorphic-content-block:hover {
+    box-shadow: 12px 12px 28px rgba(163, 177, 198, 0.5), -6px -6px 16px rgba(255, 255, 255, 0.9);
+    transform: translateY(-2px);
   }
   
   .bg-primary-25 {

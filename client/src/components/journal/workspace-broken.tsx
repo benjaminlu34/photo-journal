@@ -37,11 +37,11 @@ export function JournalWorkspace() {
       if (!offset || !workspaceRect) return;
 
       const position: Position = {
-        x: offset.x - workspaceRect.left - 120,
-        y: offset.y - workspaceRect.top - 80,
+        x: offset.x - workspaceRect.left - 120, // Offset for block width
+        y: offset.y - workspaceRect.top - 80,   // Offset for block height
         width: 240,
         height: 180,
-        rotation: Math.random() * 6 - 3,
+        rotation: Math.random() * 6 - 3, // Random rotation between -3 and 3 degrees
       };
 
       if (item.type === "new-content" && item.blockType) {
@@ -87,18 +87,14 @@ export function JournalWorkspace() {
 
   if (!currentEntry) {
     return (
-      <div className="flex-1 flex items-center justify-center" style={{
-        background: "linear-gradient(135deg, hsl(220, 14%, 97%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 95%) 100%)",
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(139, 126, 200, 0.1) 1px, transparent 0)",
-        backgroundSize: "20px 20px"
-      }}>
-        <div className="text-center neumorphic-content-block p-8">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-soft">
+      <div className="flex-1 flex items-center justify-center neumorphic-panel">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Plus className="w-8 h-8 text-primary-500" />
           </div>
           <h3 className="text-lg font-semibold text-secondary-800 mb-2">No journal entry yet</h3>
           <p className="text-secondary-500 mb-4">Start creating your daily journal by adding content blocks</p>
-          <Button onClick={addQuickNote} className="bg-primary-500 hover:bg-primary-600 neumorphic-button">
+          <Button onClick={addQuickNote} className="bg-primary-500 hover:bg-primary-600">
             <Plus className="w-4 h-4 mr-2" />
             Add First Note
           </Button>
@@ -113,7 +109,9 @@ export function JournalWorkspace() {
         workspaceRef.current = node;
         drop(node);
       }}
-      className={`flex-1 relative overflow-auto ${isOver ? "bg-primary-50" : ""}`}
+      className={`flex-1 relative overflow-auto ${
+        isOver ? "bg-primary-50" : ""
+      }`}
       style={{
         background: "linear-gradient(135deg, hsl(220, 14%, 97%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 95%) 100%)",
         backgroundImage: "radial-gradient(circle at 1px 1px, rgba(139, 126, 200, 0.1) 1px, transparent 0)",
@@ -128,7 +126,7 @@ export function JournalWorkspace() {
       {/* Floating Add Button */}
       <Button
         onClick={addQuickNote}
-        className="fixed bottom-8 right-96 w-14 h-14 bg-primary-500 text-white rounded-full shadow-floating hover:bg-primary-600 hover:shadow-floating transition-all group z-50"
+        className="fixed bottom-8 right-96 w-14 h-14 bg-primary-500 text-white rounded-full shadow-neumorphic hover:bg-primary-600 hover:shadow-lg transition-all group"
       >
         <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform" />
       </Button>
