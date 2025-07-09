@@ -14,7 +14,7 @@ export function ViewToggle() {
   ];
 
   return (
-    <div className="neu-card p-1">
+    <div>
       <div className="flex space-x-1">
         {views.map(({ mode, label, icon: Icon }) => (
           <Button
@@ -23,7 +23,7 @@ export function ViewToggle() {
             size="sm"
             onClick={() => setViewMode(mode)}
             className={`neu-nav-pill font-semibold ${
-              viewMode === mode ? "active text-primary" : "text-gray-700"
+              viewMode === mode ? "text-gray-700" : "active text-primary"
             }`}
           >
             <Icon className="w-4 h-4 mr-2" />
