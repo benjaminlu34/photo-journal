@@ -229,9 +229,9 @@ export function MonthlyView() {
             Popular Notes
           </h3>
           <div className="space-y-3">
-            <div className="bg-yellow-100 p-3 rounded-lg">
-              <div className="text-sm text-yellow-800">"Today was amazing! Had lunch at that new place..."</div>
-              <div className="text-xs text-yellow-600 mt-1">5 days ago</div>
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <div className="text-sm text-purple-800">"Today was amazing! Had lunch at that new place..."</div>
+              <div className="text-xs text-purple-600 mt-1">5 days ago</div>
             </div>
             <div className="bg-pink-100 p-3 rounded-lg">
               <div className="text-sm text-pink-800">"Feeling grateful for good friends..."</div>

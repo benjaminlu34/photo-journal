@@ -165,7 +165,7 @@ export function JournalSidebar() {
                 </Avatar>
                 <div
                   className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${
-                    friend.isOnline ? "bg-green-400 animate-glow" : "bg-yellow-400"
+                    friend.isOnline ? "bg-green-400 animate-glow" : "bg-purple-400"
                   }`}
                 />
               </div>

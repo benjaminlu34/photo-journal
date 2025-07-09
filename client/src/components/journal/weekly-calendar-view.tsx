@@ -121,9 +121,9 @@ export function WeeklyCalendarView() {
                   </div>
                 )}
                 {day.getDay() === 5 && (
-                  <div className="bg-yellow-100 p-2 rounded-lg text-xs">
-                    <div className="font-medium text-yellow-700">Movie night</div>
-                    <div className="text-yellow-600">7:00 PM</div>
+                  <div className="bg-purple-100 p-2 rounded-lg text-xs">
+                    <div className="font-medium text-purple-700">Movie night</div>
+                    <div className="text-purple-600">7:00 PM</div>
                   </div>
                 )}
               </div>

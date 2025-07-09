@@ -197,9 +197,9 @@
   /* Content Block Styles - Purple/Blue Theme */
   .content-block-sticky {
     background: linear-gradient(145deg, 
-      rgba(254, 240, 138, 0.9), 
-      rgba(253, 224, 71, 0.8));
-    border: 1px solid rgba(217, 119, 6, 0.2);
+      rgba(254, 202, 202, 0.9), 
+      rgba(252, 165, 165, 0.8));
+    border: 1px solid rgba(239, 68, 68, 0.2);
     box-shadow: 
       4px 4px 8px rgba(0, 0, 0, 0.08),
       -4px -4px 8px rgba(255, 255, 255, 0.8),

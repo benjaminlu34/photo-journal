@@ -53,7 +53,7 @@ export function CollaborationPanel() {
   const { currentEntry } = useJournal();
 
   const contentTypes: ContentTypeButtonProps[] = [
-    { type: "sticky_note", icon: StickyNote, label: "Sticky Note", color: "text-yellow-500" },
+    { type: "sticky_note", icon: StickyNote, label: "Sticky Note", color: "text-red-500" },
     { type: "photo", icon: Camera, label: "Photo", color: "text-blue-500" },
     { type: "audio", icon: Mic, label: "Voice Note", color: "text-purple-500" },
     { type: "checklist", icon: CheckSquare, label: "Checklist", color: "text-green-500" },
@@ -74,7 +74,7 @@ export function CollaborationPanel() {
       title: "Product Launch Notes",
       description: "Meeting notes from today's session",
       icon: StickyNote,
-      color: "bg-orange-500",
+      color: "bg-purple-500",
     },
     {
       id: "3",
