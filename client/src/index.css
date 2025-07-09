@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    /* Color System - Muted Purple/Blue Aesthetic */
-    --background: 15 15 23;
-    --foreground: 248 250 252;
-    --card: 26 26 37;
-    --card-foreground: 248 250 252;
-    --popover: 26 26 37;
-    --popover-foreground: 248 250 252;
-    --primary: 139 92 246;
+    /* Light Neumorphic Color System - White Background with Blue/Purple Accents */
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --card: 248 250 252;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 99 102 241;
     --primary-foreground: 255 255 255;
-    --secondary: 30 41 59;
-    --secondary-foreground: 248 250 252;
-    --accent: 168 85 247;
+    --secondary: 241 245 249;
+    --secondary-foreground: 15 23 42;
+    --accent: 139 92 246;
     --accent-foreground: 255 255 255;
-    --muted: 30 41 59;
-    --muted-foreground: 148 163 184;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
     --destructive: 239 68 68;
     --destructive-foreground: 255 255 255;
-    --border: 42 42 58;
-    --input: 42 42 58;
-    --ring: 139 92 246;
-    --sidebar-background: 10 10 18;
-    --sidebar-foreground: 248 250 252;
-    --sidebar-primary: 139 92 246;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --ring: 99 102 241;
+    --sidebar-background: 248 250 252;
+    --sidebar-foreground: 15 23 42;
+    --sidebar-primary: 99 102 241;
     --sidebar-primary-foreground: 255 255 255;
-    --sidebar-accent: 168 85 247;
+    --sidebar-accent: 139 92 246;
     --sidebar-accent-foreground: 255 255 255;
-    --sidebar-border: 42 42 58;
-    --sidebar-ring: 139 92 246;
+    --sidebar-border: 226 232 240;
+    --sidebar-ring: 99 102 241;
     --radius: 0.75rem;
   }
 
@@ -76,8 +76,8 @@
 
   body {
     @apply bg-background text-foreground;
-    background: rgb(15, 15, 23);
-    background: radial-gradient(circle at 50% 50%, rgba(26, 26, 37, 0.8) 0%, rgb(15, 15, 23) 100%);
+    background: rgb(255, 255, 255);
+    background: radial-gradient(circle at 50% 50%, rgba(248, 250, 252, 0.8) 0%, rgb(255, 255, 255) 100%);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
@@ -86,57 +86,57 @@
 }
 
 @layer utilities {
-  /* Enhanced Neumorphic Design System */
+  /* Light Neumorphic Design System */
   .neumorphic-card {
     @apply relative;
     background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
-    border: 1px solid rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.1);
     box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.4),
-      -8px -8px 16px rgba(139, 92, 246, 0.02),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.03);
+      8px 8px 16px rgba(0, 0, 0, 0.08),
+      -8px -8px 16px rgba(255, 255, 255, 0.8),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .neumorphic-card:hover {
     background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted)));
-    border-color: rgba(139, 92, 246, 0.12);
+    border-color: rgba(99, 102, 241, 0.15);
     box-shadow: 
-      12px 12px 24px rgba(0, 0, 0, 0.5),
-      -12px -12px 24px rgba(139, 92, 246, 0.03),
-      inset 1px 1px 3px rgba(255, 255, 255, 0.05);
+      12px 12px 24px rgba(0, 0, 0, 0.12),
+      -12px -12px 24px rgba(255, 255, 255, 0.9),
+      inset 1px 1px 3px rgba(255, 255, 255, 0.6);
     transform: translateY(-1px);
   }
 
   .neumorphic-button {
     @apply relative cursor-pointer select-none;
     background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--background)));
-    border: 1px solid rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.1);
     box-shadow: 
-      6px 6px 12px rgba(0, 0, 0, 0.3),
-      -6px -6px 12px rgba(139, 92, 246, 0.02),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.05);
+      6px 6px 12px rgba(0, 0, 0, 0.08),
+      -6px -6px 12px rgba(255, 255, 255, 0.7),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .neumorphic-button:hover {
     background: linear-gradient(145deg, hsl(var(--muted)), hsl(var(--card)));
-    border-color: rgba(139, 92, 246, 0.15);
+    border-color: rgba(99, 102, 241, 0.2);
     box-shadow: 
-      8px 8px 16px rgba(0, 0, 0, 0.4),
-      -8px -8px 16px rgba(139, 92, 246, 0.03),
-      inset 1px 1px 3px rgba(255, 255, 255, 0.08);
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.8),
+      inset 1px 1px 3px rgba(255, 255, 255, 0.6);
     transform: translateY(-1px);
   }
 
   .neumorphic-button:active,
   .neumorphic-pressed {
     background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
-    border-color: rgba(139, 92, 246, 0.2);
+    border-color: rgba(99, 102, 241, 0.25);
     box-shadow: 
-      inset 4px 4px 8px rgba(0, 0, 0, 0.4),
-      inset -4px -4px 8px rgba(139, 92, 246, 0.02),
-      2px 2px 4px rgba(0, 0, 0, 0.2);
+      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.9),
+      2px 2px 4px rgba(0, 0, 0, 0.05);
     transform: translateY(1px);
   }
 
@@ -230,10 +230,10 @@
   /* Neumorphic Inset Variant for Interactive Elements */
   .neumorphic-inset {
     background: linear-gradient(145deg, hsl(var(--background)), hsl(var(--card)));
-    border: 1px solid rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.1);
     box-shadow: 
-      inset 4px 4px 8px rgba(0, 0, 0, 0.3),
-      inset -4px -4px 8px rgba(139, 92, 246, 0.02);
+      inset 4px 4px 8px rgba(0, 0, 0, 0.08),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.7);
   }
 
   /* Enhanced scrollbars */

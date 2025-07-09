@@ -6,16 +6,16 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-white/10 neumorphic-card">
+      <div className="border-b border-border neumorphic-card">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold animate-glow">
+              <div className="w-12 h-12 rounded-full gradient-button flex items-center justify-center text-white font-semibold">
                 <Heart className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">FlowJournal</h1>
-                <p className="text-sm text-white/70">Connect & Create</p>
+                <h1 className="text-2xl font-bold text-foreground">FlowJournal</h1>
+                <p className="text-sm text-muted-foreground">Connect & Create</p>
               </div>
             </div>
             <Button 
@@ -31,13 +31,13 @@ export default function Landing() {
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <h2 className="text-6xl font-bold text-white mb-6">
+          <h2 className="text-6xl font-bold text-foreground mb-6">
             Share Moments with{" "}
             <span className="text-gradient">
               Loved Ones
             </span>
           </h2>
-          <p className="text-xl text-white/80 max-w-3xl mx-auto mb-8">
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
             A social journaling platform designed for college friends to capture memories, 
             coordinate plans, and stay connected through beautiful, interactive content blocks.
           </p>
@@ -57,8 +57,8 @@ export default function Landing() {
               <div className="w-12 h-12 content-block-sticky rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Palette className="w-6 h-6 text-yellow-800" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Drag & Drop Content</h3>
-              <p className="text-sm text-white/70">
+              <h3 className="font-semibold text-foreground mb-2">Drag & Drop Content</h3>
+              <p className="text-sm text-muted-foreground">
                 Create with sticky notes, photos, checklists, and voice memos. Arrange them however you like.
               </p>
             </CardContent>
@@ -66,11 +66,11 @@ export default function Landing() {
 
           <Card className="neumorphic-card border-none">
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Calendar className="w-6 h-6 text-blue-400" />
+              <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-6 h-6 text-blue-600" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Multiple Views</h3>
-              <p className="text-sm text-white/70">
+              <h3 className="font-semibold text-foreground mb-2">Multiple Views</h3>
+              <p className="text-sm text-muted-foreground">
                 Switch between daily, weekly calendar, creative Pinterest-style, and monthly views.
               </p>
             </CardContent>
@@ -78,11 +78,11 @@ export default function Landing() {
 
           <Card className="neumorphic-card border-none">
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Users className="w-6 h-6 text-green-400" />
+              <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-6 h-6 text-green-600" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Friend Collaboration</h3>
-              <p className="text-sm text-white/70">
+              <h3 className="font-semibold text-foreground mb-2">Friend Collaboration</h3>
+              <p className="text-sm text-muted-foreground">
                 Share journal entries with friends and see who's online for spontaneous planning.
               </p>
             </CardContent>
@@ -93,8 +93,8 @@ export default function Landing() {
               <div className="w-12 h-12 content-block-lavender rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Heart className="w-6 h-6 text-purple-800" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Neumorphic Design</h3>
-              <p className="text-sm text-white/70">
+              <h3 className="font-semibold text-foreground mb-2">Neumorphic Design</h3>
+              <p className="text-sm text-muted-foreground">
                 Calming, stress-reducing interface with soft shadows and warm colors for comfort.
               </p>
             </CardContent>
@@ -111,7 +111,7 @@ export default function Landing() {
               </div>
               <div className="absolute top-16 right-12 w-56 h-40 neumorphic-card rounded-2xl transform -rotate-1 p-3">
                 <div className="bg-primary/20 rounded-xl h-24 mb-2"></div>
-                <div className="text-xs text-white/70">Photo memories...</div>
+                <div className="text-xs text-muted-foreground">Photo memories...</div>
               </div>
               <div className="absolute bottom-8 left-16 w-52 h-36 content-block-lavender rounded-2xl transform rotate-1 p-4">
                 <div className="text-sm text-purple-800 font-medium">✅ Plan weekend</div>
@@ -123,10 +123,10 @@ export default function Landing() {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-white/10 neumorphic-card mt-24">
+      <div className="border-t border-border neumorphic-card mt-24">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="text-center">
-            <p className="text-white/70">
+            <p className="text-muted-foreground">
               Built for college friends who want to stay connected and create together.
             </p>
           </div>
