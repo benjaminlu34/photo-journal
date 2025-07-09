@@ -1,0 +1,101 @@
+1 · Define Design Tokens (Figma → code)
+Token	Example Value	Purpose
+--surface	#EAF0FF	App background
+--surface-elevated	#F4F7FF	Cards / sidebars
+--shadow-dark	rgba(179,189,214,0.7)	Lower-right drop
+--shadow-light	#FFFFFF	Upper-left highlight
+--radius-lg	20px	Cards, nav pills
+--radius-sm	12px	Buttons, stickies
+--gradient-primary	linear-gradient(135deg,#7E5DFF 0%,#AE7CFF 100%)	CTA background
+--text-muted	#6B7280	Secondary copy
+
+Actionable: Create a “Global ‣ Neumorph” palette page in Figma, export as JSON via Design Tokens plugin; drop into /styles/tokens.json.
+
+2 · Extend Tailwind Config
+js
+Copy
+Edit
+// tailwind.config.cjs
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        surface: 'var(--surface)',
+        'surface-elevated': 'var(--surface-elevated)',
+      },
+      borderRadius: {
+        lg: 'var(--radius-lg)',
+        sm: 'var(--radius-sm)',
+      },
+      boxShadow: {
+        neu: '8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light)',
+        'neu-inset': 'inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light)'
+      }
+    }
+  }
+}
+Actionable: Ship this as tailwind-neumorph preset so future components just say class="shadow-neu bg-surface-elevated".
+
+3 · Global Background & Navigation
+body → bg-surface text-gray-800.
+
+Wrap top nav buttons in a div with shadow-neu rounded-lg bg-surface-elevated px-1 py-1.
+
+Each nav tab becomes a pill (rounded-sm shadow-neu-inset) that flips to shadow-neu on hover / active.
+
+4 · Neumorphic Base Components
+Component	Core Class Stack	Extra
+Button	inline-flex items-center justify-center rounded-sm shadow-neu bg-gradient-to-br from-[theme('colors.primary.500')] to-[theme('colors.primary.400')]	transition-transform active:scale-95
+Input	w-full rounded-sm shadow-neu-inset bg-surface-elevated px-4 py-2 focus:shadow-neu	Use focus-visible:ring-2 ring-primary-400
+Card	shadow-neu bg-surface-elevated rounded-lg p-6	Use hover:shadow-neu-inset for clickables
+
+Actionable: Build these three in Storybook, hook Chromatic for visual regression.
+
+5 · Sticky-Note Style Update
+Set note background to a soft pastel gradient:
+
+css
+Copy
+Edit
+.sticky-note {
+  @apply rounded-sm shadow-neu bg-gradient-to-br
+    from-rose-100 to-rose-200;
+}
+Apply inset shadow when selected / hovered for tactile feel.
+
+Title bar / move-grip gets a 32 px tall strip with bg-white/15 backdrop-blur-sm so it glows slightly.
+
+Resize handles: make them 8×8 px circles, shadow-neu.
+
+6 · Motion & Delight
+Element	Transition	Duration
+Buttons	transform (scale 0.95 on press)	120 ms
+Cards / Stickies	box-shadow & transform translateY(-2px) on hover	180 ms
+Nav pills	background-color, box-shadow	150 ms
+
+Add a tiny grain overlay (mix-blend-mode: soft-light; opacity: 0.05) at the root to avoid flat colors.
+
+7 · Retrofit Existing Components
+Audit src/components – map → new base component.
+
+Replace props: className="btn-primary" → <Button variant="primary">.
+
+Remove custom shadows / border radius overrides to prevent visual drift.
+
+8 · QA & Accessibility
+Contrast-check pastel combos (aim AA 4.5:1 on text).
+
+Ensure hover + focus states look indistinguishable for WCAG 2.2.
+
+Test keyboard nav across nav pills & buttons (Tab order, Enter activates).
+
+Verify 60 fps on sticky drag—new shadows are GPU friendly.
+
+Quick Win Script
+bash
+Copy
+Edit
+# one-liner to update pages for new background & nav
+npx @scoped/cli codemod \
+  "class=\"nav-button.*\"" \
+  "class=\"px-4 py-2 rounded-sm shadow-neu bg-surface-elevated hover:shadow-neu-inset transition\""

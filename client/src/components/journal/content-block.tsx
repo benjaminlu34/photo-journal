@@ -189,19 +189,19 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const getBlockColor = () => {
     switch (block.type) {
       case "sticky_note":
-        return "content-block-sticky";
+        return "sticky-note rose";
       case "photo":
-        return "glass-card";
+        return "sticky-note blue";
       case "text":
-        return "glass-card";
+        return "sticky-note purple";
       case "checklist":
-        return "content-block-lavender";
+        return "sticky-note green";
       case "audio":
-        return "content-block-coral";
+        return "sticky-note yellow";
       case "drawing":
-        return "glass-card";
+        return "sticky-note rose";
       default:
-        return "glass-card";
+        return "sticky-note purple";
     }
   };
 
@@ -348,7 +348,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
           <div className="space-y-2">
             {block.content.url ? (
               <div className="flex items-center space-x-3">
-                <Button size="sm" variant="outline" className="w-8 h-8 p-0 neumorphic-button">
+                <Button size="sm" variant="outline" className="w-8 h-8 p-0 neu-button text-white">
                   <Play className="w-3 h-3" />
                 </Button>
                 <div className="flex-1">
@@ -417,13 +417,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
         }`}
         style={{
           background: `linear-gradient(135deg, 
-            ${getBlockColor().includes('red') ? 'rgba(239, 68, 68, 0.1)' : 
-              getBlockColor().includes('blue') ? 'rgba(59, 130, 246, 0.1)' : 
-              getBlockColor().includes('green') ? 'rgba(34, 197, 94, 0.1)' : 
-              getBlockColor().includes('yellow') ? 'rgba(245, 158, 11, 0.1)' : 
-              getBlockColor().includes('purple') ? 'rgba(168, 85, 247, 0.1)' : 
-              'rgba(107, 114, 128, 0.1)'} 0%, 
-            rgba(0, 0, 0, 0.02) 100%)`
+            ${getBlockColor().includes('rose') ? 'rgba(251, 207, 232, 0.3)' : 
+              getBlockColor().includes('blue') ? 'rgba(219, 234, 254, 0.3)' : 
+              getBlockColor().includes('green') ? 'rgba(209, 250, 229, 0.3)' : 
+              getBlockColor().includes('yellow') ? 'rgba(254, 243, 199, 0.3)' : 
+              getBlockColor().includes('purple') ? 'rgba(233, 213, 255, 0.3)' : 
+              'rgba(243, 244, 246, 0.3)'} 0%, 
+            rgba(255, 255, 255, 0.15) 100%)`
         }}
       />
 

@@ -62,7 +62,7 @@ function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButton
   return (
     <button
       onClick={handleClick}
-      className="w-full flex items-center space-x-3 p-4 rounded-xl bg-purple-50 hover:bg-purple-100 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-102"
+      className="w-full flex items-center space-x-3 p-4 rounded-xl neu-card hover:shadow-neu-active transition-all duration-200"
     >
       <Icon className={`w-5 h-5 ${color} filter drop-shadow-md`} />
       <span className="text-sm font-semibold text-gray-800">{label}</span>
@@ -135,13 +135,13 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="w-80 bg-white border-l border-purple-100 flex flex-col shadow-xl">
+    <div className="w-80 bg-surface-elevated border-l border-purple-100 flex flex-col shadow-xl">
       {/* Header Tabs */}
       <div className="border-b border-purple-100 p-6">
         <div className="flex items-center space-x-4">
           <Button
             size="sm"
-            className="gradient-button text-white font-semibold px-4 py-2 rounded-xl shadow-lg"
+            className="neu-button text-white font-semibold px-4 py-2 rounded-xl"
           >
             <FolderOpen className="w-4 h-4 mr-2" />
             <span>Content Library</span>
@@ -162,7 +162,7 @@ export function CollaborationPanel() {
             placeholder="Search your content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-gray-50 text-gray-800 placeholder:text-gray-500 border-gray-200 focus:border-primary-400"
+            className="pl-10 neu-inset text-gray-800 placeholder:text-gray-500 border-0"
           />
         </div>
       </div>

@@ -73,7 +73,7 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="w-80 bg-white border-r border-purple-100 flex flex-col">
+    <div className="w-80 bg-surface-elevated border-r border-purple-100 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-border/20">
         <div className="flex items-center space-x-4 mb-4">
@@ -97,7 +97,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-purple-800"
+              className="w-10 h-10 p-0 neu-button text-white"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -105,7 +105,7 @@ export function JournalSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 neumorphic-button text-purple-800"
+              className="w-10 h-10 p-0 neu-button text-white"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />
@@ -130,8 +130,8 @@ export function JournalSidebar() {
                   : isSelected(date)
                   ? "gradient-button text-white font-bold animate-glow"
                   : isToday(date)
-                  ? "neumorphic-button text-foreground font-semibold"
-                  : "text-muted-foreground hover:neumorphic-button interactive"
+                  ? "neu-button text-white font-semibold"
+                  : "text-muted-foreground hover:neu-button hover:text-white interactive"
               }`}
               onClick={() => date && setCurrentDate(date)}
             >
@@ -154,7 +154,7 @@ export function JournalSidebar() {
           {getOnlineFriends().map((friend) => (
             <div
               key={friend.id}
-              className="flex items-center space-x-3 p-3 rounded-xl neumorphic-button interactive cursor-pointer"
+              className="flex items-center space-x-3 p-3 rounded-xl neu-card interactive cursor-pointer"
             >
               <div className="relative">
                 <Avatar className="w-12 h-12 glass-card">

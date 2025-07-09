@@ -14,23 +14,23 @@ export function ViewToggle() {
   ];
 
   return (
-    <div className="flex items-center space-x-1 neumorphic-card p-2 rounded-2xl">
-      {views.map(({ mode, label, icon: Icon }) => (
-        <Button
-          key={mode}
-          variant="ghost"
-          size="sm"
-          onClick={() => setViewMode(mode)}
-          className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-            viewMode === mode
-              ? "gradient-button text-white animate-glow"
-              : "text-purple-600 hover:bg-purple-100 hover:text-purple-700"
-          }`}
-        >
-          <Icon className="w-4 h-4 mr-2" />
-          {label}
-        </Button>
-      ))}
+    <div className="neu-card p-1">
+      <div className="flex space-x-1">
+        {views.map(({ mode, label, icon: Icon }) => (
+          <Button
+            key={mode}
+            variant="ghost"
+            size="sm"
+            onClick={() => setViewMode(mode)}
+            className={`neu-nav-pill font-semibold ${
+              viewMode === mode ? "active text-white" : "text-gray-700"
+            }`}
+          >
+            <Icon className="w-4 h-4 mr-2" />
+            {label}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function JournalWorkspace() {
   if (!currentEntry) {
     return (
       <div className="flex-1 flex items-center justify-center relative">
-        <div className="text-center neumorphic-card p-12 rounded-2xl max-w-md mx-auto">
+        <div className="text-center neu-card p-12 rounded-2xl max-w-md mx-auto">
           <div className="w-20 h-20 gradient-button rounded-full flex items-center justify-center mx-auto mb-6 animate-glow">
             <Plus className="w-10 h-10 text-white" />
           </div>

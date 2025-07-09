@@ -4,34 +4,44 @@
 
 @layer base {
   :root {
-    /* Light Neumorphic Color System - White Background with Blue/Purple Accents */
-    --background: 255 255 255;
-    --foreground: 15 23 42;
-    --card: 255 255 255;
-    --card-foreground: 17 24 39;
-    --popover: 255 255 255;
-    --popover-foreground: 17 24 39;
-    --primary: 99 102 241;
+    /* Neumorphic Design Tokens */
+    --surface: #EAF0FF;
+    --surface-elevated: #F4F7FF;
+    --shadow-dark: rgba(179,189,214,0.7);
+    --shadow-light: #FFFFFF;
+    --radius-lg: 20px;
+    --radius-sm: 12px;
+    --gradient-primary: linear-gradient(135deg,#7E5DFF 0%,#AE7CFF 100%);
+    --text-muted: #6B7280;
+    
+    /* Light Neumorphic Color System - Soft Pastel Background with Blue/Purple Accents */
+    --background: 234 100% 97%;
+    --foreground: 224 5% 21%;
+    --card: 237 100% 98%;
+    --card-foreground: 224 5% 21%;
+    --popover: 237 100% 98%;
+    --popover-foreground: 224 5% 21%;
+    --primary: 250 100% 69%;
     --primary-foreground: 255 255 255;
-    --secondary: 248 250 252;
-    --secondary-foreground: 17 24 39;
-    --accent: 139 92 246;
+    --secondary: 234 20% 96%;
+    --secondary-foreground: 224 5% 21%;
+    --accent: 250 84% 74%;
     --accent-foreground: 255 255 255;
-    --muted: 248 250 252;
-    --muted-foreground: 107 114 128;
-    --destructive: 239 68 68;
+    --muted: 234 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 255 255 255;
-    --border: 229 231 235;
-    --input: 229 231 235;
-    --ring: 99 102 241;
-    --sidebar-background: 255 255 255;
-    --sidebar-foreground: 17 24 39;
-    --sidebar-primary: 99 102 241;
+    --border: 234 20% 91%;
+    --input: 234 20% 91%;
+    --ring: 250 100% 69%;
+    --sidebar-background: 237 100% 98%;
+    --sidebar-foreground: 224 5% 21%;
+    --sidebar-primary: 250 100% 69%;
     --sidebar-primary-foreground: 255 255 255;
-    --sidebar-accent: 139 92 246;
+    --sidebar-accent: 250 84% 74%;
     --sidebar-accent-foreground: 255 255 255;
-    --sidebar-border: 229 231 235;
-    --sidebar-ring: 99 102 241;
+    --sidebar-border: 234 20% 91%;
+    --sidebar-ring: 250 100% 69%;
     --radius: 0.75rem;
   }
 
@@ -75,74 +85,118 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    background: rgb(255, 255, 255);
+    @apply text-foreground;
+    background: var(--surface);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Subtle grain overlay for texture */
+    position: relative;
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3Ccircle cx='27' cy='27' r='1'/%3E%3Ccircle cx='47' cy='47' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    mix-blend-mode: soft-light;
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: -1;
   }
 }
 
 @layer utilities {
-
-  /* Light Neumorphic Design System */
-  .neumorphic-card {
-
-    @apply relative;
-    border: 1px solid rgba(99, 102, 241, 0.1);
-    box-shadow:
-      12px 12px 24px rgba(0, 0, 0, 0.12),
-      -12px -12px 24px rgba(255, 255, 255, 0.9),
-      inset 2px 2px 4px rgba(255, 255, 255, 0.6),
-      inset -2px -2px 4px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* New Neumorphic Design System - Soft Pastel Aesthetic */
+  
+  /* Base neumorphic card with soft shadows */
+  .neu-card {
+    @apply bg-surface-elevated rounded-lg shadow-neu;
+    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  .neumorphic-card:hover {
-
-    border-color: rgba(99, 102, 241, 0.15);
-    box-shadow:
-      16px 16px 32px rgba(0, 0, 0, 0.15),
-      -16px -16px 32px rgba(255, 255, 255, 0.95),
-      inset 3px 3px 6px rgba(255, 255, 255, 0.7),
-      inset -3px -3px 6px rgba(0, 0, 0, 0.08);
+  
+  .neu-card:hover {
+    @apply shadow-neu-lg;
     transform: translateY(-2px);
   }
-
-  .neumorphic-button {
-    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
-
-    @apply relative cursor-pointer select-none;
-    border: 1px solid rgba(99, 102, 241, 0.1);
-    box-shadow:
-      6px 6px 12px rgba(0, 0, 0, 0.08),
-      -6px -6px 12px rgba(255, 255, 255, 0.7),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.5);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Neumorphic button with gradient and motion */
+  .neu-button {
+    @apply inline-flex items-center justify-center rounded-sm shadow-neu;
+    background: var(--gradient-primary);
+    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  .neumorphic-button:hover {
-    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
-
-    border-color: rgba(99, 102, 241, 0.2);
-    box-shadow:
-      8px 8px 16px rgba(0, 0, 0, 0.1),
-      -8px -8px 16px rgba(255, 255, 255, 0.8),
-      inset 1px 1px 3px rgba(255, 255, 255, 0.6);
+  
+  .neu-button:hover {
+    @apply shadow-neu-lg;
     transform: translateY(-1px);
   }
-
-  .neumorphic-button:active,
-  .neumorphic-pressed {
-    background: linear-gradient(135deg, rgb(139, 92, 246), rgb(168, 85, 247));
-    border-color: rgba(99, 102, 241, 0.25);
-    box-shadow:
-      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
-      inset -4px -4px 8px rgba(255, 255, 255, 0.9),
-      2px 2px 4px rgba(0, 0, 0, 0.05);
-    transform: translateY(1px);
+  
+  .neu-button:active {
+    @apply shadow-neu-inset;
+    transform: scale(0.95) translateY(0);
   }
+  
+  /* Neumorphic input with inset shadow */
+  .neu-input {
+    @apply w-full rounded-sm shadow-neu-inset bg-surface-elevated px-4 py-2;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .neu-input:focus {
+    @apply shadow-neu ring-2 ring-primary/40;
+  }
+  
+  /* Navigation pills */
+  .neu-nav-pill {
+    @apply px-4 py-2 rounded-sm bg-surface-elevated transition-all duration-150;
+  }
+  
+  .neu-nav-pill:not(.active) {
+    @apply shadow-neu-inset;
+  }
+  
+  .neu-nav-pill.active,
+  .neu-nav-pill:hover {
+    @apply shadow-neu;
+  }
+  
+  /* Sticky note style with soft pastel gradients */
+  .sticky-note {
+    @apply rounded-sm shadow-neu;
+    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sticky-note:hover,
+  .sticky-note.selected {
+    @apply shadow-neu-inset;
+  }
+  
+  .sticky-note.yellow {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  }
+  
+  .sticky-note.rose {
+    background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+  }
+  
+  .sticky-note.blue {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  }
+  
+  .sticky-note.green {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  }
+  
+  .sticky-note.purple {
+    background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%);
+  }
+  
+  /* Old utilities kept for compatibility */
 
   .glass-morphism {
     background: rgba(26, 26, 37, 0.8);
@@ -153,11 +207,11 @@
 
   /* Legacy glassmorphism classes for backward compatibility */
   .glass-card {
-    @apply neumorphic-card;
+    @apply neu-card;
   }
 
   .glass-button {
-    @apply neumorphic-button;
+    @apply neu-button;
   }
 
   .gradient-button {
@@ -249,11 +303,11 @@
 
   /* Additional neumorphic content block styles */
   .neumorphic-content-block {
-    @apply neumorphic-card;
+    @apply neu-card;
   }
 
   .neumorphic-panel {
-    @apply neumorphic-card;
+    @apply neu-card;
   }
 
   .shadow-floating {

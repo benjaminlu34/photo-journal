@@ -6,9 +6,16 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "var(--radius-lg)",
+        md: "var(--radius)",
+        sm: "var(--radius-sm)",
+      },
+      boxShadow: {
+        // Neumorphic shadow system
+        'neu': '8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light)',
+        'neu-inset': 'inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light)',
+        'neu-sm': '4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light)',
+        'neu-lg': '12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light)',
       },
       colors: {
         background: "var(--background)",
@@ -50,6 +57,7 @@ export default {
           900: "var(--secondary-900)",
         },
         surface: {
+          DEFAULT: "var(--surface)",
           primary: "var(--surface-primary)",
           secondary: "var(--surface-secondary)",
           tertiary: "var(--surface-tertiary)",
