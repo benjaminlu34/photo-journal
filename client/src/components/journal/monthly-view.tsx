@@ -2,18 +2,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { ChevronLeft, ChevronRight, Calendar, Heart, Camera, PenTool } from "lucide-react";
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  startOfWeek, 
-  endOfWeek, 
-  addMonths, 
-  subMonths, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Heart,
+  Camera,
+  PenTool,
+} from "lucide-react";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  startOfWeek,
+  endOfWeek,
+  addMonths,
+  subMonths,
   isSameDay,
-  isSameMonth 
+  isSameMonth,
 } from "date-fns";
 
 export function MonthlyView() {
@@ -24,18 +31,26 @@ export function MonthlyView() {
   const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  const calendarDays = eachDayOfInterval({
+    start: calendarStart,
+    end: calendarEnd,
+  });
 
   const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentMonth(prev => direction === "prev" ? subMonths(prev, 1) : addMonths(prev, 1));
+    setCurrentMonth((prev) =>
+      direction === "prev" ? subMonths(prev, 1) : addMonths(prev, 1),
+    );
   };
 
   const getMemoryPreview = (day: Date) => {
     // Mock data - in real app this would come from actual journal entries
     const dayNumber = day.getDate();
-    if (dayNumber % 7 === 0) return { type: "photo", content: "🌅 Beautiful sunrise" };
-    if (dayNumber % 5 === 0) return { type: "note", content: "💭 Great conversation" };
-    if (dayNumber % 3 === 0) return { type: "audio", content: "🎵 Favorite song" };
+    if (dayNumber % 7 === 0)
+      return { type: "photo", content: "🌅 Beautiful sunrise" };
+    if (dayNumber % 5 === 0)
+      return { type: "note", content: "💭 Great conversation" };
+    if (dayNumber % 3 === 0)
+      return { type: "audio", content: "🎵 Favorite song" };
     return null;
   };
 
@@ -53,30 +68,32 @@ export function MonthlyView() {
             <Calendar className="w-8 h-8 text-purple-500 mr-3" />
             {format(currentMonth, "MMMM yyyy")}
           </h2>
-          <p className="text-gray-600 mt-1">Your month of memories and moments</p>
+          <p className="text-gray-600 mt-1">
+            Your month of memories and moments
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateMonth("prev")}
-            className="neumorphic-button"
+            className="neu-card text-gray-700"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setCurrentMonth(new Date())}
-            className="neumorphic-button"
+            className="neu-nav-pill text-gray-700"
           >
             This Month
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateMonth("next")}
-            className="neumorphic-button"
+            className="neu-card text-gray-700"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
@@ -108,7 +125,10 @@ export function MonthlyView() {
         {/* Week Headers */}
         <div className="grid grid-cols-7 gap-2 mb-4">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div key={day} className="text-center text-sm font-medium text-secondary-500 py-2">
+            <div
+              key={day}
+              className="text-center text-sm font-medium text-secondary-500 py-2"
+            >
               {day}
             </div>
           ))}
@@ -132,21 +152,24 @@ export function MonthlyView() {
                 }}
                 className={`
                   relative p-3 min-h-[100px] rounded-xl cursor-pointer transition-all group
-                  ${isSelected 
-                    ? "neumorphic-content-block ring-2 ring-primary-500" 
-                    : "neumorphic-content-block hover:shadow-floating"
+                  ${
+                    isSelected
+                      ? "neumorphic-content-block ring-2 ring-primary-500"
+                      : "neumorphic-content-block hover:shadow-floating"
                   }
                   ${!isCurrentMonth ? "opacity-40" : ""}
                 `}
               >
                 {/* Day Number */}
-                <div className={`text-sm font-semibold mb-2 ${
-                  isToday 
-                    ? "text-primary-600" 
-                    : isCurrentMonth 
-                      ? "text-secondary-800" 
-                      : "text-secondary-400"
-                }`}>
+                <div
+                  className={`text-sm font-semibold mb-2 ${
+                    isToday
+                      ? "text-primary-600"
+                      : isCurrentMonth
+                        ? "text-secondary-800"
+                        : "text-secondary-400"
+                  }`}
+                >
                   {format(day, "d")}
                   {isToday && (
                     <div className="w-2 h-2 bg-primary-500 rounded-full absolute top-1 right-1"></div>
@@ -156,13 +179,15 @@ export function MonthlyView() {
                 {/* Memory Preview */}
                 {memory && isCurrentMonth && (
                   <div className="space-y-1">
-                    <div className={`text-xs p-1 rounded ${
-                      memory.type === "photo" 
-                        ? "bg-blue-100 text-blue-700" 
-                        : memory.type === "note"
-                          ? "bg-indigo-100 text-indigo-700"
-                          : "bg-purple-100 text-purple-700"
-                    }`}>
+                    <div
+                      className={`text-xs p-1 rounded ${
+                        memory.type === "photo"
+                          ? "bg-blue-100 text-blue-700"
+                          : memory.type === "note"
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "bg-purple-100 text-purple-700"
+                      }`}
+                    >
                       {memory.content}
                     </div>
                   </div>
@@ -171,22 +196,26 @@ export function MonthlyView() {
                 {/* Activity Indicators */}
                 {isCurrentMonth && activityCount > 0 && (
                   <div className="absolute bottom-1 right-1 flex space-x-1">
-                    {Array.from({ length: Math.min(activityCount, 3) }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className="w-1.5 h-1.5 bg-primary-400 rounded-full"
-                      />
-                    ))}
+                    {Array.from({ length: Math.min(activityCount, 3) }).map(
+                      (_, i) => (
+                        <div
+                          key={i}
+                          className="w-1.5 h-1.5 bg-primary-400 rounded-full"
+                        />
+                      ),
+                    )}
                     {activityCount > 3 && (
-                      <div className="text-xs text-primary-600 font-bold">+</div>
+                      <div className="text-xs text-primary-600 font-bold">
+                        +
+                      </div>
                     )}
                   </div>
                 )}
 
                 {/* Today Badge */}
                 {isToday && (
-                  <Badge 
-                    variant="secondary" 
+                  <Badge
+                    variant="secondary"
                     className="absolute -top-1 -left-1 bg-primary-500 text-white text-xs px-1 py-0"
                   >
                     Today
@@ -209,14 +238,18 @@ export function MonthlyView() {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg"></div>
               <div>
-                <div className="text-sm font-medium text-secondary-800">Beach sunset</div>
+                <div className="text-sm font-medium text-secondary-800">
+                  Beach sunset
+                </div>
                 <div className="text-xs text-secondary-500">3 days ago</div>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg"></div>
               <div>
-                <div className="text-sm font-medium text-secondary-800">Coffee with friends</div>
+                <div className="text-sm font-medium text-secondary-800">
+                  Coffee with friends
+                </div>
                 <div className="text-xs text-secondary-500">1 week ago</div>
               </div>
             </div>
@@ -230,11 +263,15 @@ export function MonthlyView() {
           </h3>
           <div className="space-y-3">
             <div className="bg-purple-100 p-3 rounded-lg">
-              <div className="text-sm text-purple-800">"Today was amazing! Had lunch at that new place..."</div>
+              <div className="text-sm text-purple-800">
+                "Today was amazing! Had lunch at that new place..."
+              </div>
               <div className="text-xs text-purple-600 mt-1">5 days ago</div>
             </div>
             <div className="bg-pink-100 p-3 rounded-lg">
-              <div className="text-sm text-pink-800">"Feeling grateful for good friends..."</div>
+              <div className="text-sm text-pink-800">
+                "Feeling grateful for good friends..."
+              </div>
               <div className="text-xs text-pink-600 mt-1">1 week ago</div>
             </div>
           </div>
@@ -248,15 +285,21 @@ export function MonthlyView() {
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <div className="text-sm text-secondary-700">Share more photos</div>
+              <div className="text-sm text-secondary-700">
+                Share more photos
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-              <div className="text-sm text-secondary-700">Write daily reflections</div>
+              <div className="text-sm text-secondary-700">
+                Write daily reflections
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-              <div className="text-sm text-secondary-700">Try voice journaling</div>
+              <div className="text-sm text-secondary-700">
+                Try voice journaling
+              </div>
             </div>
           </div>
         </div>

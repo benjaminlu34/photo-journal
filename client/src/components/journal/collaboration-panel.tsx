@@ -25,7 +25,12 @@ interface ContentTypeButtonProps {
   color: string;
 }
 
-function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButtonProps) {
+function ContentTypeButton({
+  type,
+  icon: Icon,
+  label,
+  color,
+}: ContentTypeButtonProps) {
   const { createContentBlock } = useJournal();
 
   const getDefaultContent = (type: ContentBlockType) => {
@@ -55,7 +60,7 @@ function ContentTypeButton({ type, icon: Icon, label, color }: ContentTypeButton
       height: 180,
       rotation: Math.random() * 6 - 3,
     };
-    
+
     createContentBlock(type, getDefaultContent(type), position);
   };
 
@@ -75,12 +80,32 @@ export function CollaborationPanel() {
   const { currentEntry } = useJournal();
 
   const contentTypes: ContentTypeButtonProps[] = [
-    { type: "sticky_note", icon: StickyNote, label: "Sticky Note", color: "text-red-500" },
+    {
+      type: "sticky_note",
+      icon: StickyNote,
+      label: "Sticky Note",
+      color: "text-red-500",
+    },
     { type: "photo", icon: Camera, label: "Photo", color: "text-blue-500" },
     { type: "audio", icon: Mic, label: "Voice Note", color: "text-purple-500" },
-    { type: "checklist", icon: CheckSquare, label: "Checklist", color: "text-green-500" },
-    { type: "text", icon: FileText, label: "Text Block", color: "text-gray-500" },
-    { type: "drawing", icon: Palette, label: "Drawing", color: "text-pink-500" },
+    {
+      type: "checklist",
+      icon: CheckSquare,
+      label: "Checklist",
+      color: "text-green-500",
+    },
+    {
+      type: "text",
+      icon: FileText,
+      label: "Text Block",
+      color: "text-gray-500",
+    },
+    {
+      type: "drawing",
+      icon: Palette,
+      label: "Drawing",
+      color: "text-pink-500",
+    },
   ];
 
   const recentEntries = [
@@ -135,7 +160,7 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="w-80 bg-surface-elevated border-l border-purple-100 flex flex-col shadow-xl">
+    <div className="neu-card w-80 bg-surface-elevated border-l border-purple-100 flex flex-col shadow-xl">
       {/* Header Tabs */}
       <div className="border-b border-purple-100 p-6">
         <div className="flex items-center space-x-4">
@@ -148,9 +173,15 @@ export function CollaborationPanel() {
           </Button>
           <span className="text-gray-400">|</span>
           <div className="flex items-center space-x-2 text-gray-600">
-            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">M</span>
-            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">T</span>
-            <span className="text-sm font-medium gradient-button px-2 py-1 rounded text-white">W</span>
+            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+              M
+            </span>
+            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+              T
+            </span>
+            <span className="text-sm font-medium gradient-button px-2 py-1 rounded text-white">
+              W
+            </span>
           </div>
         </div>
 
@@ -179,12 +210,18 @@ export function CollaborationPanel() {
               key={entry.id}
               className="flex items-start space-x-3 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 cursor-pointer transition-colors"
             >
-              <div className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-lg`}>
+              <div
+                className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-lg`}
+              >
                 <entry.icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-gray-800 text-sm">{entry.title}</h4>
-                <p className="text-xs text-gray-600 truncate">{entry.description}</p>
+                <h4 className="font-semibold text-gray-800 text-sm">
+                  {entry.title}
+                </h4>
+                <p className="text-xs text-gray-600 truncate">
+                  {entry.description}
+                </p>
               </div>
             </div>
           ))}
@@ -197,7 +234,9 @@ export function CollaborationPanel() {
           <FolderOpen className="w-4 h-4 text-purple-500 mr-2" />
           Add Content
         </h3>
-        <p className="text-xs text-gray-600 mb-4">Drag these to your journal workspace</p>
+        <p className="text-xs text-gray-600 mb-4">
+          Drag these to your journal workspace
+        </p>
         <div className="space-y-3">
           {contentTypes.map((contentType) => (
             <ContentTypeButton key={contentType.type} {...contentType} />
@@ -213,7 +252,10 @@ export function CollaborationPanel() {
         </h3>
         <div className="grid grid-cols-2 gap-3 mb-6">
           {mediaItems.map((item) => (
-            <div key={item.id} className="bg-purple-50 rounded-lg overflow-hidden hover:bg-purple-100 transition-colors shadow-lg">
+            <div
+              key={item.id}
+              className="bg-purple-50 rounded-lg overflow-hidden hover:bg-purple-100 transition-colors shadow-lg"
+            >
               <img
                 src={item.url}
                 alt={item.alt}
@@ -228,7 +270,9 @@ export function CollaborationPanel() {
           <div className="flex items-center space-x-3 p-3 rounded-lg glass-button interactive cursor-pointer">
             <FileIcon className="w-5 h-5 text-red-400" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">presentation.pdf</p>
+              <p className="text-sm font-semibold text-white truncate">
+                presentation.pdf
+              </p>
               <p className="text-xs text-white/60">1.8 MB</p>
             </div>
           </div>

@@ -14,15 +14,17 @@ export default function Landing() {
                 <Heart className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">FlowJournal</h1>
-                <p className="text-sm text-gray-600">Connect & Create</p>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Allie and Ben's Journal
+                </h1>
+                <p className="text-sm text-gray-600">I love you!</p>
               </div>
             </div>
-            <Button 
-              onClick={() => window.location.href = "/api/login"}
+            <Button
+              onClick={() => (window.location.href = "/api/login")}
               className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-indigo-600 transition-colors"
             >
-              Get Started
+              Get Started!
             </Button>
           </div>
         </div>
@@ -31,22 +33,12 @@ export default function Landing() {
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <h2 className="text-6xl font-bold text-gray-900 mb-6">
-            Share Moments with{" "}
-            <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-transparent">
-              Loved Ones
-            </span>
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            A social journaling platform designed for college friends to capture memories, 
-            coordinate plans, and stay connected through beautiful, interactive content blocks.
-          </p>
-          <Button 
-            onClick={() => window.location.href = "/api/login"}
+          <Button
+            onClick={() => (window.location.href = "/api/login")}
             size="lg"
             className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-12 py-4 text-lg rounded-2xl font-bold hover:from-purple-600 hover:to-indigo-600 transition-colors"
           >
-            Start Your Journey
+            Start Our Journey!
           </Button>
         </div>
 
@@ -57,9 +49,12 @@ export default function Landing() {
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Palette className="w-6 h-6 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Drag & Drop Content</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Drag & Drop Content
+              </h3>
               <p className="text-sm text-gray-600">
-                Create with sticky notes, photos, checklists, and voice memos. Arrange them however you like.
+                Create with sticky notes, photos, checklists, and voice memos.
+                Arrange them however you like.
               </p>
             </CardContent>
           </Card>
@@ -69,9 +64,12 @@ export default function Landing() {
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Calendar className="w-6 h-6 text-blue-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Multiple Views</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Multiple Views
+              </h3>
               <p className="text-sm text-gray-600">
-                Switch between daily, weekly calendar, creative Pinterest-style, and monthly views.
+                Switch between daily, weekly calendar, creative Pinterest-style,
+                and monthly views.
               </p>
             </CardContent>
           </Card>
@@ -81,9 +79,12 @@ export default function Landing() {
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Users className="w-6 h-6 text-green-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Friend Collaboration</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Collaboration!
+              </h3>
               <p className="text-sm text-gray-600">
-                Share journal entries with friends and see who's online for spontaneous planning.
+                Share journal entries with each other and see what we did each
+                day!
               </p>
             </CardContent>
           </Card>
@@ -93,9 +94,11 @@ export default function Landing() {
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Heart className="w-6 h-6 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Neumorphic Design</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Neumorphic Design
+              </h3>
               <p className="text-sm text-gray-600">
-                Calming, stress-reducing interface with soft shadows and gentle colors for comfort.
+                pretty design (not efficient tho...)
               </p>
             </CardContent>
           </Card>
@@ -107,15 +110,23 @@ export default function Landing() {
             <div className="aspect-video bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl relative overflow-hidden">
               {/* Mock content blocks */}
               <div className="absolute top-8 left-8 w-48 h-32 bg-gradient-to-br from-yellow-200 to-yellow-300 rounded-2xl transform rotate-2 p-4 shadow-lg">
-                <div className="text-sm text-yellow-800 font-medium">Morning coffee thoughts ☕</div>
+                <div className="text-sm text-yellow-800 font-medium">
+                  Morning selfie
+                </div>
               </div>
               <div className="absolute top-16 right-12 w-56 h-40 bg-white rounded-2xl transform -rotate-1 p-3 shadow-lg border border-purple-100">
                 <div className="bg-purple-100 rounded-xl h-24 mb-2"></div>
-                <div className="text-xs text-gray-600">Photo memories...</div>
+                <div className="text-xs text-gray-600">
+                  Photo memories... a lot of them...
+                </div>
               </div>
               <div className="absolute bottom-8 left-16 w-52 h-36 bg-gradient-to-br from-purple-200 to-purple-300 rounded-2xl transform rotate-1 p-4 shadow-lg">
-                <div className="text-sm text-purple-800 font-medium">✅ Plan weekend</div>
-                <div className="text-sm text-purple-800 font-medium">✅ Text friends</div>
+                <div className="text-sm text-purple-800 font-medium">
+                  ✅ Watch MSI
+                </div>
+                <div className="text-sm text-purple-800 font-medium">
+                  ✅ Discord call!
+                </div>
               </div>
             </div>
           </div>
@@ -126,9 +137,7 @@ export default function Landing() {
       <div className="bg-white border-t border-purple-100 mt-24">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="text-center">
-            <p className="text-gray-600">
-              Built for college friends who want to stay connected and create together.
-            </p>
+            <p className="text-gray-600">Built with love and care :)</p>
           </div>
         </div>
       </div>

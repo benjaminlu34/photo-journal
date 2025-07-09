@@ -7,13 +7,13 @@
     /* Neumorphic Design Tokens */
     --surface: #EAF0FF;
     --surface-elevated: #F4F7FF;
-    --shadow-dark: rgba(179,189,214,0.7);
+    --shadow-dark: rgba(179, 189, 214, 0.7);
     --shadow-light: #FFFFFF;
     --radius-lg: 20px;
     --radius-sm: 12px;
-    --gradient-primary: linear-gradient(135deg,#7E5DFF 0%,#AE7CFF 100%);
+    --gradient-primary: linear-gradient(135deg, #7E5DFF 0%, #AE7CFF 100%);
     --text-muted: #6B7280;
-    
+
     /* Light Neumorphic Color System - Soft Pastel Background with Blue/Purple Accents */
     --background: 234 100% 97%;
     --foreground: 224 5% 21%;
@@ -94,7 +94,7 @@
     /* Subtle grain overlay for texture */
     position: relative;
   }
-  
+
   body::before {
     content: '';
     position: fixed;
@@ -112,98 +112,97 @@
 
 @layer utilities {
   /* New Neumorphic Design System - Soft Pastel Aesthetic */
-  
+
   /* Base neumorphic card with soft shadows */
   .neu-card {
     @apply bg-surface-elevated rounded-lg shadow-neu;
     transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .neu-card:hover {
     @apply shadow-neu-lg;
     transform: translateY(-2px);
   }
-  
+
   /* Neumorphic button with gradient and motion */
   .neu-button {
     @apply inline-flex items-center justify-center rounded-sm shadow-neu;
     background: var(--gradient-primary);
     transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .neu-button:hover {
     @apply shadow-neu-lg;
     transform: translateY(-1px);
   }
-  
+
   .neu-button:active {
     @apply shadow-neu-inset;
     transform: scale(0.95) translateY(0);
   }
-  
+
   /* Neumorphic input with inset shadow */
   .neu-input {
     @apply w-full rounded-sm shadow-neu-inset bg-surface-elevated px-4 py-2;
     transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .neu-input:focus {
     @apply shadow-neu ring-2 ring-primary/40;
   }
-  
+
   /* Navigation pills */
   .neu-nav-pill {
     @apply px-4 py-2 rounded-sm bg-surface-elevated transition-all duration-150;
   }
-  
+
   .neu-nav-pill:not(.active) {
     @apply shadow-neu-inset;
   }
-  
+
   .neu-nav-pill.active,
   .neu-nav-pill:hover {
     @apply shadow-neu;
   }
-  
+
   /* Sticky note style with soft pastel gradients */
   .sticky-note {
     @apply rounded-sm shadow-neu;
     transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .sticky-note:hover {
-    transform: translateY(-4px) scale(1.02) !important;
-    box-shadow: 
+    box-shadow:
       8px 8px 16px rgba(0, 0, 0, 0.15),
       -8px -8px 16px rgba(255, 255, 255, 0.9),
       inset 2px 2px 4px rgba(255, 255, 255, 0.7) !important;
   }
-  
+
   .sticky-note:hover,
   .sticky-note.selected {
     @apply shadow-neu-inset;
   }
-  
+
   .sticky-note.yellow {
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   }
-  
+
   .sticky-note.rose {
     background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
   }
-  
+
   .sticky-note.blue {
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   }
-  
+
   .sticky-note.green {
     background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   }
-  
+
   .sticky-note.purple {
     background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%);
   }
-  
+
   /* Old utilities kept for compatibility */
 
   .glass-morphism {

@@ -51,7 +51,7 @@ export function WeeklyCalendarView() {
         </div>
         <div className="flex items-center space-x-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={importCalendar}
             className="neu-card text-gray-700"
@@ -59,7 +59,7 @@ export function WeeklyCalendarView() {
             Import Calendar
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateWeek("prev")}
             className="neu-card text-gray-700"
@@ -67,7 +67,7 @@ export function WeeklyCalendarView() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setCurrentWeek(new Date())}
             className="neu-nav-pill text-gray-700"
@@ -75,7 +75,7 @@ export function WeeklyCalendarView() {
             This Week
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateWeek("next")}
             className="neu-card text-gray-700"

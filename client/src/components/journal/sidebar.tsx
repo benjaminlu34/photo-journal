@@ -4,7 +4,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronLeft, ChevronRight, Heart, CalendarDays, Calendar } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  CalendarDays,
+  Calendar,
+} from "lucide-react";
 
 export function JournalSidebar() {
   const { currentDate, setCurrentDate, friends } = useJournal();
@@ -30,17 +36,17 @@ export function JournalSidebar() {
     const startingDayOfWeek = firstDay.getDay();
 
     const days = [];
-    
+
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(year, month, day));
     }
-    
+
     return days;
   };
 
@@ -65,15 +71,18 @@ export function JournalSidebar() {
 
   const getOnlineFriends = () => {
     // Simulate online status - in real app this would come from real-time data
-    return friends.slice(0, 3).map(friend => ({
+    return friends.slice(0, 3).map((friend) => ({
       ...friend,
       isOnline: Math.random() > 0.5,
-      lastSeen: Math.random() > 0.7 ? "Just now" : `${Math.floor(Math.random() * 60)} min ago`
+      lastSeen:
+        Math.random() > 0.7
+          ? "Just now"
+          : `${Math.floor(Math.random() * 60)} min ago`,
     }));
   };
 
   return (
-    <div className="w-80 bg-surface-elevated border-r border-purple-100 flex flex-col">
+    <div className="neu-card w-80 bg-surface-elevated border-r border-purple-100 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-border/20">
         <div className="flex items-center justify-between mb-4">
@@ -83,27 +92,10 @@ export function JournalSidebar() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
-              <p className="text-sm text-muted-foreground">Express yourself beautifully ✨</p>
+              <p className="text-sm text-muted-foreground">
+                Express yourself beautifully ✨
+              </p>
             </div>
-          </div>
-          <div className="flex space-x-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="neu-card px-3 py-2 text-gray-700"
-              onClick={() => window.location.href = "/api/logout"}
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              Calendar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="neu-card px-3 py-2 text-gray-700"
-              onClick={() => window.location.href = "/api/logout"}
-            >
-              Logout
-            </Button>
           </div>
         </div>
       </div>
@@ -112,12 +104,15 @@ export function JournalSidebar() {
       <div className="p-6 border-b border-border/20">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-foreground">
-            {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            {currentMonth.toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            })}
           </h2>
           <div className="flex space-x-2">
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               className="w-10 h-10 p-0 neu-card text-gray-700"
               onClick={() => navigateMonth("prev")}
             >
@@ -125,7 +120,7 @@ export function JournalSidebar() {
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               className="w-10 h-10 p-0 neu-card text-gray-700"
               onClick={() => navigateMonth("next")}
             >
@@ -137,11 +132,14 @@ export function JournalSidebar() {
         {/* Mini Calendar */}
         <div className="grid grid-cols-7 gap-2 text-center text-sm mb-4">
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-            <div key={`weekday-${index}`} className="text-muted-foreground font-semibold py-2">
+            <div
+              key={`weekday-${index}`}
+              className="text-muted-foreground font-semibold py-2"
+            >
               {day}
             </div>
           ))}
-          
+
           {getDaysInMonth().map((date, index) => (
             <div
               key={index}
@@ -149,10 +147,10 @@ export function JournalSidebar() {
                 !date
                   ? ""
                   : isSelected(date)
-                  ? "neu-button active text-white font-bold"
-                  : isToday(date)
-                  ? "neu-card border-2 border-purple-300 text-purple-700 font-semibold"
-                  : "text-muted-foreground hover:neu-card hover:text-purple-700 interactive"
+                    ? "neu-button active text-white font-bold"
+                    : isToday(date)
+                      ? "neu-card border-2 border-purple-300 text-purple-700 font-semibold"
+                      : "text-muted-foreground hover:neu-card hover:text-purple-700 interactive"
               }`}
               onClick={() => date && setCurrentDate(date)}
             >
@@ -166,7 +164,10 @@ export function JournalSidebar() {
       <div className="p-6 flex-1">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold text-foreground">Friends Online</h3>
-          <Badge variant="secondary" className="gradient-button text-white px-3 py-1 animate-bounce-gentle">
+          <Badge
+            variant="secondary"
+            className="gradient-button text-white px-3 py-1 animate-bounce-gentle"
+          >
             Online
           </Badge>
         </div>
@@ -181,12 +182,18 @@ export function JournalSidebar() {
                 <Avatar className="w-12 h-12 glass-card">
                   <AvatarImage src={friend.profileImageUrl || ""} />
                   <AvatarFallback className="gradient-button text-white font-bold">
-                    {(friend.firstName?.[0] || friend.email?.[0] || "?").toUpperCase()}
+                    {(
+                      friend.firstName?.[0] ||
+                      friend.email?.[0] ||
+                      "?"
+                    ).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div
                   className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${
-                    friend.isOnline ? "bg-green-400 animate-glow" : "bg-purple-400"
+                    friend.isOnline
+                      ? "bg-green-400 animate-glow"
+                      : "bg-purple-400"
                   }`}
                 />
               </div>
@@ -196,7 +203,9 @@ export function JournalSidebar() {
                     ? `${friend.firstName} ${friend.lastName}`
                     : friend.email?.split("@")[0] || "Unknown"}
                 </p>
-                <p className="text-sm text-muted-foreground">{friend.lastSeen}</p>
+                <p className="text-sm text-muted-foreground">
+                  {friend.lastSeen}
+                </p>
               </div>
             </div>
           ))}
@@ -209,9 +218,22 @@ export function JournalSidebar() {
             WEEK'S HAPPENINGS
           </h4>
           <div className="text-sm text-muted-foreground space-y-3">
-            <div className="neumorphic-inset p-3 rounded-lg">✨ You created 3 new journal entries</div>
-            <div className="neumorphic-inset p-3 rounded-lg">💫 {friends.length > 0 ? friends[0].firstName || "A friend" : "Someone"} shared memories about <span className="text-foreground font-semibold">summer vibes</span></div>
-            <div className="neumorphic-inset p-3 rounded-lg">🎨 New content blocks added: photos, notes</div>
+            <div className="neumorphic-inset p-3 rounded-lg">
+              ✨ You created 3 new journal entries
+            </div>
+            <div className="neumorphic-inset p-3 rounded-lg">
+              💫{" "}
+              {friends.length > 0
+                ? friends[0].firstName || "A friend"
+                : "Someone"}{" "}
+              shared memories about{" "}
+              <span className="text-foreground font-semibold">
+                summer vibes
+              </span>
+            </div>
+            <div className="neumorphic-inset p-3 rounded-lg">
+              🎨 New content blocks added: photos, notes
+            </div>
           </div>
         </div>
       </div>

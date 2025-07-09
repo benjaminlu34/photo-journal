@@ -30,9 +30,13 @@ function HomeContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{
-        background: "linear-gradient(135deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 94%) 100%)"
-      }}>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          background:
+            "linear-gradient(135deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 99%) 50%, hsl(220, 14%, 94%) 100%)",
+        }}
+      >
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-secondary-600">Loading your journal...</p>
@@ -51,17 +55,19 @@ function HomeContent() {
       <JournalSidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="neu-card flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
-              <h2 className="text-2xl font-bold text-gray-800">Daily Pinboard</h2>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Daily Pinboard
+              </h2>
               <p className="text-gray-600">
-                {currentDate.toLocaleDateString("en-US", { 
-                  weekday: "long", 
-                  month: "long", 
-                  day: "numeric" 
+                {currentDate.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
                 })}
               </p>
             </div>
@@ -72,17 +78,17 @@ function HomeContent() {
             {/* User Actions */}
             <div className="flex items-center space-x-4">
               <Button
-                variant="outline"
-                className="px-4 py-2 rounded-xl text-gray-600 font-medium hover:text-purple-600 transition-colors neumorphic-button"
+                variant="ghost"
+                className="neu-nav-pill font-semibold active text-gray-700 hover:text-[rgb(139,92,246)]"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
-              
+
               <Button
-                variant="outline"
-                onClick={() => window.location.href = "/api/logout"}
-                className="text-gray-600 hover:text-red-600 neumorphic-button"
+                variant="ghost"
+                onClick={() => (window.location.href = "/api/logout")}
+                className="neu-nav-pill font-semibold active text-gray-700 hover:text-red-500"
               >
                 Logout
               </Button>

@@ -23,7 +23,7 @@ export function ViewToggle() {
             size="sm"
             onClick={() => setViewMode(mode)}
             className={`neu-nav-pill font-semibold ${
-              viewMode === mode ? "active text-white" : "text-gray-700"
+              viewMode === mode ? "active text-primary" : "text-gray-700"
             }`}
           >
             <Icon className="w-4 h-4 mr-2" />

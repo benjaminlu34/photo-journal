@@ -71,7 +71,7 @@ export function WeeklyCreativeView() {
         </div>
         <div className="flex items-center space-x-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateWeek("prev")}
             className="neu-card text-gray-700"
@@ -79,7 +79,7 @@ export function WeeklyCreativeView() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setCurrentWeek(new Date())}
             className="neu-nav-pill text-gray-700"
@@ -87,7 +87,7 @@ export function WeeklyCreativeView() {
             This Week
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => navigateWeek("next")}
             className="neu-card text-gray-700"
@@ -147,7 +147,7 @@ export function WeeklyCreativeView() {
                 <div className="flex-1 flex flex-col justify-center space-y-3">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => addCreativeContent(day, "photo")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
@@ -156,7 +156,7 @@ export function WeeklyCreativeView() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => addCreativeContent(day, "drawing")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
@@ -165,7 +165,7 @@ export function WeeklyCreativeView() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => addCreativeContent(day, "audio")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
@@ -174,7 +174,7 @@ export function WeeklyCreativeView() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => addCreativeContent(day, "sticky_note")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
