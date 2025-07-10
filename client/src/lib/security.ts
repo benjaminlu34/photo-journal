@@ -30,13 +30,13 @@ const checklistContentSchema = z.object({
 
 const imageContentSchema = z.object({
   type: z.literal('image'),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().url().nullable().optional(),
   alt: z.string().max(200).optional(),
 });
 
 const voiceContentSchema = z.object({
   type: z.literal('voice'),
-  audioUrl: z.string().url().optional(),
+  audioUrl: z.string().url().nullable().optional(),
   duration: z.number().min(0).max(300).optional(), // Max 5 minutes
 });
 

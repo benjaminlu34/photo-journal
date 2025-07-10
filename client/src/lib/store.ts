@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
 import type { NoteData, NoteUpdate, NoteContent } from '../types/notes';
 import { security } from './security';
 import { CleanupManager } from './cleanup';
+
+// Enable MapSet plugin for Immer to handle Map/Set in the store
+enableMapSet();
 
 interface BoardState {
   notes: Record<string, NoteData>;
@@ -111,7 +115,7 @@ export const useBoardStore = create<BoardState & BoardActions>()(
             id: 'demo-image-1',
             type: 'image', 
             position: { x: 600, y: 150, width: 200, height: 150, rotation: 0 },
-            content: { type: 'image', imageUrl: '', alt: 'Upload an image here' },
+            content: { type: 'image', imageUrl: null, alt: 'Upload an image here' },
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           },
@@ -119,7 +123,7 @@ export const useBoardStore = create<BoardState & BoardActions>()(
             id: 'demo-voice-1',
             type: 'voice',
             position: { x: 100, y: 350, width: 200, height: 120, rotation: 0 },
-            content: { type: 'voice', audioUrl: '', duration: 0 },
+            content: { type: 'voice', audioUrl: null, duration: 0 },
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }

@@ -38,8 +38,8 @@ export const StickyBoard: React.FC = () => {
     const contentMap = {
       text: { type: 'text' as const, text: 'New text note' },
       checklist: { type: 'checklist' as const, items: [{ id: '1', text: 'New item', completed: false }] },
-      image: { type: 'image' as const, imageUrl: '', alt: 'New image note' },
-      voice: { type: 'voice' as const, audioUrl: '', duration: 0 },
+      image: { type: 'image' as const, imageUrl: null, alt: 'New image note' },
+      voice: { type: 'voice' as const, audioUrl: null, duration: 0 },
       drawing: { type: 'drawing' as const, strokes: [] }
     };
 
