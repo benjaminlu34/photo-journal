@@ -6,7 +6,7 @@ import { StickyNoteShell } from '../noteShell/StickyNoteShell';
 import { noteRegistry } from './noteRegistry';
 import { useBoardStore } from '../../lib/store';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
-import { Plus, FileText, CheckSquare, Image, Mic, PenTool } from 'lucide-react';
+import { FileText, CheckSquare, Image, Mic, PenTool } from 'lucide-react';
 import type { NoteData } from '../../types/notes';
 
 const getNoteTint = (type: NoteData['type']) => {
@@ -25,9 +25,7 @@ export const StickyBoard: React.FC = () => {
     notes,
     addNote,
     updateNote,
-    deleteNote,
-    gridSnapEnabled,
-    setGridSnapEnabled
+    deleteNote
   } = useBoardStore();
 
   // Function to create a new note
@@ -89,20 +87,6 @@ export const StickyBoard: React.FC = () => {
         onDelete={deleteNote}
       >
         <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
-          {/* Grid overlay when grid snap is enabled */}
-          {gridSnapEnabled && (
-            <div 
-              className="absolute inset-0 opacity-20 pointer-events-none"
-              style={{
-                backgroundImage: `
-                  linear-gradient(to right, #e0e7ff 1px, transparent 1px),
-                  linear-gradient(to bottom, #e0e7ff 1px, transparent 1px)
-                `,
-                backgroundSize: '20px 20px'
-              }}
-            />
-          )}
-
           {noteComponents}
 
           {/* Floating action buttons */}
@@ -145,19 +129,6 @@ export const StickyBoard: React.FC = () => {
                 <PenTool className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Grid snap toggle */}
-            <button
-              onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-              className="w-12 h-12 bg-white/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
-              title={gridSnapEnabled ? 'Disable grid snap' : 'Enable grid snap'}
-            >
-              <div className={`w-6 h-6 grid grid-cols-3 gap-0.5 ${gridSnapEnabled ? 'text-blue-500' : 'text-gray-400'}`}>
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="w-1 h-1 bg-current rounded-full" />
-                ))}
-              </div>
-            </button>
           </div>
         </div>
       </NoteContextProvider>

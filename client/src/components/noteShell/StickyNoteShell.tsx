@@ -3,7 +3,6 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useNoteContext } from '../board/noteContext';
 import { noteRegistry } from '../board/noteRegistry';
-import { snapToGrid } from '../../utils/snapToGrid';
 import { useMobile } from '../../hooks/use-mobile';
 import { cn } from '../../lib/utils';
 import { Trash2 } from 'lucide-react';
@@ -33,7 +32,7 @@ const getNoteTint = (noteType: string) => {
 export const StickyNoteShell = React.memo(function StickyNoteShell({ 
   note
 }: StickyNoteShellProps) {
-  const { updateNote, deleteNote, gridSnapEnabled, selectedId, select } = useNoteContext();
+  const { updateNote, deleteNote, selectedId, select } = useNoteContext();
   const { id, position, type, content } = note;
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -87,14 +86,8 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     if (!boardRect) return;
 
     // Calculate new position
-    let newX = e.clientX - dragStartRef.current.x - boardRect.left;
-    let newY = e.clientY - dragStartRef.current.y - boardRect.top;
-
-    // Apply grid snap if enabled
-    if (gridSnapEnabled) {
-      newX = snapToGrid(newX);
-      newY = snapToGrid(newY);
-    }
+    const newX = e.clientX - dragStartRef.current.x - boardRect.left;
+    const newY = e.clientY - dragStartRef.current.y - boardRect.top;
 
     // Update live position with RAF
     livePosRef.current = { x: newX, y: newY };
@@ -107,7 +100,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
         rafRef.current = undefined;
       });
     }
-  }, [isDragging, gridSnapEnabled]);
+  }, [isDragging]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!isDragging || e.pointerId !== touchIdentifierRef.current) return;
@@ -171,11 +164,9 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
       )}
       style={{
         backgroundColor: getNoteTint(type), // Solid pastel body matching mockup
-        left: position.x,
-        top: position.y,
+        transform: `translate(${position.x}px, ${position.y}px) rotate(${position.rotation || 0}deg)`,
         width: position.width,
         height: position.height,
-        transform: `rotate(${position.rotation || 0}deg)`,
         zIndex: isDragging ? 1000 : 1,
       }}
       onPointerDown={handlePointerDown}

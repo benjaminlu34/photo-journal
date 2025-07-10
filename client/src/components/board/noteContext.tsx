@@ -6,8 +6,6 @@ import type { NotePosition, NoteData } from '../../types/notes';
 interface NoteContextValue {
   updateNote: (id: string, updates: Partial<NoteData>) => void;
   deleteNote: (id: string) => void;
-  gridSnapEnabled: boolean;
-  setGridSnapEnabled: (enabled: boolean) => void;
   selectedId: string | null;
   select: (id: string | null) => void;
 }
@@ -33,7 +31,6 @@ export const NoteContextProvider: React.FC<NoteContextProviderProps> = ({
   onUpdate,
   onDelete,
 }) => {
-  const [gridSnapEnabled, setGridSnapEnabled] = React.useState<boolean>(true);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const updateQueueRef = useRef<Map<string, Partial<NoteData>>>(new Map());
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
@@ -84,11 +81,9 @@ export const NoteContextProvider: React.FC<NoteContextProviderProps> = ({
   const value = React.useMemo<NoteContextValue>(() => ({
     updateNote,
     deleteNote,
-    gridSnapEnabled,
-    setGridSnapEnabled,
     selectedId,
     select,
-  }), [updateNote, deleteNote, gridSnapEnabled, selectedId, select]);
+  }), [updateNote, deleteNote, selectedId, select]);
 
   return (
     <NoteContext.Provider value={value}>

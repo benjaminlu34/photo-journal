@@ -12,7 +12,6 @@ enableMapSet();
 interface BoardState {
   notes: Record<string, NoteData>;
   selectedId: string | null;
-  gridSnapEnabled: boolean;
   updateQueue: Map<string, NoteUpdate>;
   pendingSync: boolean;
   userId: string | null;
@@ -48,7 +47,6 @@ interface BoardActions {
   deleteNote: (id: string) => void;
 
   setSelectedId: (id: string | null) => void;
-  setGridSnapEnabled: (enabled: boolean) => void;
   batchUpdateNotes: (updates: Array<[string, Partial<NoteData>]>) => void;
   syncChanges: () => void;
   setUserId: (id: string | null) => void;
@@ -129,7 +127,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
           }
         },
         selectedId: null,
-        gridSnapEnabled: true,
         updateQueue: new Map(),
         pendingSync: false,
         userId: null,
@@ -260,11 +257,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
         setSelectedId: (id: string | null) =>
           set((state) => {
             state.selectedId = id;
-          }),
-
-        setGridSnapEnabled: (enabled: boolean) =>
-          set((state) => {
-            state.gridSnapEnabled = enabled;
           }),
 
         batchUpdateNotes: (updates: Array<[string, Partial<NoteData>]>) =>
