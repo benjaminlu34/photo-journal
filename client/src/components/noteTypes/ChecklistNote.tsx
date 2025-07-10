@@ -1,55 +1,93 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Check, Plus, X } from "lucide-react";
-import type { ChecklistNoteContent, ChecklistItem } from "@/types/notes";
+import type { NoteContent } from "@/types/notes";
+
+type ChecklistNoteContent = Extract<NoteContent, { type: 'checklist' }>;
 
 interface ChecklistNoteProps {
   content: ChecklistNoteContent;
   onChange?: (content: ChecklistNoteContent) => void;
 }
+
 const uid = () => crypto.randomUUID();
-const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, onChange }) => {
+
+const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checklist', items: [] }, onChange }) => {
   const [newItemText, setNewItemText] = useState("");
+  const [localItems, setLocalItems] = useState(content.items || []);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync local state when content prop changes (from server)
+  useEffect(() => {
+    setLocalItems(content.items || []);
+  }, [content.items]);
+
+  // Debounced save function
+  const debouncedSave = useCallback((items: typeof content.items) => {
+    // Clear any existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Set new timeout for saving
+    debounceTimeoutRef.current = setTimeout(() => {
+      onChange?.({ ...content, items });
+    }, 500); // 500ms debounce
+  }, [onChange, content]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleToggleItem = useCallback(
     (itemId: string) => {
-      const updatedItems = (content?.items || []).map((item) =>
+      const updatedItems = localItems.map((item) =>
         item.id === itemId ? { ...item, completed: !item.completed } : item,
       );
-      onChange?.({ items: updatedItems });
+      setLocalItems(updatedItems);
+      debouncedSave(updatedItems);
     },
-    [content.items, onChange],
+    [localItems, debouncedSave],
   );
 
   const handleItemTextChange = useCallback(
     (itemId: string, text: string) => {
-      const updatedItems = (content?.items || []).map((item) =>
+      const updatedItems = localItems.map((item) =>
         item.id === itemId ? { ...item, text } : item,
       );
-      onChange?.({ items: updatedItems });
+      setLocalItems(updatedItems);
+      debouncedSave(updatedItems);
     },
-    [content.items, onChange],
+    [localItems, debouncedSave],
   );
 
   const handleRemoveItem = useCallback(
     (itemId: string) => {
-      const updatedItems = (content?.items || []).filter((item) => item.id !== itemId);
-      onChange?.({ items: updatedItems });
+      const updatedItems = localItems.filter((item) => item.id !== itemId);
+      setLocalItems(updatedItems);
+      debouncedSave(updatedItems);
     },
-    [content.items, onChange],
+    [localItems, debouncedSave],
   );
 
   const handleAddItem = useCallback(() => {
     if (newItemText.trim()) {
-      const newItem: ChecklistItem = {
+      const newItem = {
         id: uid(),
         text: newItemText.trim(),
         completed: false,
       };
-      onChange?.({ items: [...(content?.items || []), newItem] });
+      const updatedItems = [...localItems, newItem];
+      setLocalItems(updatedItems);
+      debouncedSave(updatedItems);
       setNewItemText("");
     }
-  }, [content.items, newItemText, onChange]);
+  }, [localItems, newItemText, debouncedSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -65,7 +103,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
     <div className="h-full p-4 space-y-2">
       {/* Existing items */}
       <div className="space-y-2">
-        {(content?.items || []).map((item) => (
+        {localItems.map((item) => (
           <div key={item.id} className="flex items-center gap-2 group">
             <button
               onClick={() => handleToggleItem(item.id)}

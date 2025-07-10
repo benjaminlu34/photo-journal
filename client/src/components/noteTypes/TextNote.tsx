@@ -1,6 +1,8 @@
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import type { TextNoteContent } from "@/types/notes";
+import type { NoteContent } from "@/types/notes";
+
+type TextNoteContent = Extract<NoteContent, { type: 'text' | 'sticky_note' }>;
 
 interface TextNoteProps {
   content: TextNoteContent;
@@ -8,19 +10,55 @@ interface TextNoteProps {
   placeholder?: string;
 }
 
-const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, placeholder = "Start typing..." }) => {
+const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" }, onChange, placeholder = "Start typing..." }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Local state for immediate UI updates
+  const [localText, setLocalText] = useState(content.text || "");
+
+  // Sync local state when content prop changes (from server)
+  useEffect(() => {
+    setLocalText(content.text || "");
+  }, [content.text]);
+
+  // Debounced save function
+  const debouncedSave = useCallback((text: string) => {
+    // Clear any existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Set new timeout for saving
+    debounceTimeoutRef.current = setTimeout(() => {
+      onChange?.({ ...content, text });
+    }, 500); // 500ms debounce
+  }, [onChange, content]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    onChange?.({ text: newText });
+    
+    // Update local state immediately for responsive UI
+    setLocalText(newText);
+    
+    // Debounce the actual save
+    debouncedSave(newText);
     
     // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [onChange]);
+  }, [debouncedSave]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Allow tab in textarea
@@ -40,7 +78,7 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, p
     <div className="h-full p-4">
       <textarea
         ref={textareaRef}
-        value={content?.text || ""}
+        value={localText}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         className={cn(
