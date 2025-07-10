@@ -1,5 +1,5 @@
 import { StickyNoteData } from "@/types/notes";
-import { ContentBlockData, Position } from "@/types/journal";
+import { ContentBlockData, Position, ContentBlockType } from "@/types/journal";
 
 /**
  * Converts a StickyNote update back to a ContentBlock patch
@@ -55,8 +55,8 @@ export const noteToBlock = (
 /**
  * Maps note types to legacy content block types
  */
-function mapNoteTypeToBlockType(noteType: string): string {
-  const typeMap: Record<string, string> = {
+function mapNoteTypeToBlockType(noteType: string): ContentBlockType {
+  const typeMap: Record<string, ContentBlockType> = {
     text: "text",
     checklist: "checklist",
     image: "photo",

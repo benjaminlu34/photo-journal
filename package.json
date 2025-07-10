@@ -78,6 +78,9 @@
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
+    "y-indexeddb": "^9.0.12",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27",
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0"
   },
