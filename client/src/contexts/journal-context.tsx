@@ -142,7 +142,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  // Update content block mutation
+  // Update content block mutation with optimistic updates
   const updateBlockMutation = useMutation({
     mutationFn: async ({
       id,
@@ -158,10 +158,33 @@ export function JournalProvider({ children }: JournalProviderProps) {
       );
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
+    onMutate: async ({ id, updates }) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/journal", dateString] });
+
+      // Snapshot the previous value
+      const previousEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+
+      // Optimistically update the cache
+      if (previousEntry) {
+        const optimisticEntry: JournalEntryData = {
+          ...previousEntry,
+          contentBlocks: previousEntry.contentBlocks.map(block =>
+            block.id === id ? { ...block, ...updates, updatedAt: new Date().toISOString() } : block
+          )
+        };
+        queryClient.setQueryData(["/api/journal", dateString], optimisticEntry);
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousEntry };
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables, context) => {
+      // If the mutation fails, rollback to the previous value
+      if (context?.previousEntry) {
+        queryClient.setQueryData(["/api/journal", dateString], context.previousEntry);
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -178,6 +201,10 @@ export function JournalProvider({ children }: JournalProviderProps) {
         description: "Failed to update content block. Please try again.",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
     },
   });
 
@@ -243,9 +270,9 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Note-based actions that bridge to the legacy system
   const updateNote = (id: string, data: Partial<StickyNoteData>) => {
-    // const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
-    // const blockUpdates = noteToBlockPatch(data, existingBlock);
-    // updateContentBlock(id, blockUpdates);
+    const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
+    const blockUpdates = noteToBlockPatch(data, existingBlock);
+    updateContentBlock(id, blockUpdates);
   };
 
   const deleteNote = (id: string) => {
