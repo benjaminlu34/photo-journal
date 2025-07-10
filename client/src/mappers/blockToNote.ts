@@ -22,7 +22,6 @@ const blockTypeToNoteType = (
   type: ContentBlockData['type']
 ): StickyNoteData['type'] => {
   switch (type) {
-    case 'sticky_note':
     case 'text':
       return 'text';
     case 'checklist':
@@ -33,6 +32,8 @@ const blockTypeToNoteType = (
       return 'voice';
     case 'drawing':
       return 'drawing';
+    case 'sticky_note':
+      return 'text';
     default:
       return 'text';
   }

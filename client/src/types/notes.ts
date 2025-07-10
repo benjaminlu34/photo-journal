@@ -20,6 +20,7 @@ export interface DrawingStroke {
 
 export type NoteContent =
   | { type: 'text'; text: string }
+  | { type: 'sticky_note'; text: string }
   | { type: 'checklist'; items: ChecklistItem[] }
   | { type: 'image'; imageUrl?: string; alt?: string }
   | { type: 'voice'; audioUrl?: string; duration?: number }
