@@ -4,13 +4,14 @@ import React, { useCallback, useMemo } from 'react';
 import { NoteContextProvider } from './noteContext';
 import { StickyNoteShell } from '../noteShell/StickyNoteShell';
 import { noteRegistry } from './noteRegistry';
-import { useBoardStore } from '../../lib/store';
+import { useJournal } from '../../contexts/journal-context';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
 import type { NoteData } from '../../types/notes';
 
 const getNoteTint = (type: NoteData['type']) => {
   switch (type) {
     case 'text': return 'bg-blue-50'; // noteBlue
+    case 'sticky_note': return 'bg-blue-50'; // noteBlue
     case 'checklist': return 'bg-green-50'; // noteGreen
     case 'image': return 'bg-pink-50'; // notePink
     case 'voice': return 'bg-purple-50'; // notePurple
@@ -21,15 +22,12 @@ const getNoteTint = (type: NoteData['type']) => {
 
 export const StickyBoard: React.FC = () => {
   const {
-    notes,
+    legacyNotes,
     updateNote,
     deleteNote,
-    gridSnapEnabled,
-    setGridSnapEnabled
-  } = useBoardStore();
-
-  // Convert notes object to array
-  const notesList = useMemo(() => Object.values(notes), [notes]);
+    gridSnap,
+    setGridSnap
+  } = useJournal();
 
   const handleBoardError = useCallback((error: Error) => {
     console.error('Board error:', error);
@@ -37,7 +35,7 @@ export const StickyBoard: React.FC = () => {
   }, []);
 
   // Memoize note components to prevent unnecessary re-renders
-  const noteComponents = useMemo(() => notesList.map(note => {
+  const noteComponents = useMemo(() => legacyNotes.map(note => {
     const NoteComponent = noteRegistry[note.type];
     if (!NoteComponent) {
       console.warn(`Unknown note type: ${note.type}`);
@@ -62,7 +60,7 @@ export const StickyBoard: React.FC = () => {
         </StickyNoteShell>
       </NoteErrorBoundary>
     );
-  }), [notesList, updateNote, deleteNote]);
+  }), [legacyNotes, updateNote, deleteNote]);
 
   return (
     <ErrorBoundary onError={handleBoardError}>
@@ -72,7 +70,7 @@ export const StickyBoard: React.FC = () => {
       >
         <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
           {/* Grid overlay when grid snap is enabled */}
-          {gridSnapEnabled && (
+          {gridSnap && (
             <div 
               className="absolute inset-0 opacity-20 pointer-events-none"
               style={{
@@ -89,11 +87,11 @@ export const StickyBoard: React.FC = () => {
 
           {/* Grid snap toggle */}
           <button
-            onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
+            onClick={() => setGridSnap(!gridSnap)}
             className="fixed bottom-8 right-8 w-12 h-12 bg-white/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
-            title={gridSnapEnabled ? 'Disable grid snap' : 'Enable grid snap'}
+            title={gridSnap ? 'Disable grid snap' : 'Enable grid snap'}
           >
-            <div className={`w-6 h-6 grid grid-cols-3 gap-0.5 ${gridSnapEnabled ? 'text-blue-500' : 'text-gray-400'}`}>
+            <div className={`w-6 h-6 grid grid-cols-3 gap-0.5 ${gridSnap ? 'text-blue-500' : 'text-gray-400'}`}>
               {Array.from({ length: 9 }).map((_, i) => (
                 <div key={i} className="w-1 h-1 bg-current rounded-full" />
               ))}

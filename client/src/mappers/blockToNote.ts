@@ -4,7 +4,7 @@ import type { ContentBlockData } from "@/types/journal";
 export interface StickyNoteData {
   id: string;
   /** Type of note. Matches keys of noteRegistry */
-  type: 'text' | 'checklist' | 'image' | 'voice' | 'drawing';
+  type: 'text' | 'sticky_note' | 'checklist' | 'image' | 'voice' | 'drawing';
   content: any;
   position: {
     x: number;
@@ -24,6 +24,8 @@ const blockTypeToNoteType = (
   switch (type) {
     case 'text':
       return 'text';
+    case 'sticky_note':
+      return 'sticky_note';
     case 'checklist':
       return 'checklist';
     case 'photo':
@@ -32,8 +34,6 @@ const blockTypeToNoteType = (
       return 'voice';
     case 'drawing':
       return 'drawing';
-    case 'sticky_note':
-      return 'text';
     default:
       return 'text';
   }
