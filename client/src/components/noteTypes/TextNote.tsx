@@ -8,12 +8,12 @@ interface TextNoteProps {
   placeholder?: string;
 }
 
-const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, placeholder = "Start typing..." }) => {
+const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" }, onChange, placeholder = "Start typing..." }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    onChange?.({ text: newText });
+    onChange?.({ type: 'text', text: newText });
     
     // Auto-resize textarea
     if (textareaRef.current) {

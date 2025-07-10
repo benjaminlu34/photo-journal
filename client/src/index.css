@@ -451,4 +451,63 @@
     background-image: radial-gradient(circle, rgba(140,113,255,0.15) 1px, transparent 1px);
     background-size: 20px 20px;
   }
+
+  /* Note shadow styles */
+  .shadow-note {
+    box-shadow:
+      4px 4px 8px rgba(0, 0, 0, 0.1),
+      -2px -2px 4px rgba(255, 255, 255, 0.7);
+  }
+
+  .shadow-noteHover {
+    box-shadow:
+      6px 6px 12px rgba(0, 0, 0, 0.15),
+      -3px -3px 6px rgba(255, 255, 255, 0.8);
+  }
+
+  .shadow-noteSelected {
+    box-shadow:
+      8px 8px 16px rgba(139, 92, 246, 0.2),
+      -4px -4px 8px rgba(255, 255, 255, 0.9),
+      inset 0 0 0 2px rgba(139, 92, 246, 0.3);
+  }
+
+  /* Neumorphic shadow utilities */
+  .shadow-neu {
+    box-shadow:
+      4px 4px 8px rgba(0, 0, 0, 0.1),
+      -4px -4px 8px rgba(255, 255, 255, 0.7);
+  }
+
+  .shadow-neu-hover {
+    box-shadow:
+      6px 6px 12px rgba(0, 0, 0, 0.15),
+      -6px -6px 12px rgba(255, 255, 255, 0.8);
+  }
+
+  .shadow-neu-pressed {
+    box-shadow:
+      inset 2px 2px 4px rgba(0, 0, 0, 0.1),
+      inset -2px -2px 4px rgba(255, 255, 255, 0.7);
+  }
+
+  .shadow-neu-lg {
+    box-shadow:
+      8px 8px 16px rgba(0, 0, 0, 0.15),
+      -8px -8px 16px rgba(255, 255, 255, 0.9);
+  }
+
+  .shadow-neu-inset {
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+  }
+
+  /* Disable user selection during dragging */
+  .user-select-none {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
 }

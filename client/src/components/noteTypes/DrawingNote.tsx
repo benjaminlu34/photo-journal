@@ -8,7 +8,7 @@ interface DrawingNoteProps {
   onChange?: (content: DrawingNoteContent) => void;
 }
 
-const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
+const DrawingNote: React.FC<DrawingNoteProps> = ({ content = { type: 'drawing', strokes: [] }, onChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentTool, setCurrentTool] = useState<'pencil' | 'eraser'>('pencil');
@@ -110,12 +110,12 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
     
     // Add stroke to content
     const newStrokes = [...content.strokes, currentStroke];
-    onChange?.({ strokes: newStrokes });
+    onChange?.({ type: 'drawing', strokes: newStrokes });
     setCurrentStroke(null);
   };
 
   const clearDrawing = () => {
-    onChange?.({ strokes: [] });
+    onChange?.({ type: 'drawing', strokes: [] });
   };
 
   return (

@@ -8,7 +8,7 @@ interface VoiceNoteProps {
   onChange?: (content: VoiceNoteContent) => void;
 }
 
-const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
+const VoiceNote: React.FC<VoiceNoteProps> = ({ content = { type: 'voice' }, onChange }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -35,7 +35,7 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(blob);
-        onChange?.({ audioUrl, duration: Date.now() / 1000 });
+        onChange?.({ type: 'voice', audioUrl, duration: Date.now() / 1000 });
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -83,7 +83,7 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
   };
 
   const handleDeleteRecording = () => {
-    onChange?.({ audioUrl: undefined, duration: undefined });
+    onChange?.({ type: 'voice', audioUrl: undefined, duration: undefined });
     setIsPlaying(false);
     setCurrentTime(0);
   };

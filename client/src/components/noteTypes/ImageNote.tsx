@@ -8,7 +8,7 @@ interface ImageNoteProps {
   onChange?: (content: ImageNoteContent) => void;
 }
 
-const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
+const ImageNote: React.FC<ImageNoteProps> = ({ content = { type: 'image' }, onChange }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -21,6 +21,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
       // For now, create a blob URL (in real app would upload to server)
       const imageUrl = URL.createObjectURL(file);
       onChange?.({ 
+        type: 'image',
         imageUrl, 
         alt: file.name.replace(/\.[^/.]+$/, "") 
       });
@@ -62,7 +63,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
   }, []);
 
   const handleRemoveImage = useCallback(() => {
-    onChange?.({ imageUrl: undefined, alt: undefined });
+    onChange?.({ type: 'image', imageUrl: undefined, alt: undefined });
   }, [onChange]);
 
   if (content?.imageUrl) {

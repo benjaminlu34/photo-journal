@@ -8,7 +8,7 @@ interface ChecklistNoteProps {
   onChange?: (content: ChecklistNoteContent) => void;
 }
 const uid = () => crypto.randomUUID();
-const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, onChange }) => {
+const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checklist', items: [] }, onChange }) => {
   const [newItemText, setNewItemText] = useState("");
 
   const handleToggleItem = useCallback(
@@ -16,7 +16,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
       const updatedItems = (content?.items || []).map((item) =>
         item.id === itemId ? { ...item, completed: !item.completed } : item,
       );
-      onChange?.({ items: updatedItems });
+      onChange?.({ type: 'checklist', items: updatedItems });
     },
     [content.items, onChange],
   );
@@ -26,7 +26,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
       const updatedItems = (content?.items || []).map((item) =>
         item.id === itemId ? { ...item, text } : item,
       );
-      onChange?.({ items: updatedItems });
+      onChange?.({ type: 'checklist', items: updatedItems });
     },
     [content.items, onChange],
   );
@@ -34,7 +34,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
   const handleRemoveItem = useCallback(
     (itemId: string) => {
       const updatedItems = (content?.items || []).filter((item) => item.id !== itemId);
-      onChange?.({ items: updatedItems });
+      onChange?.({ type: 'checklist', items: updatedItems });
     },
     [content.items, onChange],
   );
@@ -46,7 +46,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
         text: newItemText.trim(),
         completed: false,
       };
-      onChange?.({ items: [...(content?.items || []), newItem] });
+      onChange?.({ type: 'checklist', items: [...(content?.items || []), newItem] });
       setNewItemText("");
     }
   }, [content.items, newItemText, onChange]);

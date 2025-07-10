@@ -27,6 +27,13 @@ export type NoteContent =
 
 type ContentFor<T extends NoteContent['type']> = Extract<NoteContent, { type: T }>;
 
+// Export individual content types for component props
+export type TextNoteContent = { type: 'text'; text: string };
+export type ChecklistNoteContent = { type: 'checklist'; items: ChecklistItem[] };
+export type ImageNoteContent = { type: 'image'; imageUrl?: string; alt?: string };
+export type VoiceNoteContent = { type: 'voice'; audioUrl?: string; duration?: number };
+export type DrawingNoteContent = { type: 'drawing'; strokes: DrawingStroke[] };
+
 export interface NoteData<T extends NoteContent['type'] = NoteContent['type']> {
   id: string;
   type: T;
