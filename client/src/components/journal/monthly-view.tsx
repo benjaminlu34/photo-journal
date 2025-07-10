@@ -60,7 +60,7 @@ export function MonthlyView() {
   };
 
   return (
-    <div className="flex-1 p-6 bg-white overflow-auto">
+    <div className="flex-1 p-6 pinboard-bg overflow-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

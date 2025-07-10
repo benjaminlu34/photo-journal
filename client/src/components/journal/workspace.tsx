@@ -80,10 +80,7 @@ export function JournalWorkspace() {
     <div
       ref={workspaceRef}
       data-workspace="true"
-      className="flex-1 relative overflow-auto min-h-screen bg-white"
-      style={{
-        background: "linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 0.8) 100%)"
-      }}
+      className="flex-1 relative overflow-auto min-h-screen pinboard-bg"
     >
       {/* Content Blocks */}
       {currentEntry.contentBlocks.map((block) => (

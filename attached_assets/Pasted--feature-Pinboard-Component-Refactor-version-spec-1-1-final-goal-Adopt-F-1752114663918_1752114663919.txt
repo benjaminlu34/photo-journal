@@ -1,0 +1,94 @@
+{
+  "feature": "Pinboard-Component-Refactor",
+  "version": "spec-1.1 (final)",
+  "goal": "Adopt Firm #1’s Board → Shell → Content split **with** our high-FPS drag math, grid-snap, and Yjs collaboration.  Leave richer Firm #2 ideas (emoji reactions, Undo/Redo ring, spiral cursors) in backlog.",
+  "new_file_tree": [
+    "src/",
+    " ├─ components/",
+    " │   ├─ board/",
+    " │   │   ├─ StickyBoard.tsx",
+    " │   │   ├─ noteRegistry.ts",
+    " │   │   └─ NoteContext.tsx",
+    " │   ├─ noteShell/",
+    " │   │   └─ StickyNoteShell.tsx",
+    " │   └─ noteTypes/",
+    " │       ├─ TextNote.tsx          (memo)",
+    " │       ├─ ChecklistNote.tsx     (memo)",
+    " │       ├─ ImageNote.tsx         (lazy)",
+    " │       └─ VoiceNote.tsx         (lazy)",
+    " ├─ hooks/",
+    " │   └─ useCollaboration.ts       (Firm #1 file)",
+    " └─ utils/",
+    "     └─ snapToGrid.ts"
+  ],
+  "architectural_rules": [
+    "StickyBoard = state + Yjs sync + selection + creation toolbar",
+    "StickyNoteShell = drag, resize, grip, chrome (timestamp, delete…) — no content logic",
+    "noteTypes/* = render & edit their own content only",
+    "Data flow: Board↔Shell (meta/position) • Shell↔Content (content)",
+    "snapToGrid(20 px) called inside move handler when user pref `gridSnap=true`"
+  ],
+  "code_changes": [
+    {
+      "file": "utils/snapToGrid.ts",
+      "content": "export const snapToGrid = (n: number, g = 20) => Math.round(n / g) * g;"
+    },
+    {
+      "file": "StickyNoteShell.tsx",
+      "actions": [
+        "IMPORT snapToGrid and NoteContext",
+        "In handlePointerDown: replace strict equality check with data-drag-ignore gate; capture pointer BEFORE listeners; subtract board.offsetLeft/top for dragStart.",
+        "In moveBlock: livePos.x = snapToGrid(e.clientX − dragStart.x), livePos.y = snapToGrid(e.clientY − dragStart.y); RAF paint; NO setState.",
+        "On pointerUp: single updateNote(id, livePos.current)."
+      ]
+    },
+    {
+      "file": "StickyBoard.tsx",
+      "actions": [
+        "Use noteRegistry lookup instead of switch.",
+        "Wrap children in <NoteContext.Provider> so noteShell reads selection/update funcs.",
+        "Expose gridSnap preference (default true) via context or local state toggle."
+      ]
+    },
+    {
+      "file": "hooks/useCollaboration.ts",
+      "actions": [
+        "Copy Firm #1 verbatim, fix import aliases, export type AwarenessColorMap."
+      ]
+    }
+  ],
+  "performance_budget": {
+    "drag": "≤ 1 missed frame @ 120 Hz, 150 notes",
+    "network": "≤ 1 Yjs update per drag/resize",
+    "bundle": "core chunk ≤ 90 kB gzip; each lazy noteType ≤ 50 kB"
+  },
+  "a11y_contract": [
+    "Grip focusable, aria-grabbed toggled",
+    "Arrow keys move 2 px (⇧ = 10 px); Shift+Arrow resizes",
+    "Resize handles role='separator' aria-orientation set",
+    "All noteTypes inherit focus ring & role='group'"
+  ],
+  "migration_steps": [
+    "1 · Scaffold folders & copy Firm #1 code.",
+    "2 · Implement NoteContext + registry hook-up.",
+    "3 · Port drag/resize RAF batching + boardOffset fix.",
+    "4 · Add snapToGrid util, toggle in Board toolbar.",
+    "5 · Memoise/lazy noteTypes; remove redundant props.",
+    "6 · QA: FPS, single Yjs patch, img overflow, keyboard nav.",
+    "7 · Feature-flag 'pinboard_v2' → merge to main."
+  ],
+  "test_cases": [
+    "✅ Fast click-drag shows movement immediately (no freeze).",
+    "✅ 60 notes drag → 0–1 dropped frames (Chrome FPS).",
+    "✅ Grid-snap rounds to 20 px; toggle off restores free drag.",
+    "✅ One Yjs message per drag; IndexedDB persists offline edits.",
+    "✅ Keyboard Space toggles grip, Arrow moves, Shift+Arrow resizes.",
+    "✅ Large image contained, no overflow.",
+    "✅ Lighthouse ≥ 90 on Performance & Accessibility."
+  ],
+  "backlog_next": [
+    { "feature": "Undo/Redo ring", "source": "Firm #2", "note": "Swap local array for Yjs UndoManager." },
+    { "feature": "Emoji reactions overlay", "source": "Firm #2", "note": "Implement as NoteContext extension." },
+    { "feature": "Collision-free spiral cursors", "source": "Firm #2 MultiCursor", "note": "Optional eye-candy after perf validation." }
+  ]
+}
