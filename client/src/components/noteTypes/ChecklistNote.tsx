@@ -62,7 +62,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
   );
 
   return (
-    <div className="h-full p-3 space-y-2">
+    <div className="h-full p-4 space-y-2">
       {/* Existing items */}
       <div className="space-y-2">
         {(content?.items || []).map((item) => (
@@ -71,10 +71,10 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
               onClick={() => handleToggleItem(item.id)}
               className={cn(
                 "w-4 h-4 rounded border-2 flex items-center justify-center",
-                "hover:shadow-neu-hover active:shadow-neu-pressed transition-all",
+                "hover:shadow-md active:shadow-sm transition-all",
                 item.completed
-                  ? "bg-primary border-primary"
-                  : "bg-white border-neutral-300",
+                  ? "bg-blue-500 border-blue-500"
+                  : "bg-white border-gray-300",
               )}
             >
               {item.completed && <Check className="w-3 h-3 text-white" />}
@@ -85,8 +85,8 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
               onChange={(e) => handleItemTextChange(item.id, e.target.value)}
               className={cn(
                 "flex-1 border-none outline-none bg-transparent text-sm",
-                "text-neutral-800 placeholder:text-neutral-400",
-                item.completed && "line-through text-neutral-500",
+                "text-gray-700 placeholder:text-gray-400",
+                item.completed && "line-through text-gray-500",
               )}
               placeholder="Enter task..."
             />
@@ -104,16 +104,16 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
       </div>
 
       {/* Add new item */}
-      <div className="flex items-center gap-2 pt-2 border-t border-neutral-200">
+      <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
         <button
           onClick={handleAddItem}
           className={cn(
-            "w-4 h-4 rounded border-2 border-neutral-300 bg-white",
-            "hover:shadow-neu-hover active:shadow-neu-pressed transition-all",
+            "w-4 h-4 rounded border-2 border-gray-300 bg-white",
+            "hover:shadow-md active:shadow-sm transition-all",
             "flex items-center justify-center",
           )}
         >
-          <Plus className="w-3 h-3 text-neutral-500" />
+          <Plus className="w-3 h-3 text-gray-500" />
         </button>
         <input
           type="text"
@@ -122,7 +122,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
           onKeyDown={handleKeyDown}
           className={cn(
             "flex-1 border-none outline-none bg-transparent text-sm",
-            "text-neutral-800 placeholder:text-neutral-400",
+            "text-gray-700 placeholder:text-gray-400",
           )}
           placeholder="Add new item..."
         />

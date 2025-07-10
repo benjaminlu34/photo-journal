@@ -37,7 +37,7 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, p
   }, [handleChange]);
 
   return (
-    <div className="h-full p-3">
+    <div className="h-full p-4">
       <textarea
         ref={textareaRef}
         value={content?.text || ""}
@@ -45,7 +45,7 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, p
         onKeyDown={handleKeyDown}
         className={cn(
           'w-full h-full min-h-[60px] resize-none border-none outline-none',
-          'bg-transparent text-neutral-800 placeholder:text-neutral-400',
+          'bg-transparent text-gray-700 placeholder:text-gray-400',
           'text-sm leading-relaxed font-medium'
         )}
         placeholder={placeholder}

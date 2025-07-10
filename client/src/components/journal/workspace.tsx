@@ -66,13 +66,7 @@ export function JournalWorkspace() {
       {/* New StickyBoard Component */}
       <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
 
-      {/* Floating Add Button */}
-      <Button
-        onClick={addQuickNote}
-        className="fixed bottom-8 right-96 w-16 h-16 gradient-button rounded-full group z-50 shadow-lg hover:shadow-xl transition-all duration-300"
-      >
-        <Plus className="w-8 h-8 text-white group-hover:rotate-90 transition-transform duration-300" />
-      </Button>
+
     </div>
   );
 }

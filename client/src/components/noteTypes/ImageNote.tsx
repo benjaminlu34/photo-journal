@@ -67,7 +67,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
 
   if (content?.imageUrl) {
     return (
-      <div className="relative h-full p-3">
+      <div className="relative h-full p-4">
         <img
           src={content.imageUrl}
           alt={content?.alt || "Uploaded image"}
@@ -91,10 +91,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
   return (
     <div
       className={cn(
-        'h-full p-3 border-2 border-dashed rounded-lg',
+        'h-full p-4 border-2 border-dashed rounded-lg',
         'flex items-center justify-center cursor-pointer',
         'transition-colors duration-200',
-        isDragOver ? 'border-primary bg-primary/5' : 'border-neutral-300'
+        isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
       )}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
