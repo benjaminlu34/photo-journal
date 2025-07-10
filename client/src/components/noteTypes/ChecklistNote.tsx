@@ -85,8 +85,8 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
               onChange={(e) => handleItemTextChange(item.id, e.target.value)}
               className={cn(
                 "flex-1 border-none outline-none bg-transparent text-sm",
-                "text-gray-700 placeholder:text-gray-400",
-                item.completed && "line-through text-gray-500",
+                "text-gray-800 placeholder:text-gray-500",
+                item.completed && "line-through text-gray-600",
               )}
               placeholder="Enter task..."
             />
@@ -122,7 +122,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, 
           onKeyDown={handleKeyDown}
           className={cn(
             "flex-1 border-none outline-none bg-transparent text-sm",
-            "text-gray-700 placeholder:text-gray-400",
+            "text-gray-800 placeholder:text-gray-500",
           )}
           placeholder="Add new item..."
         />

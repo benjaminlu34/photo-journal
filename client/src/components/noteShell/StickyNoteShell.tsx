@@ -9,7 +9,20 @@ import { useNoteContext } from "@/components/board/noteContext";
 import { noteRegistry } from "@/components/board/noteRegistry";
 import { snapToGrid } from "@/utils/snapToGrid";
 import { Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { StickyNoteData } from "@/types/notes";
+
+// Utility function to get note background color based on type (matching mockup)
+const getNoteTint = (noteType: string) => {
+  switch (noteType) {
+    case 'text': return '#E7EEFF'; // noteBlue
+    case 'checklist': return '#E7F8F1'; // noteGreen
+    case 'image': return '#F5E1F5'; // notePink
+    case 'voice': return '#ECE7FF'; // notePurple
+    case 'drawing': return '#FFF4E6'; // noteYellow
+    default: return '#E7EEFF'; // default to blue
+  }
+};
 
 interface StickyNoteShellProps {
   note: StickyNoteData;
@@ -20,7 +33,7 @@ interface StickyNoteShellProps {
  * Children (rendered through noteRegistry) own their own content.
  */
 export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
-  const { updateNote, deleteNote, gridSnap } = useNoteContext();
+  const { updateNote, deleteNote, gridSnap, selectedId, select } = useNoteContext();
 
   /* ---------------- state / refs ---------------- */
   const [isDragging, setIsDragging] = useState(false);
@@ -179,8 +192,14 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
   return (
     <div
       ref={shellRef}
-      className="absolute group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 overflow-hidden border border-gray-100"
+      className={cn(
+        "absolute select-none group overflow-hidden cursor-pointer",
+        "rounded-[16px]", // 12px large rounded corners as per mockup
+        "shadow-note hover:shadow-noteHover transition-all duration-300",
+        selectedId === note.id && "ring-1 ring-purple-500 shadow-noteSelected"
+      )}
       style={{
+        backgroundColor: getNoteTint(note.type), // Solid pastel body matching mockup
         left: localPosition.x,
         top: localPosition.y,
         width: localPosition.width,
@@ -188,81 +207,77 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
         transform: `rotate(${localPosition.rotation}deg)`,
         zIndex: isDragging || isResizing ? 1000 : 1,
       }}
+      onClick={() => select(note.id)}
     >
-      {/* Header area for dragging - sleek design like mockup */}
+      {/* White 32px top bar with 6-dot grip - exactly like mockup */}
       <div
-        className="absolute top-0 left-0 right-0 h-12 cursor-move bg-gradient-to-b from-gray-50 to-white border-b border-gray-100 rounded-t-2xl flex items-center justify-center group-hover:from-gray-100 transition-colors duration-200"
+        className="absolute top-0 left-0 right-0 h-8 cursor-move bg-white border-b border-gray-100 rounded-t-[16px] flex items-center justify-center"
         onMouseDown={handleMouseDown}
       >
-        {/* Drag indicator dots - more subtle and refined */}
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
-          <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
-          <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+        {/* 6-dot grip pattern exactly like mockup */}
+        <div className="grid grid-cols-3 gap-1">
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
         </div>
       </div>
 
-      {/* Content area - clean padding and spacing */}
-      <div className="h-full pt-12 pb-0">
+      {/* Content area - starts below white header */}
+      <div className="h-full pt-8 pb-0">
         <NoteComponent
           content={note.content}
           onChange={(content: any) => updateNote(note.id, { content })}
         />
       </div>
 
-      {/* Delete button - sleek design */}
+      {/* Delete button - positioned in white header area */}
       <button
-        className="absolute top-3 right-3 w-7 h-7 bg-red-500 hover:bg-red-600 
+        className="absolute top-1 right-2 w-6 h-6 bg-red-500 hover:bg-red-600 
                    rounded-full flex items-center justify-center opacity-0 
-                   group-hover:opacity-100 transition-all duration-200 shadow-md hover:shadow-lg"
+                   group-hover:opacity-100 transition-all duration-200 shadow-sm"
         onClick={() => deleteNote(note.id)}
       >
-        <Trash2 className="w-3.5 h-3.5 text-white" />
+        <Trash2 className="w-3 h-3 text-white" />
       </button>
 
-      {/* Resize handles - sleek and refined */}
+      {/* Resize handles - 4mm lilac dots exactly like mockup */}
       <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {/* Corner handles - refined design */}
+        {/* Corner handles - 4mm lilac dots */}
         <div
-          className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-md cursor-se-resize flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -bottom-1 -right-1 w-4 h-4 bg-purple-300 rounded-full cursor-se-resize"
           onMouseDown={(e) => handleResizeStart(e, "bottom-right")}
-        >
-          <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-white/70"></div>
-        </div>
+        />
         <div
-          className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-md cursor-ne-resize flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -top-1 -right-1 w-4 h-4 bg-purple-300 rounded-full cursor-ne-resize"
           onMouseDown={(e) => handleResizeStart(e, "top-right")}
-        >
-          <div className="w-2.5 h-2.5 border-r-2 border-t-2 border-white/70"></div>
-        </div>
+        />
         <div
-          className="absolute -bottom-1 -left-1 w-5 h-5 bg-blue-500 rounded-md cursor-sw-resize flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -bottom-1 -left-1 w-4 h-4 bg-purple-300 rounded-full cursor-sw-resize"
           onMouseDown={(e) => handleResizeStart(e, "bottom-left")}
-        >
-          <div className="w-2.5 h-2.5 border-l-2 border-b-2 border-white/70"></div>
-        </div>
+        />
         <div
-          className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-md cursor-nw-resize flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -top-1 -left-1 w-4 h-4 bg-purple-300 rounded-full cursor-nw-resize"
           onMouseDown={(e) => handleResizeStart(e, "top-left")}
-        >
-          <div className="w-2.5 h-2.5 border-l-2 border-t-2 border-white/70"></div>
-        </div>
+        />
 
-        {/* Edge handles - refined sizes */}
+        {/* Edge handles - smaller lilac dots */}
         <div
-          className="absolute -right-1 top-1/2 -translate-y-1/2 w-2.5 h-8 bg-blue-500 rounded-md cursor-e-resize shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -right-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-300 rounded-full cursor-e-resize"
           onMouseDown={(e) => handleResizeStart(e, "right")}
         />
         <div
-          className="absolute -left-1 top-1/2 -translate-y-1/2 w-2.5 h-8 bg-blue-500 rounded-md cursor-w-resize shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -left-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-300 rounded-full cursor-w-resize"
           onMouseDown={(e) => handleResizeStart(e, "left")}
         />
         <div
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-2.5 bg-blue-500 rounded-md cursor-s-resize shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-purple-300 rounded-full cursor-s-resize"
           onMouseDown={(e) => handleResizeStart(e, "bottom")}
         />
         <div
-          className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-2.5 bg-blue-500 rounded-md cursor-n-resize shadow-md hover:shadow-lg transition-shadow"
+          className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-purple-300 rounded-full cursor-n-resize"
           onMouseDown={(e) => handleResizeStart(e, "top")}
         />
       </div>

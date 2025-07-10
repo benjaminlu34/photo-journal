@@ -94,7 +94,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
         'h-full p-4 border-2 border-dashed rounded-lg',
         'flex items-center justify-center cursor-pointer',
         'transition-colors duration-200',
-        isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
+        isDragOver ? 'border-blue-400 bg-white/50' : 'border-gray-400'
       )}
       onDrop={handleDrop}
       onDragOver={handleDragOver}

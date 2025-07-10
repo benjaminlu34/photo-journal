@@ -45,8 +45,8 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, p
         onKeyDown={handleKeyDown}
         className={cn(
           'w-full h-full min-h-[60px] resize-none border-none outline-none',
-          'bg-transparent text-gray-700 placeholder:text-gray-400',
-          'text-sm leading-relaxed font-medium'
+          'bg-transparent text-gray-800 placeholder:text-gray-500',
+          'text-sm leading-relaxed font-normal'
         )}
         placeholder={placeholder}
         style={{ 

@@ -16,6 +16,10 @@ export default {
         'neu-inset': 'inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light)',
         'neu-sm': '4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light)',
         'neu-lg': '12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light)',
+        // Pastel note shadows
+        'note': '0 6px 22px rgba(0,0,0,.08)',
+        'noteHover': '0 10px 34px rgba(0,0,0,.12)',
+        'noteSelected': '0 12px 40px rgba(147, 51, 234, 0.15)',
       },
       colors: {
         background: "var(--background)",
@@ -100,6 +104,12 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
+        notePink: '#F5E1F5',
+        noteBlue: '#E7EEFF',
+        noteGreen: '#E7F8F1',
+        notePurple: '#ECE7FF',
+        noteYellow: '#FFF4E6',
+        noteOrange: '#FFE7E0',
       },
       keyframes: {
         "accordion-down": {
