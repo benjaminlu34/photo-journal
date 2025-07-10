@@ -81,7 +81,49 @@ export const useBoardStore = create<BoardState & BoardActions>()(
     devtools(
       immer((set, get) => ({
         // State
-        notes: {},
+        notes: {
+          // Demo notes to test the beautiful design
+          'demo-text-1': {
+            id: 'demo-text-1',
+            type: 'text',
+            position: { x: 100, y: 150, width: 200, height: 150, rotation: 0 },
+            content: { type: 'text', text: 'Welcome to the beautiful new design! This is a text note with the exact opaque pastel styling from your mockup.' },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          'demo-checklist-1': {
+            id: 'demo-checklist-1', 
+            type: 'checklist',
+            position: { x: 350, y: 150, width: 220, height: 180, rotation: 0 },
+            content: { 
+              type: 'checklist', 
+              items: [
+                { id: '1', text: 'Test the beautiful design', completed: true },
+                { id: '2', text: 'Create new notes', completed: false },
+                { id: '3', text: 'Drag notes around', completed: false },
+                { id: '4', text: 'Resize with lilac dots', completed: false }
+              ]
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          'demo-image-1': {
+            id: 'demo-image-1',
+            type: 'image', 
+            position: { x: 600, y: 150, width: 200, height: 150, rotation: 0 },
+            content: { type: 'image', imageUrl: '', alt: 'Upload an image here' },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          'demo-voice-1': {
+            id: 'demo-voice-1',
+            type: 'voice',
+            position: { x: 100, y: 350, width: 200, height: 120, rotation: 0 },
+            content: { type: 'voice', audioUrl: '', duration: 0 },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+        },
         selectedId: null,
         gridSnapEnabled: true,
         updateQueue: new Map(),
