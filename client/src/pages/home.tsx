@@ -55,7 +55,7 @@ function HomeContent() {
       <JournalSidebar />
 
       {/* Main Content */}
-      <div className="neu-card flex-1 flex flex-col overflow-hidden">
+      <div className="neu-card flex-1 flex flex-col">
         {/* Header */}
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="flex items-center justify-between">

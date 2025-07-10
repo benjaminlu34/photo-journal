@@ -138,6 +138,7 @@ Preferred communication style: Simple, everyday language.
 - **Upload System Enhancement**: Made all form factors (photo, audio, drawing) fully functional with improved UI/UX
 - **Anti-Selection System**: Added user-select-none during drag operations to prevent text selection issues
 - **Visual Improvements**: Enhanced upload interfaces with hover states, progress indicators, and better file handling
+- **Scrollable Views**: Made all main content areas between sidebars scrollable for consistent behavior across daily, weekly, and monthly views
 
 ### Scalability Considerations
 - Stateless server design enables horizontal scaling

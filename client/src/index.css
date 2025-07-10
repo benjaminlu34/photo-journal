@@ -203,10 +203,6 @@
     background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%);
   }
 
-  body.user-select-none {
-    user-select: none !important;
-  }
-
   /* Old utilities kept for compatibility */
 
   .glass-morphism {
@@ -318,6 +314,7 @@
   }
 
   .neumorphic-panel {
+    background-color: rgba(196, 181, 253, 0.8) !important;
     @apply neu-card;
   }
 

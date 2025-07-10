@@ -60,7 +60,7 @@ export function MonthlyView() {
   };
 
   return (
-    <div className="flex-1 p-6 bg-white">
+    <div className="flex-1 p-6 bg-white overflow-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -101,7 +101,7 @@ export function MonthlyView() {
       </div>
 
       {/* Month Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="neumorphic-content-block p-4 text-center">
           <div className="text-2xl font-bold text-primary-600">23</div>
           <div className="text-xs text-secondary-500">Memories Created</div>
@@ -118,7 +118,7 @@ export function MonthlyView() {
           <div className="text-2xl font-bold text-purple-600">8</div>
           <div className="text-xs text-secondary-500">Voice Memos</div>
         </div>
-      </div>
+      </div> */}
 
       {/* Calendar */}
       <div className="neumorphic-panel p-6">
