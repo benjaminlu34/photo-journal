@@ -8,7 +8,7 @@ interface ImageNoteProps {
   onChange?: (content: ImageNoteContent) => void;
 }
 
-const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
+const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -65,12 +65,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
     onChange?.({ imageUrl: undefined, alt: undefined });
   }, [onChange]);
 
-  if (content.imageUrl) {
+  if (content?.imageUrl) {
     return (
       <div className="relative h-full p-3">
         <img
           src={content.imageUrl}
-          alt={content.alt || "Uploaded image"}
+          alt={content?.alt || "Uploaded image"}
           className="w-full h-full object-cover rounded-lg"
         />
         <button

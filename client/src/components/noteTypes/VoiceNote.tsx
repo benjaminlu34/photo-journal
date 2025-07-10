@@ -8,7 +8,7 @@ interface VoiceNoteProps {
   onChange?: (content: VoiceNoteContent) => void;
 }
 
-const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
+const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -88,12 +88,12 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
     setCurrentTime(0);
   };
 
-  if (content.audioUrl) {
+  if (content?.audioUrl) {
     return (
       <div className="p-3 flex flex-col gap-3">
         <audio
           ref={audioRef}
-          src={content.audioUrl}
+          src={content?.audioUrl}
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}

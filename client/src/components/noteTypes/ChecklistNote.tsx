@@ -8,12 +8,12 @@ interface ChecklistNoteProps {
   onChange?: (content: ChecklistNoteContent) => void;
 }
 const uid = () => crypto.randomUUID();
-const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
+const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { items: [] }, onChange }) => {
   const [newItemText, setNewItemText] = useState("");
 
   const handleToggleItem = useCallback(
     (itemId: string) => {
-      const updatedItems = content.items.map((item) =>
+      const updatedItems = (content?.items || []).map((item) =>
         item.id === itemId ? { ...item, completed: !item.completed } : item,
       );
       onChange?.({ items: updatedItems });
@@ -23,7 +23,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
 
   const handleItemTextChange = useCallback(
     (itemId: string, text: string) => {
-      const updatedItems = content.items.map((item) =>
+      const updatedItems = (content?.items || []).map((item) =>
         item.id === itemId ? { ...item, text } : item,
       );
       onChange?.({ items: updatedItems });
@@ -33,7 +33,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
 
   const handleRemoveItem = useCallback(
     (itemId: string) => {
-      const updatedItems = content.items.filter((item) => item.id !== itemId);
+      const updatedItems = (content?.items || []).filter((item) => item.id !== itemId);
       onChange?.({ items: updatedItems });
     },
     [content.items, onChange],
@@ -46,7 +46,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
         text: newItemText.trim(),
         completed: false,
       };
-      onChange?.({ items: [...content.items, newItem] });
+      onChange?.({ items: [...(content?.items || []), newItem] });
       setNewItemText("");
     }
   }, [content.items, newItemText, onChange]);
@@ -65,7 +65,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
     <div className="h-full p-3 space-y-2">
       {/* Existing items */}
       <div className="space-y-2">
-        {content.items.map((item) => (
+        {(content?.items || []).map((item) => (
           <div key={item.id} className="flex items-center gap-2 group">
             <button
               onClick={() => handleToggleItem(item.id)}

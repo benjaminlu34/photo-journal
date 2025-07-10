@@ -8,7 +8,7 @@ interface TextNoteProps {
   placeholder?: string;
 }
 
-const TextNote: React.FC<TextNoteProps> = ({ content, onChange, placeholder = "Start typing..." }) => {
+const TextNote: React.FC<TextNoteProps> = ({ content = { text: "" }, onChange, placeholder = "Start typing..." }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -40,7 +40,7 @@ const TextNote: React.FC<TextNoteProps> = ({ content, onChange, placeholder = "S
     <div className="h-full p-3">
       <textarea
         ref={textareaRef}
-        value={content.text}
+        value={content?.text || ""}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         className={cn(
