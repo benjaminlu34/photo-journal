@@ -44,6 +44,9 @@ export function useJournal() {
   return context;
 }
 
+// Alias for StickyNoteShell compatibility
+export const useNoteContext = useJournal;
+
 interface JournalProviderProps {
   children: ReactNode;
 }

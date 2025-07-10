@@ -1,146 +1,114 @@
-import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { Plus, X, Check } from 'lucide-react';
-
-export interface ChecklistItem {
-  id: string;
-  text: string;
-  completed: boolean;
-}
+import React, { useState, useCallback } from "react";
+import { cn } from "@/lib/utils";
+import { Check, Plus, X } from "lucide-react";
+import type { ChecklistNoteContent, ChecklistItem } from "@/types/notes";
 
 interface ChecklistNoteProps {
-  content: { items?: ChecklistItem[] };
-  onChange?: (content: { items: ChecklistItem[] }) => void;
+  content: ChecklistNoteContent;
+  onChange?: (content: ChecklistNoteContent) => void;
 }
 
-export const ChecklistNote: React.FC<ChecklistNoteProps> = ({
-  content,
-  onChange
-}) => {
-  const [newItemText, setNewItemText] = useState('');
-  const items = content.items || [];
+const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
+  const [newItemText, setNewItemText] = useState("");
 
-  const handleToggleItem = (id: string) => {
-    const updatedItems = items.map(item =>
-      item.id === id ? { ...item, completed: !item.completed } : item
+  const handleToggleItem = useCallback((itemId: string) => {
+    const updatedItems = content.items.map(item =>
+      item.id === itemId ? { ...item, completed: !item.completed } : item
     );
     onChange?.({ items: updatedItems });
-  };
+  }, [content.items, onChange]);
 
-  const handleAddItem = () => {
+  const handleItemTextChange = useCallback((itemId: string, text: string) => {
+    const updatedItems = content.items.map(item =>
+      item.id === itemId ? { ...item, text } : item
+    );
+    onChange?.({ items: updatedItems });
+  }, [content.items, onChange]);
+
+  const handleRemoveItem = useCallback((itemId: string) => {
+    const updatedItems = content.items.filter(item => item.id !== itemId);
+    onChange?.({ items: updatedItems });
+  }, [content.items, onChange]);
+
+  const handleAddItem = useCallback(() => {
     if (newItemText.trim()) {
       const newItem: ChecklistItem = {
         id: Date.now().toString(),
         text: newItemText.trim(),
         completed: false
       };
-      onChange?.({ items: [...items, newItem] });
-      setNewItemText('');
+      onChange?.({ items: [...content.items, newItem] });
+      setNewItemText("");
     }
-  };
+  }, [content.items, newItemText, onChange]);
 
-  const handleRemoveItem = (id: string) => {
-    const updatedItems = items.filter(item => item.id !== id);
-    onChange?.({ items: updatedItems });
-  };
-
-  const handleItemTextChange = (id: string, text: string) => {
-    const updatedItems = items.map(item =>
-      item.id === id ? { ...item, text } : item
-    );
-    onChange?.({ items: updatedItems });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddItem();
     }
-  };
+  }, [handleAddItem]);
 
   return (
-    <div className="w-full h-full flex flex-col space-y-2">
-      {/* Existing Items */}
-      <div className="flex-1 overflow-y-auto space-y-2">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center space-x-2 group">
+    <div className="h-full p-3 space-y-2">
+      {/* Existing items */}
+      <div className="space-y-2">
+        {content.items.map((item) => (
+          <div key={item.id} className="flex items-center gap-2 group">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleItem(item.id);
-              }}
+              onClick={() => handleToggleItem(item.id)}
               className={cn(
-                'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all',
-                'hover:shadow-neu-inset',
-                item.completed
-                  ? 'bg-primary border-primary text-primary-foreground'
-                  : 'border-muted bg-surface'
+                'w-4 h-4 rounded border-2 flex items-center justify-center',
+                'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
+                item.completed ? 'bg-primary border-primary' : 'bg-white border-neutral-300'
               )}
             >
-              {item.completed && <Check className="w-3 h-3" />}
+              {item.completed && <Check className="w-3 h-3 text-white" />}
             </button>
-            
             <input
               type="text"
               value={item.text}
-              onChange={(e) => {
-                e.stopPropagation();
-                handleItemTextChange(item.id, e.target.value);
-              }}
-              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => handleItemTextChange(item.id, e.target.value)}
               className={cn(
-                'flex-1 bg-transparent border-0 outline-none text-sm',
-                'focus:bg-surface rounded px-2 py-1 transition-colors',
-                item.completed && 'line-through text-muted-foreground'
+                'flex-1 border-none outline-none bg-transparent text-sm',
+                'text-neutral-800 placeholder:text-neutral-400',
+                item.completed && 'line-through text-neutral-500'
               )}
-              placeholder="Enter item text..."
+              placeholder="Enter task..."
             />
-            
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRemoveItem(item.id);
-              }}
+              onClick={() => handleRemoveItem(item.id)}
               className={cn(
-                'w-5 h-5 rounded-md flex items-center justify-center',
-                'text-destructive hover:bg-destructive/10 transition-colors',
-                'opacity-0 group-hover:opacity-100'
+                'w-6 h-6 rounded opacity-0 group-hover:opacity-100',
+                'hover:bg-red-100 flex items-center justify-center transition-all'
               )}
             >
-              <X className="w-3 h-3" />
+              <X className="w-3 h-3 text-red-500" />
             </button>
           </div>
         ))}
       </div>
 
-      {/* Add New Item */}
-      <div className="flex items-center space-x-2 pt-2 border-t border-muted/50">
+      {/* Add new item */}
+      <div className="flex items-center gap-2 pt-2 border-t border-neutral-200">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAddItem();
-          }}
+          onClick={handleAddItem}
           className={cn(
-            'w-5 h-5 rounded-md border-2 border-dashed border-muted',
-            'flex items-center justify-center text-muted-foreground',
-            'hover:border-primary hover:text-primary transition-colors'
+            'w-4 h-4 rounded border-2 border-neutral-300 bg-white',
+            'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
+            'flex items-center justify-center'
           )}
         >
-          <Plus className="w-3 h-3" />
+          <Plus className="w-3 h-3 text-neutral-500" />
         </button>
-        
         <input
           type="text"
           value={newItemText}
-          onChange={(e) => {
-            e.stopPropagation();
-            setNewItemText(e.target.value);
-          }}
+          onChange={(e) => setNewItemText(e.target.value)}
           onKeyDown={handleKeyDown}
-          onClick={(e) => e.stopPropagation()}
           className={cn(
-            'flex-1 bg-transparent border-0 outline-none text-sm',
-            'focus:bg-surface rounded px-2 py-1 transition-colors'
+            'flex-1 border-none outline-none bg-transparent text-sm',
+            'text-neutral-800 placeholder:text-neutral-400'
           )}
           placeholder="Add new item..."
         />
@@ -148,3 +116,5 @@ export const ChecklistNote: React.FC<ChecklistNoteProps> = ({
     </div>
   );
 };
+
+export default ChecklistNote;

@@ -1,48 +1,68 @@
-import type { ContentBlockData } from "@/types/journal";
-import type { StickyNoteData } from "./blockToNote";
+import { StickyNoteData } from "@/types/notes";
+import { ContentBlockData, Position } from "@/types/journal";
 
-// Map note kind back to ContentBlockType
-const kindToType = (kind: StickyNoteData['kind']): ContentBlockData['type'] => {
-  switch (kind) {
-    case 'text':
-      return 'sticky_note'; // Default text notes to sticky_note
-    case 'checklist':
-      return 'checklist';
-    case 'image':
-      return 'photo';
-    case 'voice':
-      return 'audio';
-    case 'drawing':
-      return 'drawing';
-    default:
-      return 'sticky_note';
-  }
-};
+/**
+ * Converts a StickyNote update back to a ContentBlock patch
+ * for legacy system compatibility during dual-write phase.
+ */
+export const noteToBlockPatch = (
+  note: StickyNoteData,
+  existingBlock?: ContentBlockData
+): Partial<ContentBlockData> => {
+  const position: Position = {
+    x: note.position.x,
+    y: note.position.y,
+    width: note.position.width,
+    height: note.position.height,
+    rotation: note.position.rotation,
+  };
 
-// Convert StickyNoteData updates to ContentBlockData patch
-export const noteToBlockPatch = (noteData: Partial<StickyNoteData>): Partial<ContentBlockData> => {
-  const patch: Partial<ContentBlockData> = {};
+  const patch: Partial<ContentBlockData> = {
+    position,
+    content: note.content,
+    updatedAt: new Date().toISOString(),
+  };
 
-  if (noteData.kind !== undefined) {
-    patch.type = kindToType(noteData.kind);
-  }
-
-  if (noteData.content !== undefined) {
-    patch.content = noteData.content;
-  }
-
-  if (noteData.position !== undefined) {
-    patch.position = noteData.position;
+  // Only update type if creating new block or if type changed
+  if (!existingBlock || existingBlock.type !== mapNoteTypeToBlockType(note.type)) {
+    patch.type = mapNoteTypeToBlockType(note.type);
   }
 
   return patch;
 };
 
-// Convert full StickyNoteData to ContentBlockData (for creation)
-export const noteToBlock = (note: StickyNoteData): Omit<ContentBlockData, 'id' | 'createdAt' | 'updatedAt'> => {
+/**
+ * Converts a complete StickyNote to a ContentBlock
+ * for creating new legacy blocks from notes.
+ */
+export const noteToBlock = (
+  note: StickyNoteData,
+  entryId: string
+): Omit<ContentBlockData, 'id' | 'createdAt' | 'updatedAt'> => {
   return {
-    type: kindToType(note.kind),
+    type: mapNoteTypeToBlockType(note.type),
     content: note.content,
-    position: note.position,
+    position: {
+      x: note.position.x,
+      y: note.position.y,
+      width: note.position.width,
+      height: note.position.height,
+      rotation: note.position.rotation,
+    },
   };
 };
+
+/**
+ * Maps note types to legacy content block types
+ */
+function mapNoteTypeToBlockType(noteType: string): string {
+  const typeMap: Record<string, string> = {
+    text: "text",
+    checklist: "checklist",
+    image: "photo",
+    voice: "audio",
+    drawing: "drawing",
+  };
+
+  return typeMap[noteType] || "sticky_note";
+}

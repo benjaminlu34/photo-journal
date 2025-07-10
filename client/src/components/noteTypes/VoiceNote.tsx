@@ -1,77 +1,49 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { Mic, Square, Play, Pause, Trash2 } from 'lucide-react';
+import React, { useRef, useState, useCallback } from "react";
+import { cn } from "@/lib/utils";
+import { Mic, Play, Pause, Trash2, AudioWaveform } from "lucide-react";
+import type { VoiceNoteContent } from "@/types/notes";
 
 interface VoiceNoteProps {
-  content: { url?: string; duration?: string; fileName?: string };
-  onChange?: (content: { url?: string; duration?: string; fileName?: string }) => void;
+  content: VoiceNoteContent;
+  onChange?: (content: VoiceNoteContent) => void;
 }
 
-export const VoiceNote: React.FC<VoiceNoteProps> = ({
-  content,
-  onChange
-}) => {
+const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const recordingTimerRef = useRef<number | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [duration, setDuration] = useState(0);
 
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, []);
+  const formatTime = (time: number): string => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
-      
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
+      const chunks: BlobPart[] = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
+        chunks.push(event.data);
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(blob);
-        const duration = formatTime(recordingDuration);
-        onChange?.({ url: audioUrl, duration, fileName: `recording-${Date.now()}.webm` });
-        
-        // Stop all tracks
+        onChange?.({ audioUrl, duration: Date.now() / 1000 });
         stream.getTracks().forEach(track => track.stop());
       };
 
-      setIsRecording(true);
-      setRecordingDuration(0);
+      mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
-
-      // Start timer
-      recordingTimerRef.current = window.setInterval(() => {
-        setRecordingDuration(prev => {
-          const newDuration = prev + 1;
-          // Auto-stop at 30 seconds
-          if (newDuration >= 30) {
-            stopRecording();
-          }
-          return newDuration;
-        });
-      }, 1000);
-
+      setIsRecording(true);
     } catch (error) {
-      console.error('Error starting recording:', error);
+      console.error("Failed to start recording:", error);
     }
   };
 
@@ -79,17 +51,11 @@ export const VoiceNote: React.FC<VoiceNoteProps> = ({
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
     }
   };
 
-  const togglePlayback = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!audioRef.current || !content.url) return;
+  const togglePlayback = () => {
+    if (!audioRef.current) return;
 
     if (isPlaying) {
       audioRef.current.pause();
@@ -97,11 +63,6 @@ export const VoiceNote: React.FC<VoiceNoteProps> = ({
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
-  };
-
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-    setCurrentTime(0);
   };
 
   const handleTimeUpdate = () => {
@@ -112,136 +73,101 @@ export const VoiceNote: React.FC<VoiceNoteProps> = ({
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setAudioDuration(audioRef.current.duration);
+      setDuration(audioRef.current.duration);
     }
   };
 
-  const handleDeleteRecording = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (content.url) {
-      URL.revokeObjectURL(content.url);
-    }
-    setCurrentTime(0);
+  const handleEnded = () => {
     setIsPlaying(false);
-    onChange?.({ url: undefined, duration: undefined, fileName: undefined });
+    setCurrentTime(0);
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const handleDeleteRecording = () => {
+    onChange?.({ audioUrl: undefined, duration: undefined });
+    setIsPlaying(false);
+    setCurrentTime(0);
   };
 
-  if (content.url) {
+  if (content.audioUrl) {
     return (
-      <div className="w-full h-full flex flex-col justify-center space-y-4">
+      <div className="p-3 flex flex-col gap-3">
         <audio
           ref={audioRef}
-          src={content.url}
-          onEnded={handleAudioEnded}
+          src={content.audioUrl}
+          onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           className="hidden"
         />
         
-        <div className="flex items-center justify-center">
-          <div className="neu-card p-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100">
-            <div className="text-4xl mb-2 text-center">🎤</div>
-            <p className="text-sm font-semibold text-center text-purple-700">
-              {content.fileName || "Audio Recording"}
-            </p>
-          </div>
-        </div>
-
-        {/* Playback Controls */}
-        <div className="flex items-center justify-center space-x-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={togglePlayback}
             className={cn(
               'w-12 h-12 rounded-full shadow-neu flex items-center justify-center',
               'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-              'bg-gradient-to-r from-purple-500 to-blue-500 text-white border-none hover:scale-110'
+              'text-primary'
             )}
           >
-            {isPlaying ? (
-              <Pause className="w-6 h-6" />
-            ) : (
-              <Play className="w-6 h-6 ml-1" />
-            )}
+            {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
           </button>
-          
+
           <button
             onClick={handleDeleteRecording}
             className={cn(
-              'w-8 h-8 rounded-full shadow-neu flex items-center justify-center',
-              'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-              'text-destructive'
+              'w-8 h-8 rounded-full opacity-70 hover:opacity-100',
+              'bg-red-500 hover:bg-red-600 text-white',
+              'flex items-center justify-center transition-all'
             )}
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Progress Bar */}
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <span>{formatTime(currentTime)}</span>
-          <div className="flex-1 h-3 bg-gradient-to-r from-purple-200 to-blue-200 rounded-full overflow-hidden shadow-neu-inset">
-            <div 
-              className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
-              style={{ width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%` }}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-neutral-500">Voice Recording</span>
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden"
+              style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${(currentTime / duration) * 100}%, transparent 0%)` }}
             />
+            <span className="text-xs text-neutral-500">{formatTime(duration)}</span>
           </div>
-          <span>{content.duration || formatTime(audioDuration)}</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
-      {/* Recording Button */}
+    <div className="p-3 flex flex-col items-center justify-center gap-4">
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          isRecording ? stopRecording() : startRecording();
-        }}
+        onClick={isRecording ? stopRecording : startRecording}
         className={cn(
-          'w-16 h-16 rounded-full flex items-center justify-center',
-          'transition-all duration-200',
-          isRecording
-            ? 'bg-destructive text-destructive-foreground shadow-neu-pressed animate-pulse'
-            : 'shadow-neu hover:shadow-neu-hover active:shadow-neu-pressed text-primary'
+          'w-16 h-16 rounded-full shadow-neu flex items-center justify-center',
+          'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
+          isRecording ? 'text-red-500' : 'text-primary'
         )}
       >
-        {isRecording ? (
-          <Square className="w-8 h-8" />
-        ) : (
-          <Mic className="w-8 h-8" />
-        )}
+        <Mic className="w-8 h-8" />
       </button>
 
-      {/* Recording Status */}
-      <div className="text-center">
-        {isRecording ? (
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-destructive">
-              Recording...
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {formatTime(recordingDuration)} / 0:30
-            </div>
+      {isRecording ? (
+        <div className={cn(
+          'flex flex-col items-center gap-1',
+          'text-red-500'
+        )}>
+          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-sm">Recording...</span>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 text-neutral-500">
+          <AudioWaveform className="w-8 h-8" />
+          <div className="text-center">
+            <div className="text-sm">Tap to record</div>
+            <div className="text-xs">(max 60s)</div>
           </div>
-        ) : (
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-foreground">
-              Voice Memo
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Tap to record (max 30s)
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,69 +1,203 @@
-import React from 'react';
-import { cn } from '@/lib/utils';
+import React, { useRef, useState, useCallback, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import { Pencil, Eraser, Trash2, Palette } from "lucide-react";
+import type { DrawingNoteContent } from "@/types/notes";
 
 interface DrawingNoteProps {
-  content: { strokes?: any[] };
-  onChange?: (content: { strokes: any[] }) => void;
+  content: DrawingNoteContent;
+  onChange?: (content: DrawingNoteContent) => void;
 }
 
-export const DrawingNote: React.FC<DrawingNoteProps> = ({
-  content,
-  onChange
-}) => {
-  const strokes = content.strokes || [];
+const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentTool, setCurrentTool] = useState<'pencil' | 'eraser'>('pencil');
+  const [currentColor, setCurrentColor] = useState('#6366f1');
+  const [currentStroke, setCurrentStroke] = useState<{ points: Array<{ x: number; y: number }>; color: string; width: number } | null>(null);
 
-  const handleCreateSample = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // Create a simple drawing placeholder
-    const sampleStrokes = [
-      { path: "M50,150 Q150,50 250,150 T350,150", color: "#10b981", width: 3 },
-      { path: "M100,200 L150,100 L200,200 L250,100 L300,200", color: "#3b82f6", width: 2 }
-    ];
-    onChange?.({ strokes: sampleStrokes });
+  const colors = ['#6366f1', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
+  const brushSize = currentTool === 'pencil' ? 2 : 8;
+
+  const redrawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw all strokes
+    content.strokes.forEach(stroke => {
+      if (stroke.points.length < 2) return;
+
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
+    });
+
+    // Draw current stroke if exists
+    if (currentStroke && currentStroke.points.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = currentStroke.color;
+      ctx.lineWidth = currentStroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      ctx.moveTo(currentStroke.points[0].x, currentStroke.points[0].y);
+      for (let i = 1; i < currentStroke.points.length; i++) {
+        ctx.lineTo(currentStroke.points[i].x, currentStroke.points[i].y);
+      }
+      ctx.stroke();
+    }
+  }, [content.strokes, currentStroke]);
+
+  useEffect(() => {
+    redrawCanvas();
+  }, [redrawCanvas]);
+
+  const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const coords = getCanvasCoordinates(e);
+    setIsDrawing(true);
+    
+    const strokeColor = currentTool === 'eraser' ? '#ffffff' : currentColor;
+    setCurrentStroke({
+      points: [coords],
+      color: strokeColor,
+      width: brushSize
+    });
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (!isDrawing || !currentStroke) return;
+
+    const coords = getCanvasCoordinates(e);
+    setCurrentStroke(prev => prev ? {
+      ...prev,
+      points: [...prev.points, coords]
+    } : null);
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing || !currentStroke) return;
+    
+    setIsDrawing(false);
+    
+    // Add stroke to content
+    const newStrokes = [...content.strokes, currentStroke];
+    onChange?.({ strokes: newStrokes });
+    setCurrentStroke(null);
+  };
+
+  const clearDrawing = () => {
     onChange?.({ strokes: [] });
   };
 
-  if (strokes.length > 0) {
-    return (
-      <div className="h-full neu-card rounded-lg overflow-hidden group/drawing relative">
-        <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
-          {strokes.map((stroke: any, index: number) => (
-            <path
-              key={index}
-              d={stroke.path}
-              stroke={stroke.color || "#4f46e5"}
-              strokeWidth={stroke.width || 2}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-        </svg>
-        <div className="absolute inset-0 bg-black/0 group-hover/drawing:bg-black/10 transition-all duration-200 flex items-center justify-center">
+  return (
+    <div className="h-full flex flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between p-2 border-b border-neutral-200">
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleClear}
-            className="opacity-0 group-hover/drawing:opacity-100 transition-opacity bg-white/90 hover:bg-white text-black text-xs py-1 px-3 rounded"
+            onClick={() => setCurrentTool('pencil')}
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+              currentTool === 'pencil' 
+                ? 'bg-primary text-white' 
+                : 'hover:bg-neutral-100 text-neutral-600'
+            )}
           >
-            Clear Drawing
+            <Pencil className="w-4 h-4" />
+          </button>
+          
+          <button
+            onClick={() => setCurrentTool('eraser')}
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+              currentTool === 'eraser' 
+                ? 'bg-primary text-white' 
+                : 'hover:bg-neutral-100 text-neutral-600'
+            )}
+          >
+            <Eraser className="w-4 h-4" />
           </button>
         </div>
-      </div>
-    );
-  }
 
-  return (
-    <div 
-      className="h-full border-2 border-dashed border-green-300 rounded-lg flex flex-col justify-center items-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors group"
-      onClick={handleCreateSample}
-    >
-      <div className="text-green-500 text-5xl mb-3 group-hover:scale-110 transition-transform">🎨</div>
-      <p className="text-sm font-semibold text-green-700 mb-1">Create Drawing</p>
-      <p className="text-xs text-secondary-500 mb-2">Sketch, doodle, or diagram</p>
-      <p className="text-xs text-secondary-400">Click to start drawing</p>
+        <div className="flex items-center gap-1">
+          {colors.map(color => (
+            <button
+              key={color}
+              onClick={() => setCurrentColor(color)}
+              className={cn(
+                'w-6 h-6 rounded-full border-2 transition-transform',
+                currentColor === color ? 'border-neutral-400 scale-110' : 'border-neutral-200'
+              )}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={clearDrawing}
+          className={cn(
+            'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+            'hover:bg-red-100 text-red-600'
+          )}
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Canvas */}
+      <div className="flex-1 relative">
+        <canvas
+          ref={canvasRef}
+          width={280}
+          height={180}
+          className="absolute inset-0 w-full h-full cursor-crosshair"
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+        />
+        
+        {content.strokes.length === 0 && !currentStroke && (
+          <div className="absolute inset-0 flex items-center justify-center text-neutral-400 pointer-events-none">
+            <div className="text-center">
+              <Palette className="w-8 h-8 mx-auto mb-2" />
+              <div className="text-sm">Start drawing</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

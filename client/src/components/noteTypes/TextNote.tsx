@@ -1,83 +1,61 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { cn } from '@/lib/utils';
+import React, { useRef, useCallback } from "react";
+import { cn } from "@/lib/utils";
+import type { TextNoteContent } from "@/types/notes";
 
 interface TextNoteProps {
-  content: { text?: string };
-  onChange?: (content: { text: string }) => void;
+  content: TextNoteContent;
+  onChange?: (content: TextNoteContent) => void;
   placeholder?: string;
 }
 
-export const TextNote: React.FC<TextNoteProps> = ({
-  content,
-  onChange,
-  placeholder = "Type your note here..."
-}) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [textContent, setTextContent] = useState(content.text || '');
+const TextNote: React.FC<TextNoteProps> = ({ content, onChange, placeholder = "Start typing..." }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    setTextContent(content.text || '');
-  }, [content.text]);
-
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    onChange?.({ text: newText });
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [isEditing]);
+  }, [onChange]);
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsEditing(true);
-  };
-
-  const handleBlur = () => {
-    setIsEditing(false);
-    onChange?.({ text: textContent });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setIsEditing(false);
-      setTextContent(content.text || ''); // Reset to original content
-    } else if (e.key === 'Enter' && e.metaKey) {
-      handleBlur();
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Allow tab in textarea
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const target = e.target as HTMLTextAreaElement;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const value = target.value;
+      target.value = value.substring(0, start) + '\t' + value.substring(end);
+      target.selectionStart = target.selectionEnd = start + 1;
+      handleChange(e as any);
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setTextContent(e.target.value);
-  };
-
-  if (isEditing) {
-    return (
-      <textarea
-        ref={textareaRef}
-        value={textContent}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          'w-full h-full resize-none border-0 outline-none bg-transparent',
-          'text-foreground placeholder:text-muted-foreground',
-          'font-medium leading-relaxed'
-        )}
-        placeholder={placeholder}
-      />
-    );
-  }
+  }, [handleChange]);
 
   return (
-    <div
-      onClick={handleClick}
-      className={cn(
-        'w-full h-full cursor-text overflow-y-auto',
-        'font-medium leading-relaxed text-foreground',
-        !textContent && 'text-muted-foreground'
-      )}
-    >
-      {textContent || placeholder}
+    <div className="h-full p-3">
+      <textarea
+        ref={textareaRef}
+        value={content.text}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          'w-full h-full min-h-[60px] resize-none border-none outline-none',
+          'bg-transparent text-neutral-800 placeholder:text-neutral-400',
+          'text-sm leading-relaxed font-medium'
+        )}
+        placeholder={placeholder}
+        style={{ 
+          resize: 'none',
+          overflow: 'hidden'
+        }}
+      />
     </div>
   );
 };
+
+export default TextNote;
