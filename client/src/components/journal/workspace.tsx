@@ -1,12 +1,11 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ContentBlock } from "./content-block";
 import { WeeklyCalendarView } from "./weekly-calendar-view";
 import { WeeklyCreativeView } from "./weekly-creative-view";
 import { MonthlyView } from "./monthly-view";
 import { StickyBoard } from "@/components/board/StickyBoard";
 import { useJournal } from "@/contexts/journal-context";
-import type { Position, ContentBlockType } from "@/types/journal";
+import type { Position } from "@/types/journal";
 import { Plus } from "lucide-react";
 
 export function JournalWorkspace() {
@@ -27,25 +26,6 @@ export function JournalWorkspace() {
 
   // Daily view (default) - optimized workspace
   const workspaceRef = useRef<HTMLDivElement>(null);
-
-  const getDefaultContent = (type: ContentBlockType) => {
-    switch (type) {
-      case "sticky_note":
-        return { text: "New note..." };
-      case "text":
-        return { text: "Write your thoughts..." };
-      case "checklist":
-        return { items: [{ text: "New task", completed: false }] };
-      case "photo":
-        return { url: "", caption: "" };
-      case "audio":
-        return { url: "", duration: "0:00" };
-      case "drawing":
-        return { strokes: [] };
-      default:
-        return {};
-    }
-  };
 
   const addQuickNote = () => {
     const position: Position = {
@@ -83,11 +63,6 @@ export function JournalWorkspace() {
       data-workspace="true"
       className="flex-1 relative overflow-auto min-h-screen pinboard-bg"
     >
-      {/* Legacy Content Blocks */}
-      {currentEntry.contentBlocks.map((block) => (
-        <ContentBlock key={block.id} block={block} />
-      ))}
-
       {/* New StickyBoard Component */}
       <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
 

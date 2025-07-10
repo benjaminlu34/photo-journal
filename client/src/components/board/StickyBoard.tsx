@@ -4,20 +4,67 @@ import { noteRegistry, type NoteKind } from './noteRegistry';
 import { NoteProvider } from './noteContext';
 import { StickyNoteShell } from '@/components/noteShell/StickyNoteShell';
 import type { StickyNoteData } from '@/mappers';
+import type { ContentBlockType, Position } from '@/types/journal';
+import { Plus } from 'lucide-react';
 
 interface StickyBoardProps {
   spaceId?: string;
 }
 
 export const StickyBoard: React.FC<StickyBoardProps> = ({ spaceId = 'demo-space' }) => {
-  const { legacyNotes, updateNote, deleteNote, gridSnap, setGridSnap } = useJournal();
+  const {
+    legacyNotes,
+    createContentBlock,
+    updateNote,
+    deleteNote,
+    gridSnap,
+    setGridSnap,
+  } = useJournal();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const handleCreate = useCallback((kind: NoteKind) => {
-    // For now, just create a simple note via the existing system
-    // This will be enhanced later with proper note creation
-    console.log('Creating note of type:', kind);
-  }, []);
+  const handleCreate = useCallback(
+    (kind: NoteKind) => {
+      const position: Position = {
+        x: Math.random() * 400 + 100,
+        y: Math.random() * 300 + 100,
+        width: 240,
+        height: 180,
+        rotation: Math.random() * 6 - 3,
+      };
+
+      const typeMap: Record<NoteKind, ContentBlockType> = {
+        text: 'text',
+        checklist: 'checklist',
+        image: 'photo',
+        voice: 'audio',
+        drawing: 'drawing',
+      };
+
+      let content: any;
+      switch (kind) {
+        case 'text':
+          content = { text: '' };
+          break;
+        case 'checklist':
+          content = { items: [] };
+          break;
+        case 'image':
+          content = { imageUrl: undefined, alt: undefined };
+          break;
+        case 'voice':
+          content = { audioUrl: undefined, duration: undefined };
+          break;
+        case 'drawing':
+          content = { strokes: [] };
+          break;
+        default:
+          content = {};
+      }
+
+      createContentBlock(typeMap[kind], content, position);
+    },
+    [createContentBlock]
+  );
 
   const handleUpdateNote = useCallback((id: string, data: Partial<StickyNoteData>) => {
     updateNote(id, data);
@@ -72,6 +119,15 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({ spaceId = 'demo-space'
               <div key={i} className="w-1 h-1 bg-current rounded-full" />
             ))}
           </div>
+        </button>
+
+        {/* Add note button */}
+        <button
+          onClick={() => handleCreate('text')}
+          className="fixed bottom-8 right-24 w-12 h-12 gradient-button rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 pointer-events-auto"
+          title="Add note"
+        >
+          <Plus className="w-6 h-6 text-white" />
         </button>
       </div>
     </NoteProvider>

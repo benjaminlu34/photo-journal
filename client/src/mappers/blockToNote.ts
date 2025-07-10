@@ -3,7 +3,8 @@ import type { ContentBlockData } from "@/types/journal";
 // Define the new note data structure for the shell system
 export interface StickyNoteData {
   id: string;
-  kind: 'text' | 'checklist' | 'image' | 'voice' | 'drawing';
+  /** Type of note. Matches keys of noteRegistry */
+  type: 'text' | 'checklist' | 'image' | 'voice' | 'drawing';
   content: any;
   position: {
     x: number;
@@ -16,8 +17,10 @@ export interface StickyNoteData {
   updatedAt: string;
 }
 
-// Map ContentBlockType to note kind
-const typeToKind = (type: ContentBlockData['type']): StickyNoteData['kind'] => {
+// Map ContentBlockType to note type
+const blockTypeToNoteType = (
+  type: ContentBlockData['type']
+): StickyNoteData['type'] => {
   switch (type) {
     case 'sticky_note':
     case 'text':
@@ -39,7 +42,7 @@ const typeToKind = (type: ContentBlockData['type']): StickyNoteData['kind'] => {
 export const blockToNote = (block: ContentBlockData): StickyNoteData => {
   return {
     id: block.id,
-    kind: typeToKind(block.type),
+    type: blockTypeToNoteType(block.type),
     content: block.content,
     position: block.position,
     createdAt: block.createdAt,
