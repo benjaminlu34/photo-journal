@@ -88,7 +88,7 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({ spaceId = 'demo-space'
 
   return (
     <NoteProvider value={contextValue}>
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0">
         {/* Grid overlay when grid snap is enabled */}
         {gridSnap && (
           <div 

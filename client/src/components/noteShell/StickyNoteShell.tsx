@@ -5,7 +5,7 @@ import React, {
   useEffect,
   MouseEvent as ReactMouseEvent,
 } from "react";
-import { useNoteContext } from "@/contexts/journal-context";
+import { useNoteContext } from "@/components/board/noteContext";
 import { noteRegistry } from "@/components/board/noteRegistry";
 import { snapToGrid } from "@/utils/snapToGrid";
 import type { StickyNoteData } from "@/types/notes";
@@ -114,3 +114,4 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
     </div>
   );
 };
+
