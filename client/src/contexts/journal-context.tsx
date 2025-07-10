@@ -61,40 +61,20 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const dateString = currentDate.toISOString().split('T')[0];
 
   // Fetch current journal entry
-  const { data: currentEntry, isLoading } = useQuery({
+  const { data: currentEntry, isLoading } = useQuery<
+    JournalEntryData | null,
+    Error,
+    JournalEntryData | null
+  >({
     queryKey: ["/api/journal", dateString],
     enabled: !!dateString,
     retry: false,
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    },
   });
 
   // Fetch friends
-  const { data: friends = [] } = useQuery({
+  const { data: friends = [] } = useQuery<Friend[], Error, Friend[]>({
     queryKey: ["/api/friends"],
     retry: false,
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    },
   });
 
   // Create content block mutation
@@ -219,7 +199,8 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Note-based actions that bridge to the legacy system
   const updateNote = (id: string, data: Partial<StickyNoteData>) => {
-    const blockUpdates = noteToBlockPatch(data);
+    const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
+    const blockUpdates = noteToBlockPatch(data, existingBlock);
     updateContentBlock(id, blockUpdates);
   };
 

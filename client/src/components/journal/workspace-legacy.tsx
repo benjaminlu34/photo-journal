@@ -26,7 +26,7 @@ export function JournalWorkspace() {
   }
 
   // Daily view (default)
-  const workspaceRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const [{ isOver }, drop] = useDrop({
     accept: ["content-block", "new-content"],
