@@ -26,15 +26,18 @@ interface YjsChangeEvent {
   changes: {
     keys: Map<string, { action: 'add' | 'update' | 'delete' }>;
   };
+  origin?: any; // Yjs origin for tracking local vs remote changes
 }
 
 interface CollaborationResult {
   updateCursor: (x: number, y: number) => void;
+  onLocalDragEnd: () => void; // Signal when local drag ends
 }
 
 const ROOM_NAME = 'photo-journal-board';
 const SYNC_RETRY_DELAY = 1000;
 const MAX_SYNC_RETRIES = 3;
+const CRDT_ECHO_THROTTLE = 150; // ms to ignore remote updates after local drag
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -52,6 +55,7 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
   const providerRef = useRef<WebrtcProvider>();
   const persistenceRef = useRef<IndexeddbPersistence>();
   const retryCountRef = useRef<number>(0);
+  const lastLocalDragRef = useRef<number>(0);
 
   // Initialize Yjs document and providers
   const initYjs = useCallback((): void => {
@@ -100,8 +104,15 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
         notesMap.set(id, note);
       });
 
-      // Listen for changes
+      // Listen for changes with CRDT echo throttling
       notesMap.observe((event: YjsChangeEvent) => {
+        // Throttle CRDT echo - ignore remote updates from this client for 150ms after local drag
+        const now = Date.now();
+        if (event.origin && event.origin.clientID === doc.clientID && 
+            now - lastLocalDragRef.current < CRDT_ECHO_THROTTLE) {
+          return;
+        }
+
         const updates: Array<[string, Partial<NoteData>]> = [];
 
         event.changes.keys.forEach((change, key) => {
@@ -185,7 +196,13 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
     }
   }, []);
 
+  // Signal when local drag ends to start CRDT echo throttling
+  const onLocalDragEnd = useCallback((): void => {
+    lastLocalDragRef.current = Date.now();
+  }, []);
+
   return {
     updateCursor,
+    onLocalDragEnd,
   };
 }; 

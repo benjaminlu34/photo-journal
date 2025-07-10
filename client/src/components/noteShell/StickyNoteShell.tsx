@@ -16,13 +16,15 @@ interface StickyNoteShellProps {
   children: React.ReactNode;
   position: NotePosition;
   color?: string;
+  onLocalDragEnd?: () => void;
 }
 
 export const StickyNoteShell = React.memo(function StickyNoteShell({ 
   id, 
   children, 
   position, 
-  color = 'bg-yellow-200' 
+  color = 'bg-yellow-200',
+  onLocalDragEnd
 }: StickyNoteShellProps) {
   const { updateNote, deleteNote, gridSnapEnabled } = useNoteContext();
   const [isDragging, setIsDragging] = useState(false);
@@ -32,9 +34,15 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
   const noteRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<DragPosition>({ x: 0, y: 0 });
   const livePosRef = useRef<DragPosition>({ x: position.x, y: position.y });
+  const optimisticPosRef = useRef<DragPosition>({ x: position.x, y: position.y }); // Single writer: optimistic position
   const rafRef = useRef<number>();
   const touchIdentifierRef = useRef<number | null>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update optimistic position when prop changes
+  useEffect(() => {
+    optimisticPosRef.current = { x: position.x, y: position.y };
+  }, [position.x, position.y]);
 
   // Cleanup RAF and timeout on unmount
   useEffect(() => {
@@ -48,7 +56,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     };
   }, []);
 
-  // Debounced position update function
+  // Debounced position update function - only for final commit
   const debouncedUpdatePosition = useCallback((newPosition: NotePosition) => {
     // Clear any pending update
     if (updateTimeoutRef.current) {
@@ -93,18 +101,21 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     
     if (!boardRect) return;
 
-    // Calculate new position
-    let newX = e.clientX - dragStartRef.current.x - boardRect.left;
-    let newY = e.clientY - dragStartRef.current.y - boardRect.top;
+    // Calculate raw position
+    let rawX = e.clientX - dragStartRef.current.x - boardRect.left;
+    let rawY = e.clientY - dragStartRef.current.y - boardRect.top;
 
-    // Apply grid snap if enabled
+    // Apply grid snap BEFORE updating live position to prevent single-frame mismatch
     if (gridSnapEnabled) {
-      newX = snapToGrid(newX);
-      newY = snapToGrid(newY);
+      rawX = snapToGrid(rawX);
+      rawY = snapToGrid(rawY);
     }
 
-    // Update live position with RAF
-    livePosRef.current = { x: newX, y: newY };
+    // Single writer: update optimistic position ref (not store)
+    optimisticPosRef.current = { x: rawX, y: rawY };
+    
+    // Update live position for visual updates
+    livePosRef.current = { x: rawX, y: rawY };
     
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -136,16 +147,18 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
       updateTimeoutRef.current = null;
     }
 
-    // Final position update - preserve other position properties
+    // Single writer: commit optimistic position to store
     const finalPosition: NotePosition = {
       ...position,
-      x: livePosRef.current.x,
-      y: livePosRef.current.y
+      x: optimisticPosRef.current.x,
+      y: optimisticPosRef.current.y
     };
     
     // Use debounced update to prevent rapid successive calls
     debouncedUpdatePosition(finalPosition);
-  }, [id, isDragging, position, debouncedUpdatePosition]);
+
+    onLocalDragEnd?.();
+  }, [id, isDragging, position, debouncedUpdatePosition, onLocalDragEnd]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent) => {
     if (e.pointerId !== touchIdentifierRef.current) return;
@@ -186,6 +199,8 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
       `}
       style={{
         transform: `translate(${position.x}px, ${position.y}px)`,
+        willChange: isDragging ? 'transform' : 'auto',
+        transition: isDragging ? 'none' : undefined,
         touchAction: 'none',
         WebkitTouchCallout: 'none',
         WebkitUserSelect: 'none',

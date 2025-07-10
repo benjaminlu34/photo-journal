@@ -5,8 +5,11 @@ import { NoteContextProvider } from './noteContext';
 import { StickyNoteShell } from '../noteShell/StickyNoteShell';
 import { noteRegistry } from './noteRegistry';
 import { useJournal } from '../../contexts/journal-context';
+import { useCollaboration } from '../../hooks/useCollaboration';
+import { useAuth } from '../../hooks/useAuth';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
 import type { NoteData } from '../../types/notes';
+import type { User } from '@shared/schema';
 
 const getNoteTint = (type: NoteData['type']) => {
   switch (type) {
@@ -28,6 +31,12 @@ export const StickyBoard: React.FC = () => {
     gridSnap,
     setGridSnap
   } = useJournal();
+
+  const { user } = useAuth();
+  const { onLocalDragEnd } = useCollaboration(
+    (user as User)?.id || 'anonymous',
+    (user as User)?.firstName || 'Anonymous'
+  );
 
   const handleBoardError = useCallback((error: Error) => {
     console.error('Board error:', error);
@@ -52,6 +61,7 @@ export const StickyBoard: React.FC = () => {
           id={note.id}
           position={note.position}
           color={getNoteTint(note.type)}
+          onLocalDragEnd={onLocalDragEnd}
         >
           <NoteComponent
             content={note.content}
@@ -60,7 +70,7 @@ export const StickyBoard: React.FC = () => {
         </StickyNoteShell>
       </NoteErrorBoundary>
     );
-  }), [legacyNotes, updateNote, deleteNote]);
+  }), [legacyNotes, updateNote, deleteNote, onLocalDragEnd]);
 
   return (
     <ErrorBoundary onError={handleBoardError}>
