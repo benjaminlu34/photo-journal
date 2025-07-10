@@ -1,10 +1,27 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { ViewMode, JournalEntryData, ContentBlockData, Position, ContentBlockType, Friend } from "@/types/journal";
-import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
+import type {
+  ViewMode,
+  JournalEntryData,
+  ContentBlockData,
+  Position,
+  ContentBlockType,
+  Friend,
+} from "@/types/journal";
+import {
+  blocksToNotes,
+  noteToBlockPatch,
+  type StickyNoteData,
+} from "@/mappers";
 
 interface JournalContextType {
   // State
@@ -13,21 +30,25 @@ interface JournalContextType {
   currentEntry: JournalEntryData | null;
   friends: Friend[];
   gridSnap: boolean;
-  
+
   // Legacy content block actions
   setCurrentDate: (date: Date) => void;
   setViewMode: (mode: ViewMode) => void;
-  createContentBlock: (type: ContentBlockType, content: any, position: Position) => void;
+  createContentBlock: (
+    type: ContentBlockType,
+    content: any,
+    position: Position,
+  ) => void;
   updateContentBlock: (id: string, updates: Partial<ContentBlockData>) => void;
   deleteContentBlock: (id: string) => void;
   updateBlockPosition: (id: string, position: Position) => void;
-  
+
   // New note-based actions (shim to legacy system)
   legacyNotes: StickyNoteData[];
   updateNote: (id: string, data: Partial<StickyNoteData>) => void;
   deleteNote: (id: string) => void;
   setGridSnap: (enabled: boolean) => void;
-  
+
   // Loading states
   isLoading: boolean;
   isCreatingBlock: boolean;
@@ -58,7 +79,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const dateString = currentDate.toISOString().split('T')[0];
+  const dateString = currentDate.toISOString().split("T")[0];
 
   // Fetch current journal entry
   const { data: currentEntry, isLoading } = useQuery<
@@ -79,9 +100,13 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Create content block mutation
   const createBlockMutation = useMutation({
-    mutationFn: async (data: { type: ContentBlockType; content: any; position: Position }) => {
+    mutationFn: async (data: {
+      type: ContentBlockType;
+      content: any;
+      position: Position;
+    }) => {
       if (!currentEntry) throw new Error("No current entry");
-      
+
       const response = await apiRequest("POST", "/api/content-blocks", {
         entryId: currentEntry.id,
         type: data.type,
@@ -119,8 +144,18 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Update content block mutation
   const updateBlockMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ContentBlockData> }) => {
-      const response = await apiRequest("PATCH", `/api/content-blocks/${id}`, updates);
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<ContentBlockData>;
+    }) => {
+      const response = await apiRequest(
+        "PATCH",
+        `/api/content-blocks/${id}`,
+        updates,
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -178,11 +213,18 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  const createContentBlock = (type: ContentBlockType, content: any, position: Position) => {
+  const createContentBlock = (
+    type: ContentBlockType,
+    content: any,
+    position: Position,
+  ) => {
     createBlockMutation.mutate({ type, content, position });
   };
 
-  const updateContentBlock = (id: string, updates: Partial<ContentBlockData>) => {
+  const updateContentBlock = (
+    id: string,
+    updates: Partial<ContentBlockData>,
+  ) => {
     updateBlockMutation.mutate({ id, updates });
   };
 
@@ -195,13 +237,15 @@ export function JournalProvider({ children }: JournalProviderProps) {
   };
 
   // Convert content blocks to notes for the new system
-  const legacyNotes = currentEntry?.contentBlocks ? blocksToNotes(currentEntry.contentBlocks) : [];
+  const legacyNotes = currentEntry?.contentBlocks
+    ? blocksToNotes(currentEntry.contentBlocks)
+    : [];
 
   // Note-based actions that bridge to the legacy system
   const updateNote = (id: string, data: Partial<StickyNoteData>) => {
-    const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
-    const blockUpdates = noteToBlockPatch(data, existingBlock);
-    updateContentBlock(id, blockUpdates);
+    // const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
+    // const blockUpdates = noteToBlockPatch(data, existingBlock);
+    // updateContentBlock(id, blockUpdates);
   };
 
   const deleteNote = (id: string) => {
@@ -230,8 +274,6 @@ export function JournalProvider({ children }: JournalProviderProps) {
   };
 
   return (
-    <JournalContext.Provider value={value}>
-      {children}
-    </JournalContext.Provider>
+    <JournalContext.Provider value={value}>{children}</JournalContext.Provider>
   );
 }

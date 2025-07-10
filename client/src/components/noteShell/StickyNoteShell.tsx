@@ -26,9 +26,17 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<string>('');
+  const [localPosition, setLocalPosition] = useState(note.position);
   const dragOffset = useRef({ x: 0, y: 0 });
   const shellRef = useRef<HTMLDivElement>(null);
   const initialPosition = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  // Sync local position when note.position changes from external updates
+  useEffect(() => {
+    if (!isDragging && !isResizing) {
+      setLocalPosition(note.position);
+    }
+  }, [note.position, isDragging, isResizing]);
 
   /* ---------------- handlers ---------------- */
   const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
@@ -54,12 +62,12 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
     setResizeDirection(direction);
     
     initialPosition.current = {
-      x: note.position.x,
-      y: note.position.y,
-      width: note.position.width,
-      height: note.position.height,
+      x: localPosition.x,
+      y: localPosition.y,
+      width: localPosition.width,
+      height: localPosition.height,
     };
-  }, [note.position]);
+  }, [localPosition]);
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
@@ -78,9 +86,9 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
           newY = snapToGrid(newY);
         }
 
-        updateNote(note.id, {
-          position: { ...note.position, x: newX, y: newY },
-        });
+        // Update local position immediately for smooth 60fps dragging
+        const newPosition = { ...localPosition, x: newX, y: newY };
+        setLocalPosition(newPosition);
       } else if (isResizing) {
         const mouseX = e.clientX - workspaceRect.left;
         const mouseY = e.clientY - workspaceRect.top;
@@ -114,25 +122,30 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
           newY = snapToGrid(newY);
         }
 
-        updateNote(note.id, {
-          position: { 
-            ...note.position, 
-            x: newX, 
-            y: newY, 
-            width: newWidth, 
-            height: newHeight 
-          },
-        });
+        // Update local position immediately for smooth resizing
+        const newPosition = { 
+          ...localPosition, 
+          x: newX, 
+          y: newY, 
+          width: newWidth, 
+          height: newHeight 
+        };
+        setLocalPosition(newPosition);
       }
     },
-    [isDragging, isResizing, gridSnap, note.id, note.position, updateNote, resizeDirection],
+    [isDragging, isResizing, gridSnap, localPosition, resizeDirection],
   );
 
   const handleMouseUp = useCallback(() => {
+    // Only persist to server when drag/resize ends (one network call)
+    if (isDragging || isResizing) {
+      updateNote(note.id, { position: localPosition });
+    }
+    
     setIsDragging(false);
     setIsResizing(false);
     setResizeDirection('');
-  }, []);
+  }, [isDragging, isResizing, localPosition, note.id, updateNote]);
 
   /* ---------------- global listeners while dragging/resizing ---------------- */
   useEffect(() => {
@@ -163,17 +176,17 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
       className="absolute group neu-card rounded-xl shadow-lg
                  hover:shadow-xl transition-shadow duration-200"
       style={{
-        left: note.position.x,
-        top: note.position.y,
-        width: note.position.width,
-        height: note.position.height,
-        transform: `rotate(${note.position.rotation}deg)`,
+        left: localPosition.x,
+        top: localPosition.y,
+        width: localPosition.width,
+        height: localPosition.height,
+        transform: `rotate(${localPosition.rotation}deg)`,
         zIndex: isDragging || isResizing ? 1000 : 1,
       }}
     >
       {/* Header area for dragging */}
       <div 
-        className="absolute top-0 left-0 right-0 h-8 cursor-move bg-transparent rounded-t-xl"
+        className="absolute top-0 left-0 right-0 h-8 cursor-move bg-gradient-to-b from-black/5 to-transparent rounded-t-xl group-hover:from-black/10 transition-colors duration-200"
         onMouseDown={handleMouseDown}
       />
       

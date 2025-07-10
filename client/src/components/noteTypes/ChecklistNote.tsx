@@ -7,47 +7,59 @@ interface ChecklistNoteProps {
   content: ChecklistNoteContent;
   onChange?: (content: ChecklistNoteContent) => void;
 }
-
+const uid = () => crypto.randomUUID();
 const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
   const [newItemText, setNewItemText] = useState("");
 
-  const handleToggleItem = useCallback((itemId: string) => {
-    const updatedItems = content.items.map(item =>
-      item.id === itemId ? { ...item, completed: !item.completed } : item
-    );
-    onChange?.({ items: updatedItems });
-  }, [content.items, onChange]);
+  const handleToggleItem = useCallback(
+    (itemId: string) => {
+      const updatedItems = content.items.map((item) =>
+        item.id === itemId ? { ...item, completed: !item.completed } : item,
+      );
+      onChange?.({ items: updatedItems });
+    },
+    [content.items, onChange],
+  );
 
-  const handleItemTextChange = useCallback((itemId: string, text: string) => {
-    const updatedItems = content.items.map(item =>
-      item.id === itemId ? { ...item, text } : item
-    );
-    onChange?.({ items: updatedItems });
-  }, [content.items, onChange]);
+  const handleItemTextChange = useCallback(
+    (itemId: string, text: string) => {
+      const updatedItems = content.items.map((item) =>
+        item.id === itemId ? { ...item, text } : item,
+      );
+      onChange?.({ items: updatedItems });
+    },
+    [content.items, onChange],
+  );
 
-  const handleRemoveItem = useCallback((itemId: string) => {
-    const updatedItems = content.items.filter(item => item.id !== itemId);
-    onChange?.({ items: updatedItems });
-  }, [content.items, onChange]);
+  const handleRemoveItem = useCallback(
+    (itemId: string) => {
+      const updatedItems = content.items.filter((item) => item.id !== itemId);
+      onChange?.({ items: updatedItems });
+    },
+    [content.items, onChange],
+  );
 
   const handleAddItem = useCallback(() => {
     if (newItemText.trim()) {
       const newItem: ChecklistItem = {
-        id: Date.now().toString(),
+        id: uid(),
         text: newItemText.trim(),
-        completed: false
+        completed: false,
       };
       onChange?.({ items: [...content.items, newItem] });
       setNewItemText("");
     }
   }, [content.items, newItemText, onChange]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddItem();
-    }
-  }, [handleAddItem]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddItem();
+      }
+    },
+    [handleAddItem],
+  );
 
   return (
     <div className="h-full p-3 space-y-2">
@@ -58,9 +70,11 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
             <button
               onClick={() => handleToggleItem(item.id)}
               className={cn(
-                'w-4 h-4 rounded border-2 flex items-center justify-center',
-                'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-                item.completed ? 'bg-primary border-primary' : 'bg-white border-neutral-300'
+                "w-4 h-4 rounded border-2 flex items-center justify-center",
+                "hover:shadow-neu-hover active:shadow-neu-pressed transition-all",
+                item.completed
+                  ? "bg-primary border-primary"
+                  : "bg-white border-neutral-300",
               )}
             >
               {item.completed && <Check className="w-3 h-3 text-white" />}
@@ -70,17 +84,17 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
               value={item.text}
               onChange={(e) => handleItemTextChange(item.id, e.target.value)}
               className={cn(
-                'flex-1 border-none outline-none bg-transparent text-sm',
-                'text-neutral-800 placeholder:text-neutral-400',
-                item.completed && 'line-through text-neutral-500'
+                "flex-1 border-none outline-none bg-transparent text-sm",
+                "text-neutral-800 placeholder:text-neutral-400",
+                item.completed && "line-through text-neutral-500",
               )}
               placeholder="Enter task..."
             />
             <button
               onClick={() => handleRemoveItem(item.id)}
               className={cn(
-                'w-6 h-6 rounded opacity-0 group-hover:opacity-100',
-                'hover:bg-red-100 flex items-center justify-center transition-all'
+                "w-6 h-6 rounded opacity-0 group-hover:opacity-100",
+                "hover:bg-red-100 flex items-center justify-center transition-all",
               )}
             >
               <X className="w-3 h-3 text-red-500" />
@@ -94,9 +108,9 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
         <button
           onClick={handleAddItem}
           className={cn(
-            'w-4 h-4 rounded border-2 border-neutral-300 bg-white',
-            'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-            'flex items-center justify-center'
+            "w-4 h-4 rounded border-2 border-neutral-300 bg-white",
+            "hover:shadow-neu-hover active:shadow-neu-pressed transition-all",
+            "flex items-center justify-center",
           )}
         >
           <Plus className="w-3 h-3 text-neutral-500" />
@@ -107,8 +121,8 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content, onChange }) => {
           onChange={(e) => setNewItemText(e.target.value)}
           onKeyDown={handleKeyDown}
           className={cn(
-            'flex-1 border-none outline-none bg-transparent text-sm',
-            'text-neutral-800 placeholder:text-neutral-400'
+            "flex-1 border-none outline-none bg-transparent text-sm",
+            "text-neutral-800 placeholder:text-neutral-400",
           )}
           placeholder="Add new item..."
         />
