@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  MouseEvent as ReactMouseEvent,
+} from "react";
 import { useNoteContext } from "@/components/board/noteContext";
 import { noteRegistry } from "@/components/board/noteRegistry";
 import { snapToGrid } from "@/utils/snapToGrid";
@@ -8,77 +14,88 @@ interface StickyNoteShellProps {
   note: StickyNoteData;
 }
 
+/**
+ * Drag-&-resize shell – visual chrome only.
+ * Children (rendered through noteRegistry) own their own content.
+ */
 export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
   const { updateNote, deleteNote, gridSnap } = useNoteContext();
+
+  /* ---------------- state / refs ---------------- */
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragOffset = useRef({ x: 0, y: 0 });
   const shellRef = useRef<HTMLDivElement>(null);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget) return; // Don't drag if clicking on content
-    
+  /* ---------------- handlers ---------------- */
+  const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    // ignore clicks that bubble from inner content
+    if (e.target !== e.currentTarget) return;
+
     const rect = shellRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    setDragOffset({
+    dragOffset.current = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
-    });
+    };
     setIsDragging(true);
   }, []);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !shellRef.current) return;
-    
-    const workspaceRect = shellRef.current.parentElement?.getBoundingClientRect();
-    if (!workspaceRect) return;
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging || !shellRef.current) return;
 
-    let newX = e.clientX - workspaceRect.left - dragOffset.x;
-    let newY = e.clientY - workspaceRect.top - dragOffset.y;
+      const workspaceRect =
+        shellRef.current.parentElement?.getBoundingClientRect();
+      if (!workspaceRect) return;
 
-    if (gridSnap) {
-      newX = snapToGrid(newX);
-      newY = snapToGrid(newY);
-    }
+      let newX = e.clientX - workspaceRect.left - dragOffset.current.x;
+      let newY = e.clientY - workspaceRect.top - dragOffset.current.y;
 
-    updateNote(note.id, {
-      position: {
-        ...note.position,
-        x: newX,
-        y: newY,
-      },
-    });
-  }, [isDragging, dragOffset, gridSnap, note.id, note.position, updateNote]);
+      if (gridSnap) {
+        newX = snapToGrid(newX);
+        newY = snapToGrid(newY);
+      }
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+      /* 💡 Only update position here; onMouseUp you might persist. */
+      updateNote(note.id, {
+        position: { ...note.position, x: newX, y: newY },
+        /* updatedAt will be set in updateNote implementation */
+      });
+    },
+    [isDragging, gridSnap, note.id, note.position, updateNote],
+  );
 
-  // Attach global mouse events for dragging
-  React.useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = 'none';
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.style.userSelect = '';
-      };
-    }
+  const handleMouseUp = useCallback(() => setIsDragging(false), []);
+
+  /* ---------------- global listeners while dragging ---------------- */
+  useEffect(() => {
+    if (!isDragging) return;
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.userSelect = "none";
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "";
+    };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  const NoteComponent = noteRegistry[note.kind];
+  /* ---------------- dynamic note body ---------------- */
+  const NoteComponent = noteRegistry[note.type]; // 🔑 property is `type`, not `kind`
   if (!NoteComponent) {
-    console.warn(`Unknown note kind: ${note.kind}`);
+    console.warn(`Unknown note type: ${note.type}`);
     return null;
   }
 
+  /* ---------------- render shell ---------------- */
   return (
     <div
       ref={shellRef}
-      className="absolute cursor-move neu-card rounded-xl p-4 shadow-lg hover:shadow-xl transition-shadow duration-200"
+      className="absolute cursor-move neu-card rounded-xl p-4 shadow-lg
+                 hover:shadow-xl transition-shadow duration-200"
       style={{
         left: note.position.x,
         top: note.position.y,
@@ -90,8 +107,9 @@ export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
       onMouseDown={handleMouseDown}
     >
       <NoteComponent
-        content={note.content}
+        {...note}
         onChange={(content: any) => updateNote(note.id, { content })}
+        onDelete={() => deleteNote(note.id)}
       />
     </div>
   );
