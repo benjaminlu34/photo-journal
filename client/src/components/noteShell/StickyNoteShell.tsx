@@ -34,15 +34,32 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
   const livePosRef = useRef<DragPosition>({ x: position.x, y: position.y });
   const rafRef = useRef<number>();
   const touchIdentifierRef = useRef<number | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cleanup RAF on unmount
+  // Cleanup RAF and timeout on unmount
   useEffect(() => {
     return () => {
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
       }
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Debounced position update function
+  const debouncedUpdatePosition = useCallback((newPosition: NotePosition) => {
+    // Clear any pending update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    // Set a new debounced update
+    updateTimeoutRef.current = setTimeout(() => {
+      updateNote(id, { position: newPosition });
+    }, 100); // 100ms debounce
+  }, [id, updateNote]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Ignore if clicking on content that shouldn't trigger drag
@@ -113,15 +130,22 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
       rafRef.current = undefined;
     }
 
+    // Clear any pending debounced update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
+
     // Final position update - preserve other position properties
-    updateNote(id, { 
-      position: {
-        ...position,
-        x: livePosRef.current.x,
-        y: livePosRef.current.y
-      }
-    });
-  }, [id, isDragging, updateNote, position]);
+    const finalPosition: NotePosition = {
+      ...position,
+      x: livePosRef.current.x,
+      y: livePosRef.current.y
+    };
+    
+    // Use debounced update to prevent rapid successive calls
+    debouncedUpdatePosition(finalPosition);
+  }, [id, isDragging, position, debouncedUpdatePosition]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent) => {
     if (e.pointerId !== touchIdentifierRef.current) return;
@@ -135,6 +159,12 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = undefined;
+    }
+
+    // Clear any pending debounced update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
     }
 
     // Revert to original position

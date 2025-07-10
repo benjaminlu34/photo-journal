@@ -179,6 +179,19 @@ export function JournalProvider({ children }: JournalProviderProps) {
       // Return a context object with the snapshotted value
       return { previousEntry };
     },
+    onSuccess: (data, variables) => {
+      // Update the cache with the server response to ensure consistency
+      const currentEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+      if (currentEntry) {
+        const updatedEntry: JournalEntryData = {
+          ...currentEntry,
+          contentBlocks: currentEntry.contentBlocks.map(block =>
+            block.id === variables.id ? { ...block, ...data } : block
+          )
+        };
+        queryClient.setQueryData(["/api/journal", dateString], updatedEntry);
+      }
+    },
     onError: (error: Error, variables, context) => {
       // If the mutation fails, rollback to the previous value
       if (context?.previousEntry) {
@@ -201,9 +214,8 @@ export function JournalProvider({ children }: JournalProviderProps) {
         description: "Failed to update content block. Please try again.",
         variant: "destructive",
       });
-    },
-    onSettled: () => {
-      // Always refetch after error or success to ensure consistency
+      
+      // Only refetch on error to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
     },
   });

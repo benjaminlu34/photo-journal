@@ -117,7 +117,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { blockId } = req.params;
       const updates = insertContentBlockSchema.partial().parse(req.body);
       
-      const updatedBlock = await storage.updateContentBlock(blockId, updates);
+      // Get the existing block to ensure we preserve all fields
+      const existingBlock = await storage.getContentBlock(blockId);
+      if (!existingBlock) {
+        return res.status(404).json({ message: "Content block not found" });
+      }
+      
+      // Merge updates with existing data to ensure no fields are lost
+      const mergedUpdates = {
+        ...existingBlock,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const updatedBlock = await storage.updateContentBlock(blockId, mergedUpdates);
       res.json(updatedBlock);
     } catch (error) {
       if (error instanceof z.ZodError) {

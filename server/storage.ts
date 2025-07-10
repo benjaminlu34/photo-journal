@@ -31,6 +31,7 @@ export interface IStorage {
   
   // Content block operations
   getContentBlocks(entryId: string): Promise<ContentBlock[]>;
+  getContentBlock(blockId: string): Promise<ContentBlock | undefined>;
   createContentBlock(block: InsertContentBlock): Promise<ContentBlock>;
   updateContentBlock(blockId: string, updates: Partial<InsertContentBlock>): Promise<ContentBlock>;
   deleteContentBlock(blockId: string): Promise<void>;
@@ -127,6 +128,14 @@ export class DatabaseStorage implements IStorage {
       .from(contentBlocks)
       .where(eq(contentBlocks.entryId, entryId))
       .orderBy(desc(contentBlocks.createdAt));
+  }
+
+  async getContentBlock(blockId: string): Promise<ContentBlock | undefined> {
+    const [block] = await db
+      .select()
+      .from(contentBlocks)
+      .where(eq(contentBlocks.id, blockId));
+    return block;
   }
 
   async createContentBlock(block: InsertContentBlock): Promise<ContentBlock> {

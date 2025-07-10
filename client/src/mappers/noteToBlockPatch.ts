@@ -1,4 +1,4 @@
-import type { StickyNoteData } from "@/types/notes";
+import type { StickyNoteData } from "./blockToNote";
 import type { ContentBlockData, Position, ContentBlockType } from "@/types/journal";
 
 /**
@@ -9,19 +9,31 @@ export const noteToBlockPatch = (
   note: Partial<StickyNoteData>,
   existingBlock?: ContentBlockData
 ): Partial<ContentBlockData> => {
-  const position: Position = {
-    x: note.position?.x ?? existingBlock?.position.x ?? 0,
-    y: note.position?.y ?? existingBlock?.position.y ?? 0,
-    width: note.position?.width ?? existingBlock?.position.width ?? 0,
-    height: note.position?.height ?? existingBlock?.position.height ?? 0,
-    rotation: note.position?.rotation ?? existingBlock?.position.rotation ?? 0,
-  };
+  // Only update position if it's provided in the note update
+  let position: Position | undefined;
+  if (note.position) {
+    position = {
+      x: note.position.x ?? existingBlock?.position.x ?? 0,
+      y: note.position.y ?? existingBlock?.position.y ?? 0,
+      width: note.position.width ?? existingBlock?.position.width ?? 240,
+      height: note.position.height ?? existingBlock?.position.height ?? 180,
+      rotation: note.position.rotation ?? existingBlock?.position.rotation ?? 0,
+    };
+  }
 
   const patch: Partial<ContentBlockData> = {
-    position,
-    content: note.content,
     updatedAt: new Date().toISOString(),
   };
+
+  // Only add position if it was provided
+  if (position) {
+    patch.position = position;
+  }
+
+  // Only add content if it was provided
+  if (note.content !== undefined) {
+    patch.content = note.content;
+  }
 
   // Only update type if creating new block or if type changed
   if (note.type && (!existingBlock || existingBlock.type !== mapNoteTypeToBlockType(note.type))) {
@@ -62,6 +74,7 @@ function mapNoteTypeToBlockType(noteType: string): ContentBlockType {
     image: "photo",
     voice: "audio",
     drawing: "drawing",
+    sticky_note: "sticky_note",
   };
 
   return typeMap[noteType] ?? "sticky_note";
