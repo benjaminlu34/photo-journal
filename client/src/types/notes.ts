@@ -41,3 +41,19 @@ export type NoteContent =
 
 // Note kinds
 export type NoteKind = 'text' | 'checklist' | 'image' | 'voice' | 'drawing';
+
+// Full note data used by the board/shell system
+export interface StickyNoteData {
+  id: string;
+  type: NoteKind;
+  content: NoteContent;
+  position: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}

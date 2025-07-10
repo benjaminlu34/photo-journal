@@ -1,20 +1,20 @@
-import { StickyNoteData } from "@/types/notes";
-import { ContentBlockData, Position } from "@/types/journal";
+import type { StickyNoteData } from "@/types/notes";
+import type { ContentBlockData, Position, ContentBlockType } from "@/types/journal";
 
 /**
  * Converts a StickyNote update back to a ContentBlock patch
  * for legacy system compatibility during dual-write phase.
  */
 export const noteToBlockPatch = (
-  note: StickyNoteData,
+  note: Partial<StickyNoteData>,
   existingBlock?: ContentBlockData
 ): Partial<ContentBlockData> => {
   const position: Position = {
-    x: note.position.x,
-    y: note.position.y,
-    width: note.position.width,
-    height: note.position.height,
-    rotation: note.position.rotation,
+    x: note.position?.x ?? existingBlock?.position.x ?? 0,
+    y: note.position?.y ?? existingBlock?.position.y ?? 0,
+    width: note.position?.width ?? existingBlock?.position.width ?? 0,
+    height: note.position?.height ?? existingBlock?.position.height ?? 0,
+    rotation: note.position?.rotation ?? existingBlock?.position.rotation ?? 0,
   };
 
   const patch: Partial<ContentBlockData> = {
@@ -24,7 +24,7 @@ export const noteToBlockPatch = (
   };
 
   // Only update type if creating new block or if type changed
-  if (!existingBlock || existingBlock.type !== mapNoteTypeToBlockType(note.type)) {
+  if (note.type && (!existingBlock || existingBlock.type !== mapNoteTypeToBlockType(note.type))) {
     patch.type = mapNoteTypeToBlockType(note.type);
   }
 
@@ -55,8 +55,8 @@ export const noteToBlock = (
 /**
  * Maps note types to legacy content block types
  */
-function mapNoteTypeToBlockType(noteType: string): string {
-  const typeMap: Record<string, string> = {
+function mapNoteTypeToBlockType(noteType: string): ContentBlockType {
+  const typeMap: Record<string, ContentBlockType> = {
     text: "text",
     checklist: "checklist",
     image: "photo",
@@ -64,5 +64,5 @@ function mapNoteTypeToBlockType(noteType: string): string {
     drawing: "drawing",
   };
 
-  return typeMap[noteType] || "sticky_note";
+  return typeMap[noteType] ?? "sticky_note";
 }
