@@ -4,6 +4,7 @@ import { ContentBlock } from "./content-block";
 import { WeeklyCalendarView } from "./weekly-calendar-view";
 import { WeeklyCreativeView } from "./weekly-creative-view";
 import { MonthlyView } from "./monthly-view";
+import { StickyBoard } from "@/components/board/StickyBoard";
 import { useJournal } from "@/contexts/journal-context";
 import type { Position, ContentBlockType } from "@/types/journal";
 import { Plus } from "lucide-react";
@@ -82,10 +83,13 @@ export function JournalWorkspace() {
       data-workspace="true"
       className="flex-1 relative overflow-auto min-h-screen pinboard-bg"
     >
-      {/* Content Blocks */}
+      {/* Legacy Content Blocks */}
       {currentEntry.contentBlocks.map((block) => (
         <ContentBlock key={block.id} block={block} />
       ))}
+
+      {/* New StickyBoard Component */}
+      <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
 
       {/* Floating Add Button */}
       <Button

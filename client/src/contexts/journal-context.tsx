@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { ViewMode, JournalEntryData, ContentBlockData, Position, ContentBlockType, Friend } from "@/types/journal";
+import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
 
 interface JournalContextType {
   // State
@@ -11,14 +12,21 @@ interface JournalContextType {
   viewMode: ViewMode;
   currentEntry: JournalEntryData | null;
   friends: Friend[];
+  gridSnap: boolean;
   
-  // Actions
+  // Legacy content block actions
   setCurrentDate: (date: Date) => void;
   setViewMode: (mode: ViewMode) => void;
   createContentBlock: (type: ContentBlockType, content: any, position: Position) => void;
   updateContentBlock: (id: string, updates: Partial<ContentBlockData>) => void;
   deleteContentBlock: (id: string) => void;
   updateBlockPosition: (id: string, position: Position) => void;
+  
+  // New note-based actions (shim to legacy system)
+  legacyNotes: StickyNoteData[];
+  updateNote: (id: string, data: Partial<StickyNoteData>) => void;
+  deleteNote: (id: string) => void;
+  setGridSnap: (enabled: boolean) => void;
   
   // Loading states
   isLoading: boolean;
@@ -43,6 +51,7 @@ interface JournalProviderProps {
 export function JournalProvider({ children }: JournalProviderProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
+  const [gridSnap, setGridSnap] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -202,17 +211,35 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateBlockMutation.mutate({ id, updates: { position } });
   };
 
+  // Convert content blocks to notes for the new system
+  const legacyNotes = currentEntry?.contentBlocks ? blocksToNotes(currentEntry.contentBlocks) : [];
+
+  // Note-based actions that bridge to the legacy system
+  const updateNote = (id: string, data: Partial<StickyNoteData>) => {
+    const blockUpdates = noteToBlockPatch(data);
+    updateContentBlock(id, blockUpdates);
+  };
+
+  const deleteNote = (id: string) => {
+    deleteContentBlock(id);
+  };
+
   const value: JournalContextType = {
     currentDate,
     viewMode,
     currentEntry: currentEntry || null,
     friends,
+    gridSnap,
     setCurrentDate,
     setViewMode,
     createContentBlock,
     updateContentBlock,
     deleteContentBlock,
     updateBlockPosition,
+    legacyNotes,
+    updateNote,
+    deleteNote,
+    setGridSnap,
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,

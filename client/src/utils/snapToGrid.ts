@@ -1,6 +1,5 @@
-/**
- * Round a number to the nearest G-pixel grid.
- * Default grid size = 20 px (matches Firm #2's demo).
- */
-export const snapToGrid = (value: number, grid = 20): number =>
-  Math.round(value / grid) * grid;
+export const GRID_SIZE = 20;
+
+export function snapToGrid(value: number): number {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+}
