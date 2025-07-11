@@ -63,9 +63,14 @@ function ContentTypeButton({
       height: 180,
       rotation: Math.random() * 6 - 3,
     };
-
-    // Use CRDT-first approach instead of legacy createContentBlock
-    createNote(getNoteType(type), position);
+    const noteType = getNoteType(type);
+    console.log('[CollabPanel] handleClick', { type, noteType, position });
+    try {
+      const noteId = createNote(noteType, position);
+      console.log('[CollabPanel] createNote returned', noteId);
+    } catch (err) {
+      console.error('[CollabPanel] createNote error', err);
+    }
   };
 
   return (
