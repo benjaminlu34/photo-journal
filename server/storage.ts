@@ -251,4 +251,217 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// In-memory storage implementation to bypass database connectivity issues
+export class MemoryStorage implements IStorage {
+  private users = new Map<string, User>();
+  private journalEntries = new Map<string, JournalEntry>();
+  private contentBlocks = new Map<string, ContentBlock>();
+  private friendships = new Map<string, Friendship>();
+  private sharedEntries = new Map<string, SharedEntry>();
+
+  // User operations (mandatory for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const now = new Date();
+    const user: User = {
+      ...userData,
+      createdAt: this.users.get(userData.id)?.createdAt || now,
+      updatedAt: now,
+    };
+    this.users.set(userData.id, user);
+    return user;
+  }
+
+  // Journal operations
+  async getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined> {
+    const dateStr = date.toISOString().split('T')[0];
+    for (const entry of this.journalEntries.values()) {
+      if (entry.userId === userId && entry.date.toISOString().split('T')[0] === dateStr) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
+  async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    const now = new Date();
+    const id = `entry-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newEntry: JournalEntry = {
+      id,
+      ...entry,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.journalEntries.set(id, newEntry);
+    return newEntry;
+  }
+
+  async updateJournalEntry(entryId: string, updates: Partial<InsertJournalEntry>): Promise<JournalEntry> {
+    const entry = this.journalEntries.get(entryId);
+    if (!entry) throw new Error('Journal entry not found');
+    
+    const updatedEntry: JournalEntry = {
+      ...entry,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.journalEntries.set(entryId, updatedEntry);
+    return updatedEntry;
+  }
+
+  async getJournalEntriesInRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]> {
+    const entries: JournalEntry[] = [];
+    for (const entry of this.journalEntries.values()) {
+      if (entry.userId === userId && entry.date >= startDate && entry.date <= endDate) {
+        entries.push(entry);
+      }
+    }
+    return entries.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }
+
+  // Content block operations
+  async getContentBlocks(entryId: string): Promise<ContentBlock[]> {
+    const blocks: ContentBlock[] = [];
+    for (const block of this.contentBlocks.values()) {
+      if (block.journalEntryId === entryId) {
+        blocks.push(block);
+      }
+    }
+    return blocks;
+  }
+
+  async getContentBlock(blockId: string): Promise<ContentBlock | undefined> {
+    return this.contentBlocks.get(blockId);
+  }
+
+  async createContentBlock(block: InsertContentBlock): Promise<ContentBlock> {
+    const now = new Date();
+    const id = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newBlock: ContentBlock = {
+      id,
+      ...block,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.contentBlocks.set(id, newBlock);
+    return newBlock;
+  }
+
+  async updateContentBlock(blockId: string, updates: Partial<InsertContentBlock>): Promise<ContentBlock> {
+    const block = this.contentBlocks.get(blockId);
+    if (!block) throw new Error('Content block not found');
+    
+    const updatedBlock: ContentBlock = {
+      ...block,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.contentBlocks.set(blockId, updatedBlock);
+    return updatedBlock;
+  }
+
+  async deleteContentBlock(blockId: string): Promise<void> {
+    this.contentBlocks.delete(blockId);
+  }
+
+  // Friend operations
+  async getFriends(userId: string): Promise<User[]> {
+    const friends: User[] = [];
+    for (const friendship of this.friendships.values()) {
+      if (friendship.status === 'accepted') {
+        if (friendship.userId === userId) {
+          const friend = this.users.get(friendship.friendId);
+          if (friend) friends.push(friend);
+        } else if (friendship.friendId === userId) {
+          const friend = this.users.get(friendship.userId);
+          if (friend) friends.push(friend);
+        }
+      }
+    }
+    return friends;
+  }
+
+  async getFriendshipRequests(userId: string): Promise<(Friendship & { user: User })[]> {
+    const requests: (Friendship & { user: User })[] = [];
+    for (const friendship of this.friendships.values()) {
+      if (friendship.friendId === userId && friendship.status === 'pending') {
+        const user = this.users.get(friendship.userId);
+        if (user) {
+          requests.push({ ...friendship, user });
+        }
+      }
+    }
+    return requests;
+  }
+
+  async createFriendship(friendship: InsertFriendship): Promise<Friendship> {
+    const now = new Date();
+    const id = `friendship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newFriendship: Friendship = {
+      id,
+      ...friendship,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.friendships.set(id, newFriendship);
+    return newFriendship;
+  }
+
+  async updateFriendshipStatus(friendshipId: string, status: "accepted" | "blocked"): Promise<Friendship> {
+    const friendship = this.friendships.get(friendshipId);
+    if (!friendship) throw new Error('Friendship not found');
+    
+    const updatedFriendship: Friendship = {
+      ...friendship,
+      status,
+      updatedAt: new Date(),
+    };
+    this.friendships.set(friendshipId, updatedFriendship);
+    return updatedFriendship;
+  }
+
+  // Sharing operations
+  async getSharedEntries(userId: string): Promise<(SharedEntry & { entry: JournalEntry & { user: User } })[]> {
+    const sharedEntries: (SharedEntry & { entry: JournalEntry & { user: User } })[] = [];
+    for (const share of this.sharedEntries.values()) {
+      if (share.sharedWithId === userId) {
+        const entry = this.journalEntries.get(share.journalEntryId);
+        const user = entry ? this.users.get(entry.userId) : undefined;
+        if (entry && user) {
+          sharedEntries.push({ ...share, entry: { ...entry, user } });
+        }
+      }
+    }
+    return sharedEntries;
+  }
+
+  async shareEntry(share: InsertSharedEntry): Promise<SharedEntry> {
+    const now = new Date();
+    const id = `share-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newShare: SharedEntry = {
+      id,
+      ...share,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.sharedEntries.set(id, newShare);
+    return newShare;
+  }
+
+  async removeSharedEntry(entryId: string, sharedWithId: string): Promise<void> {
+    for (const [id, share] of this.sharedEntries.entries()) {
+      if (share.journalEntryId === entryId && share.sharedWithId === sharedWithId) {
+        this.sharedEntries.delete(id);
+        break;
+      }
+    }
+  }
+}
+
+// Use in-memory storage to bypass database connectivity issues
+export const storage = process.env.NODE_ENV === 'development' 
+  ? new MemoryStorage() 
+  : new DatabaseStorage();
