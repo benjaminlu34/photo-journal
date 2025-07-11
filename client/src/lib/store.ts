@@ -9,7 +9,7 @@ interface BoardState {
   notes: Record<string, NoteData>;
   selectedId: string | null;
   gridSnapEnabled: boolean;
-  updateQueue: Map<string, NoteUpdate>;
+  updateQueue: Record<string, NoteUpdate>;
   pendingSync: boolean;
   userId: string | null;
 }
@@ -84,7 +84,7 @@ export const useBoardStore = create<BoardState & BoardActions>()(
         notes: {},
         selectedId: null,
         gridSnapEnabled: true,
-        updateQueue: new Map(),
+        updateQueue: {},
         pendingSync: false,
         userId: null,
 
@@ -202,7 +202,7 @@ export const useBoardStore = create<BoardState & BoardActions>()(
               }
 
               delete state.notes[id];
-              state.updateQueue.delete(id);
+              delete state.updateQueue[id];
               if (state.selectedId === id) {
                 state.selectedId = null;
               }
@@ -270,7 +270,7 @@ export const useBoardStore = create<BoardState & BoardActions>()(
           set((state) => {
             try {
               state.pendingSync = false;
-              state.updateQueue.clear();
+              state.updateQueue = {};
             } catch (error) {
               console.error('Failed to sync changes:', error);
             }

@@ -136,9 +136,12 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
 
       // Handle awareness changes (cursor positions, selections)
       provider.awareness.on('change', () => {
+        // Only log when there are actual changes and not empty states
         if (isDevelopment) {
           const states = Array.from(provider.awareness.getStates().values()) as AwarenessState[];
-          console.log('Awareness states:', states);
+          if (states.length > 0) {
+            console.log('Awareness states:', states);
+          }
         }
       });
 
