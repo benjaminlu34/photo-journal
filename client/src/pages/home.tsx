@@ -97,18 +97,16 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* Workspace */}
-        <JournalWorkspace />
+        {/* Workspace & Collaboration Panel */}
+        {currentEntry ? (
+          <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
+            <div className="flex flex-1">
+              <JournalWorkspace />
+              <CollaborationPanel />
+            </div>
+          </CRDTProvider>
+        ) : null}
       </div>
-
-      {/* Collaboration Panel */}
-      {currentEntry ? (
-        <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
-          <CollaborationPanel />
-        </CRDTProvider>
-      ) : (
-        <CollaborationPanel />
-      )}
     </div>
   );
 }
