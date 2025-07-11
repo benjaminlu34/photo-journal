@@ -1,93 +1,115 @@
 'use client';
 
 import React, { useCallback, useMemo } from 'react';
-import { NoteContextProvider } from './noteContext';
-import { StickyNoteShell } from '../noteShell/StickyNoteShell';
-import { noteRegistry } from './noteRegistry';
-import { useBoardStore } from '../../lib/store';
-import { useCRDT } from '@/contexts/crdt-context';
-import { useAuth } from '../../hooks/useAuth';
+import { StickyNoteShell }   from '../noteShell/StickyNoteShell';
+import { noteRegistry }      from './noteRegistry';
+import { useBoardStore }     from '../../lib/board-store';   // ← path matches the new store
+import { useAuth }           from '../../hooks/useAuth';
+import { useCRDT }           from '@/contexts/crdt-context';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
-import { FileText, CheckSquare, Image, Mic, PenTool } from 'lucide-react';
+
 import type { NoteData } from '../../types/notes';
-import type { User } from '@shared/schema';
+import type { User }     from '@shared/schema';
 
-//
+interface StickyBoardProps {
+  spaceId?: string;        // kept for future routing / debugging
+}
 
-export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default-board' }) => {
-  console.log('[StickyBoard] using spaceId:', spaceId);
-  const {
-    notes,
-    setUserId
-  } = useBoardStore();
+export const StickyBoard: React.FC<StickyBoardProps> = ({
+  spaceId = 'default-board',
+}) => {
+  /* ────────────────────────────  state  ──────────────────────────── */
 
-  const { user } = useAuth();
-  const { 
-    updateCursor, 
-    createNote, 
-    updateNote, 
-    deleteNote,
-    isConnected 
-  } = useCRDT();
+  // Zustand slices
+  const notes          = useBoardStore((s) => s.notes);
+  const { create, update, remove } = useBoardStore((s) => s.actions);
 
-  // Set user ID for rate limiting
-  React.useEffect(() => {
-    setUserId((user as User)?.id || null);
-  }, [(user as User)?.id, setUserId]);
+  // auth / presence
+  const { user }       = useAuth();
+  const { isConnected } = useCRDT();        // for the "offline" chip
 
-  const handleBoardError = useCallback((error: Error) => {
-    console.error('Board error:', error);
-    // You could also send this to an error reporting service
+  /* ─────────────────────────── side-effects ───────────────────────── */
+
+
+  /* ─────────────────────────── handlers ──────────────────────────── */
+
+  const handleBoardError = useCallback((err: Error) => {
+    console.error('[StickyBoard] uncaught error', err);
   }, []);
 
-  // Convert notes object to array
-  const notesList = useMemo(() => Object.values(notes), [notes]);
+  const handleCreateNote = useCallback(
+    (type: NoteData['type']) => {
+      const id = `note-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  // Function to create a new note - now uses CRDT-first approach
-  const handleCreateNote = useCallback((type: NoteData['type']) => {
-    try {
-      createNote(type);
-    } catch (error) {
-      console.error('Failed to create note:', error);
-    }
-  }, [createNote]);
+      // minimal default content per type
+      const content: NoteData['content'] = (() => {
+        switch (type) {
+          case 'text':       return { type: 'text',       text: '' };
+          case 'checklist':  return { type: 'checklist',  items: [] };
+          case 'image':      return { type: 'image',      imageUrl: '', alt: '' };
+          case 'voice':      return { type: 'voice',      audioUrl: '', duration: 0 };
+          case 'drawing':    return { type: 'drawing',    strokes: [] };
+          default:
+            throw new Error(`Unknown note type: ${type}`);
+        }
+      })();
 
-  // Memoize note components to prevent unnecessary re-renders
-  const noteComponents = useMemo(() => notesList.map(note => {
-    const NoteComponent = noteRegistry[note.type];
-    if (!NoteComponent) {
-      console.warn(`Unknown note type: ${note.type}`);
-      return null;
-    }
+      create({
+        id,
+        type,
+        position : { x: 100, y: 100, width: 200, height: 150, rotation: 0 },
+        content,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [create],
+  );
 
-    return (
-      <NoteErrorBoundary
-        key={note.id}
-        noteId={note.id}
-        onDelete={deleteNote}
-      >
-        <StickyNoteShell note={note} />
-      </NoteErrorBoundary>
-    );
-  }), [notesList, deleteNote]);
+  /* ─────────────────────────── derived UI ────────────────────────── */
+
+  const renderedNotes = useMemo(
+    () =>
+      Object.values(notes).map((note) => {
+        const NoteComponent = noteRegistry[note.type];
+        if (!NoteComponent) {
+          console.warn(`Unknown note type: ${note.type}`);
+          return null;
+        }
+
+        return (
+          <NoteErrorBoundary key={note.id} noteId={note.id} onDelete={remove}>
+            <StickyNoteShell
+              note={note}
+              updateNote={update}
+              deleteNote={remove}
+            >
+              {/* each note owns its own editor / viewer: */}
+              <NoteComponent
+                content={note.content as any}
+                onChange={(c: any) => update(note.id, { content: c })}
+              />
+            </StickyNoteShell>
+          </NoteErrorBoundary>
+        );
+      }),
+    [notes, update, remove],
+  );
+
+  /* ─────────────────────────── render ────────────────────────────── */
 
   return (
     <ErrorBoundary onError={handleBoardError}>
-      <NoteContextProvider
-        onUpdate={updateNote}
-        onDelete={deleteNote}
-        onCreate={handleCreateNote}
-      >
-        <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
-          {/* Connection status indicator */}
-          {!isConnected && (
-            <div className="absolute top-2 right-2 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-2 py-1 rounded text-xs">
-              Offline Mode
-            </div>
-          )}
-          {noteComponents}
-        </div>
-      </NoteContextProvider>
+      <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
+        {/* connection status chip */}
+        {!isConnected && (
+          <div className="absolute top-2 right-2 z-50 rounded bg-yellow-100 border border-yellow-400 px-2 py-1 text-xs text-yellow-800">
+            Offline mode
+          </div>
+        )}
+
+        {renderedNotes}
+      </div>
     </ErrorBoundary>
   );
 };

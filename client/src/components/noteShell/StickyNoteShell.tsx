@@ -13,6 +13,9 @@ interface DragPosition {
 
 interface StickyNoteShellProps {
   note: NoteData;
+  updateNote: (id: string, updates: Partial<NoteData>) => void;
+  deleteNote: (id: string) => void;
+  children: React.ReactNode;
 }
 
 const getNoteTint = (type: NoteData['type']) => {
@@ -27,9 +30,10 @@ const getNoteTint = (type: NoteData['type']) => {
 };
 
 export const StickyNoteShell = React.memo(function StickyNoteShell({ 
-  note
+  note,
+  updateNote,
+  deleteNote
 }: StickyNoteShellProps) {
-  const { updateNote, deleteNote } = useNoteContext();
   const { id, position, type, content } = note;
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { useCRDT } from "@/contexts/crdt-context";
+import { useBoardStore } from '@/lib/board-store';
 import type { ContentBlockType, Position } from "@/types/journal";
 import type { NoteData } from "@/types/notes";
 import {
@@ -33,8 +33,7 @@ function ContentTypeButton({
   label,
   color,
 }: ContentTypeButtonProps) {
-  const { createNote, spaceId } = useCRDT();
-  console.log('[CollabPanel] using spaceId:', spaceId);
+  const { create } = useBoardStore((s) => s.actions);
 
   // Map legacy content block types to new note types
   const getNoteType = (legacyType: ContentBlockType): NoteData['type'] => {
@@ -67,10 +66,42 @@ function ContentTypeButton({
     const noteType = getNoteType(type);
     console.log('[CollabPanel] handleClick', { type, noteType, position });
     try {
-      const noteId = createNote(noteType, position);
-      console.log('[CollabPanel] createNote returned', noteId);
+      const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      let content: any;
+      switch (noteType) {
+        case 'text':
+          content = { type: 'text', text: 'New text note' };
+          break;
+        case 'sticky_note':
+          content = { type: 'sticky_note', text: 'New sticky note' };
+          break;
+        case 'checklist':
+          content = { type: 'checklist', items: [{ id: '1', text: 'New item', completed: false }] };
+          break;
+        case 'image':
+          content = { type: 'image', imageUrl: undefined, alt: undefined };
+          break;
+        case 'voice':
+          content = { type: 'voice', audioUrl: undefined, duration: undefined };
+          break;
+        case 'drawing':
+          content = { type: 'drawing', strokes: [] };
+          break;
+        default:
+          content = { type: noteType, text: 'New note' };
+      }
+      const newNote = {
+        id,
+        type: noteType,
+        position,
+        content,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      create(newNote);
+      console.log('[CollabPanel] create returned', id);
     } catch (err) {
-      console.error('[CollabPanel] createNote error', err);
+      console.error('[CollabPanel] create error', err);
     }
   };
 
