@@ -14,7 +14,7 @@ import { CalendarPlus } from "lucide-react";
 function HomeContent() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
-  const { currentDate } = useJournal();
+  const { currentDate, currentEntry } = useJournal();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -102,7 +102,13 @@ function HomeContent() {
       </div>
 
       {/* Collaboration Panel */}
-      <CollaborationPanel />
+      {currentEntry ? (
+        <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
+          <CollaborationPanel />
+        </CRDTProvider>
+      ) : (
+        <CollaborationPanel />
+      )}
     </div>
   );
 }
@@ -111,9 +117,7 @@ export default function Home() {
   return (
     <DndContextProvider>
       <JournalProvider>
-        <CRDTProvider spaceId="daily-pinboard">
-          <HomeContent />
-        </CRDTProvider>
+        <HomeContent />
       </JournalProvider>
     </DndContextProvider>
   );
