@@ -17,11 +17,7 @@ import type {
   ContentBlockType,
   Friend,
 } from "@/types/journal";
-import {
-  blocksToNotes,
-  noteToBlockPatch,
-  type StickyNoteData,
-} from "@/mappers";
+// Removed: import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
 
 interface JournalContextType {
   // State
@@ -42,12 +38,6 @@ interface JournalContextType {
   updateContentBlock: (id: string, updates: Partial<ContentBlockData>) => void;
   deleteContentBlock: (id: string) => void;
   updateBlockPosition: (id: string, position: Position) => void;
-
-  // New note-based actions (shim to legacy system)
-  legacyNotes: StickyNoteData[];
-  updateNote: (id: string, data: Partial<StickyNoteData>) => void;
-  deleteNote: (id: string) => void;
-  setGridSnap: (enabled: boolean) => void;
 
   // Loading states
   isLoading: boolean;
@@ -275,21 +265,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateBlockMutation.mutate({ id, updates: { position } });
   };
 
-  // Convert content blocks to notes for the new system
-  const legacyNotes = currentEntry?.contentBlocks
-    ? blocksToNotes(currentEntry.contentBlocks)
-    : [];
-
-  // Note-based actions that bridge to the legacy system
-  const updateNote = (id: string, data: Partial<StickyNoteData>) => {
-    const existingBlock = currentEntry?.contentBlocks.find((b) => b.id === id);
-    const blockUpdates = noteToBlockPatch(data, existingBlock);
-    updateContentBlock(id, blockUpdates);
-  };
-
-  const deleteNote = (id: string) => {
-    deleteContentBlock(id);
-  };
+  // Removed: legacyNotes, updateNote, deleteNote, and their usages
 
   const value: JournalContextType = {
     currentDate,
@@ -303,10 +279,6 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateContentBlock,
     deleteContentBlock,
     updateBlockPosition,
-    legacyNotes,
-    updateNote,
-    deleteNote,
-    setGridSnap,
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,
