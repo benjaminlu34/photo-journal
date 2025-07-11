@@ -2,9 +2,9 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useNoteContext } from '../board/noteContext';
-import { snapToGrid } from '../../utils/snapToGrid';
+import { noteRegistry } from '../board/noteRegistry';
 import { useMobile } from '../../hooks/use-mobile';
-import type { NotePosition } from '../../types/notes';
+import type { NotePosition, NoteData } from '../../types/notes';
 
 interface DragPosition {
   x: number;
@@ -12,21 +12,25 @@ interface DragPosition {
 }
 
 interface StickyNoteShellProps {
-  id: string;
-  children: React.ReactNode;
-  position: NotePosition;
-  color?: string;
-  onLocalDragEnd?: () => void;
+  note: NoteData;
 }
 
+const getNoteTint = (type: NoteData['type']) => {
+  switch (type) {
+    case 'text': return 'bg-blue-50';
+    case 'checklist': return 'bg-green-50';
+    case 'image': return 'bg-pink-50';
+    case 'voice': return 'bg-purple-50';
+    case 'drawing': return 'bg-yellow-50';
+    default: return 'bg-blue-50';
+  }
+};
+
 export const StickyNoteShell = React.memo(function StickyNoteShell({ 
-  id, 
-  children, 
-  position, 
-  color = 'bg-yellow-200',
-  onLocalDragEnd
+  note
 }: StickyNoteShellProps) {
-  const { updateNote, deleteNote, gridSnapEnabled } = useNoteContext();
+  const { updateNote, deleteNote } = useNoteContext();
+  const { id, position, type, content } = note;
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const isMobile = useMobile();
@@ -105,11 +109,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     let rawX = e.clientX - dragStartRef.current.x - boardRect.left;
     let rawY = e.clientY - dragStartRef.current.y - boardRect.top;
 
-    // Apply grid snap BEFORE updating live position to prevent single-frame mismatch
-    if (gridSnapEnabled) {
-      rawX = snapToGrid(rawX);
-      rawY = snapToGrid(rawY);
-    }
+    // No grid snapping - removed as requested
 
     // Single writer: update optimistic position ref (not store)
     optimisticPosRef.current = { x: rawX, y: rawY };
@@ -125,7 +125,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
         rafRef.current = undefined;
       });
     }
-  }, [isDragging, gridSnapEnabled]);
+  }, [isDragging]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!isDragging || e.pointerId !== touchIdentifierRef.current) return;
@@ -157,8 +157,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
     // Use debounced update to prevent rapid successive calls
     debouncedUpdatePosition(finalPosition);
 
-    onLocalDragEnd?.();
-  }, [id, isDragging, position, debouncedUpdatePosition, onLocalDragEnd]);
+  }, [id, isDragging, position, debouncedUpdatePosition]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent) => {
     if (e.pointerId !== touchIdentifierRef.current) return;
@@ -191,7 +190,7 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
       ref={noteRef}
       className={`
         absolute rounded-2xl p-4 min-w-[200px] min-h-[150px]
-        ${color}
+        ${getNoteTint(type)}
         ${!isDragging && !isResizing ? 'transition-shadow duration-200' : ''}
         ${isDragging ? 'opacity-90 cursor-grabbing shadow-lg' : 'cursor-grab shadow-md hover:shadow-lg'}
         ${isResizing ? 'select-none' : ''}
@@ -225,7 +224,16 @@ export const StickyNoteShell = React.memo(function StickyNoteShell({
           ✕
         </button>
       </div>
-      {children}
+      {(() => {
+        const NoteComponent = noteRegistry[type];
+        if (!NoteComponent) return null;
+        return (
+          <NoteComponent
+            content={content}
+            onChange={(newContent: any) => updateNote(id, { content: newContent })}
+          />
+        );
+      })()}
     </div>
   );
 });

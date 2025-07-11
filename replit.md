@@ -145,6 +145,13 @@ Preferred communication style: Simple, everyday language.
   - Added comprehensive resize handles (8 directions) with grid snapping support
   - Restored full interactive functionality: drag, resize, and responsive content editing
   - Successfully completed transition to component-based pinboard system while maintaining legacy system compatibility
+- **Grid Snap Removal and Architecture Alignment (July 11, 2025)**:
+  - Completely removed grid snap functionality as requested by user
+  - Refactored StickyBoard from legacy `useJournal()` to proper `useBoardStore` architecture
+  - Aligned implementation with intended Yjs collaboration architecture specification
+  - StickyNoteShell now receives full note object and manages its own component rendering
+  - Added floating action buttons for creating new notes of all 5 types
+  - Maintained all note types (text, checklist, image, voice, drawing) with neumorphic styling
 
 ### Scalability Considerations
 - Stateless server design enables horizontal scaling
