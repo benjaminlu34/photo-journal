@@ -7,7 +7,7 @@ interface State {
   hydrated: boolean;
   sdk?: ReturnType<typeof getBoardSdk>;
   actions: {
-    init: (spaceId: string) => void;
+    init: (spaceId: string, userId?: string, userName?: string) => void;
     create: (n: NoteData) => void;
     update: (id: string, u: Partial<NoteData>) => void;
     remove: (id: string) => void;
@@ -18,8 +18,8 @@ export const useBoardStore = create<State>((set) => ({
   notes: {},
   hydrated: false,
   actions: {
-    init: (spaceId) => {
-      const sdk = getBoardSdk(spaceId, 'anonymous', 'Anonymous');
+    init: (spaceId, userId = 'anonymous', userName = 'Anonymous') => {
+      const sdk = getBoardSdk(spaceId, userId, userName);
       // ① initial snapshot
       set({ notes: Object.fromEntries((sdk.getNotes() as NoteData[]).map((n: NoteData) => [n.id, n])), hydrated: true, sdk });
       // ② subscribe to all remote/local changes

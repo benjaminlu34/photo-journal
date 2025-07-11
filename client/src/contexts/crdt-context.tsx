@@ -1,16 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useCallback } from 'react';
-import { useCollaboration } from '../hooks/useCollaboration';
 import { useAuth } from '../hooks/useAuth';
+import { useBoardStore } from '../lib/board-store';
+import { getBoardSdk } from '../lib/board-sdk';
 import type { NoteData } from '../types/notes';
 import type { User } from '@shared/schema';
 
 interface CRDTContextValue {
-  createNote: (type: NoteData['type'], position?: { x: number; y: number; width?: number; height?: number; rotation?: number }) => string;
-  updateNote: (id: string, updates: Partial<NoteData>) => void;
-  deleteNote: (id: string) => void;
-  updateCursor: (x: number, y: number) => void;
   isConnected: boolean;
   spaceId: string;
 }
@@ -35,27 +32,35 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
   spaceId = 'default-board' 
 }) => {
   const { user } = useAuth();
+  const { init } = useBoardStore((s) => s.actions);
   
-  const { 
-    createNote, 
-    updateNote, 
-    deleteNote, 
-    updateCursor, 
-    isConnected 
-  } = useCollaboration(
-    (user as User)?.id || 'anonymous',
-    (user as User)?.firstName || 'Anonymous',
-    spaceId
-  );
+  // Initialize board store with the SDK
+  React.useEffect(() => {
+    init(spaceId, (user as User)?.id || 'anonymous', (user as User)?.firstName || 'Anonymous');
+  }, [spaceId, init, user]);
+
+  // Get connection status from the SDK
+  const [isConnected, setIsConnected] = React.useState(false);
+  React.useEffect(() => {
+    const sdk = getBoardSdk(spaceId, (user as User)?.id || 'anonymous', (user as User)?.firstName || 'Anonymous');
+    const awareness = sdk.presence;
+    
+    const handleConnectivityChange = () => {
+      setIsConnected(awareness.getStates().size > 0);
+    };
+    
+    awareness.on('change', handleConnectivityChange);
+    handleConnectivityChange(); // Initial check
+    
+    return () => {
+      awareness.off('change', handleConnectivityChange);
+    };
+  }, [spaceId, user]);
 
   const value = React.useMemo<CRDTContextValue>(() => ({
-    createNote,
-    updateNote,
-    deleteNote,
-    updateCursor,
     isConnected,
     spaceId,
-  }), [createNote, updateNote, deleteNote, updateCursor, isConnected, spaceId]);
+  }), [isConnected, spaceId]);
 
   return (
     <CRDTContext.Provider value={value}>
