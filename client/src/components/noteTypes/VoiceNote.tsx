@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { Mic, Play, Pause, Trash2, AudioWaveform } from "lucide-react";
 import type { VoiceNoteContent } from "@/types/notes";
 

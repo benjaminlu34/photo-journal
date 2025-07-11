@@ -1,5 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import type { NoteContent } from "@/types/notes";
 
 type TextNoteContent = Extract<NoteContent, { type: 'text' | 'sticky_note' }>;
@@ -31,7 +32,9 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" 
 
     // Set new timeout for saving
     debounceTimeoutRef.current = setTimeout(() => {
-      onChange?.({ ...content, text });
+      // Sanitize text to prevent XSS
+      const sanitizedText = security.sanitizeHtml(text);
+      onChange?.({ ...content, text: sanitizedText });
     }, 500); // 500ms debounce
   }, [onChange, content]);
 

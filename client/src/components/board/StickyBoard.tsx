@@ -14,7 +14,7 @@ import type { User } from '@shared/schema';
 
 //
 
-export const StickyBoard: React.FC = () => {
+export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default-board' }) => {
   const {
     notes,
     addNote,
@@ -26,7 +26,8 @@ export const StickyBoard: React.FC = () => {
   const { user } = useAuth();
   const { updateCursor } = useCollaboration(
     (user as User)?.id || 'anonymous',
-    (user as User)?.firstName || 'Anonymous'
+    (user as User)?.firstName || 'Anonymous',
+    spaceId
   );
 
   // Set user ID for rate limiting

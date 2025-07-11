@@ -34,14 +34,13 @@ interface CollaborationResult {
   onLocalDragEnd: () => void; // Signal when local drag ends
 }
 
-const ROOM_NAME = 'photo-journal-board';
 const SYNC_RETRY_DELAY = 1000;
 const MAX_SYNC_RETRIES = 3;
 const CRDT_ECHO_THROTTLE = 150; // ms to ignore remote updates after local drag
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-export const useCollaboration = (userId: string, userName: string): CollaborationResult => {
+export const useCollaboration = (userId: string, userName: string, spaceId: string = 'default-board'): CollaborationResult => {
   const {
     notes,
     batchUpdateNotes,
@@ -64,8 +63,11 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
       const doc = new Y.Doc();
       docRef.current = doc;
 
+      // Create room name using spaceId to separate boards
+      const roomName = `journal-board-${spaceId}`;
+
       // Initialize WebRTC provider for real-time sync
-      const provider = new WebrtcProvider(ROOM_NAME, doc, {
+      const provider = new WebrtcProvider(roomName, doc, {
         signaling: ['wss://signaling.yjs.dev'],
         awareness: new Awareness(doc),
       });
@@ -82,7 +84,7 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
       providerRef.current = provider;
 
       // Initialize IndexedDB provider for offline persistence
-      const persistence = new IndexeddbPersistence(ROOM_NAME, doc);
+      const persistence = new IndexeddbPersistence(roomName, doc);
       persistenceRef.current = persistence;
 
       // Set up the notes map
@@ -154,7 +156,7 @@ export const useCollaboration = (userId: string, userName: string): Collaboratio
         setTimeout(initYjs, SYNC_RETRY_DELAY * retryCountRef.current);
       }
     }
-  }, [userId, userName, notes, batchUpdateNotes, setUserId, deleteNote]);
+  }, [userId, userName, notes, batchUpdateNotes, setUserId, deleteNote, spaceId]);
 
   // Update awareness state when selection changes
   useEffect(() => {

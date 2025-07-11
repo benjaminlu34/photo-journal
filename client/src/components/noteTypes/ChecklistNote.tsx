@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { Check, Plus, X } from "lucide-react";
 import type { NoteContent } from "@/types/notes";
 
@@ -31,7 +32,12 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
 
     // Set new timeout for saving
     debounceTimeoutRef.current = setTimeout(() => {
-      onChange?.({ ...content, items });
+      // Sanitize checklist item text to prevent XSS
+      const sanitizedItems = items.map(item => ({
+        ...item,
+        text: security.sanitizeHtml(item.text)
+      }));
+      onChange?.({ ...content, items: sanitizedItems });
     }, 500); // 500ms debounce
   }, [onChange, content]);
 

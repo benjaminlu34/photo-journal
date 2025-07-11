@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { X, Upload } from "lucide-react";
 import type { ImageNoteContent } from "@/types/notes";
 
@@ -20,9 +21,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
     try {
       // For now, create a blob URL (in real app would upload to server)
       const imageUrl = URL.createObjectURL(file);
+      const sanitizedAlt = security.sanitizeHtml(file.name.replace(/\.[^/.]+$/, ""));
       onChange?.({ 
         imageUrl, 
-        alt: file.name.replace(/\.[^/.]+$/, "") 
+        alt: sanitizedAlt 
       });
     } catch (error) {
       console.error("Failed to upload image:", error);
