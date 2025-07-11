@@ -15,6 +15,7 @@ import type { User } from '@shared/schema';
 //
 
 export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default-board' }) => {
+  console.log('[StickyBoard] using spaceId:', spaceId);
   const {
     notes,
     setUserId

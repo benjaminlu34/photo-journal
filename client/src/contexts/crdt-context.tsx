@@ -11,6 +11,7 @@ interface CRDTContextValue {
   updateNote: (id: string, updates: Partial<NoteData>) => void;
   deleteNote: (id: string) => void;
   isConnected: boolean;
+  spaceId: string;
 }
 
 const CRDTContext = createContext<CRDTContextValue | null>(null);
@@ -50,7 +51,8 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
     updateNote,
     deleteNote,
     isConnected,
-  }), [createNote, updateNote, deleteNote, isConnected]);
+    spaceId,
+  }), [createNote, updateNote, deleteNote, isConnected, spaceId]);
 
   return (
     <CRDTContext.Provider value={value}>

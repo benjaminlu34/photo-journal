@@ -33,7 +33,8 @@ function ContentTypeButton({
   label,
   color,
 }: ContentTypeButtonProps) {
-  const { createNote } = useCRDT();
+  const { createNote, spaceId } = useCRDT();
+  console.log('[CollabPanel] using spaceId:', spaceId);
 
   // Map legacy content block types to new note types
   const getNoteType = (legacyType: ContentBlockType): NoteData['type'] => {
