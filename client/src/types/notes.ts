@@ -1,6 +1,9 @@
-// Base note content types
-export interface TextNoteContent {
-  text: string;
+export interface NotePosition {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
 }
 
 export interface ChecklistItem {
@@ -9,35 +12,29 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
-export interface ChecklistNoteContent {
-  items: ChecklistItem[];
+export interface DrawingStroke {
+  points: Array<{ x: number; y: number; pressure: number }>;
+  color: string;
+  width: number;
 }
 
-export interface ImageNoteContent {
-  imageUrl?: string;
-  alt?: string;
+export type NoteContent =
+  | { type: 'text'; text: string }
+  | { type: 'sticky_note'; text: string }
+  | { type: 'checklist'; items: ChecklistItem[] }
+  | { type: 'image'; imageUrl?: string; alt?: string }
+  | { type: 'voice'; audioUrl?: string; duration?: number }
+  | { type: 'drawing'; strokes: DrawingStroke[] };
+
+type ContentFor<T extends NoteContent['type']> = Extract<NoteContent, { type: T }>;
+
+export interface NoteData<T extends NoteContent['type'] = NoteContent['type']> {
+  id: string;
+  type: T;
+  position: NotePosition;
+  content: ContentFor<T>;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface VoiceNoteContent {
-  audioUrl?: string;
-  duration?: number;
-}
-
-export interface DrawingNoteContent {
-  strokes: Array<{
-    points: Array<{ x: number; y: number }>;
-    color: string;
-    width: number;
-  }>;
-}
-
-// Union type for all note content types
-export type NoteContent = 
-  | TextNoteContent
-  | ChecklistNoteContent
-  | ImageNoteContent
-  | VoiceNoteContent
-  | DrawingNoteContent;
-
-// Note kinds
-export type NoteKind = 'text' | 'checklist' | 'image' | 'voice' | 'drawing';
+export type NoteUpdate = Partial<Omit<NoteData, 'id' | 'type'>>;

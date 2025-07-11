@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
+import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
 import { JournalSidebar } from "@/components/journal/sidebar";
 import { JournalWorkspace } from "@/components/journal/workspace";
@@ -13,7 +14,7 @@ import { CalendarPlus } from "lucide-react";
 function HomeContent() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
-  const { currentDate } = useJournal();
+  const { currentDate, currentEntry } = useJournal();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -96,12 +97,16 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* Workspace */}
-        <JournalWorkspace />
+        {/* Workspace & Collaboration Panel */}
+        {currentEntry ? (
+          <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
+            <div className="flex flex-1">
+              <JournalWorkspace />
+              <CollaborationPanel />
+            </div>
+          </CRDTProvider>
+        ) : null}
       </div>
-
-      {/* Collaboration Panel */}
-      <CollaborationPanel />
     </div>
   );
 }

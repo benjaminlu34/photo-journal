@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { X, Upload } from "lucide-react";
 import type { ImageNoteContent } from "@/types/notes";
 
@@ -8,7 +9,7 @@ interface ImageNoteProps {
   onChange?: (content: ImageNoteContent) => void;
 }
 
-const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
+const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -20,9 +21,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
     try {
       // For now, create a blob URL (in real app would upload to server)
       const imageUrl = URL.createObjectURL(file);
+      const sanitizedAlt = security.sanitizeHtml(file.name.replace(/\.[^/.]+$/, ""));
       onChange?.({ 
         imageUrl, 
-        alt: file.name.replace(/\.[^/.]+$/, "") 
+        alt: sanitizedAlt 
       });
     } catch (error) {
       console.error("Failed to upload image:", error);
@@ -65,12 +67,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
     onChange?.({ imageUrl: undefined, alt: undefined });
   }, [onChange]);
 
-  if (content.imageUrl) {
+  if (content?.imageUrl) {
     return (
-      <div className="relative h-full p-3">
+      <div className="relative h-full p-4">
         <img
           src={content.imageUrl}
-          alt={content.alt || "Uploaded image"}
+          alt={content?.alt || "Uploaded image"}
           className="w-full h-full object-cover rounded-lg"
         />
         <button
@@ -91,10 +93,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content, onChange }) => {
   return (
     <div
       className={cn(
-        'h-full p-3 border-2 border-dashed rounded-lg',
+        'h-full p-4 border-2 border-dashed rounded-lg',
         'flex items-center justify-center cursor-pointer',
         'transition-colors duration-200',
-        isDragOver ? 'border-primary bg-primary/5' : 'border-neutral-300'
+        isDragOver ? 'border-blue-400 bg-white/50' : 'border-gray-400'
       )}
       onDrop={handleDrop}
       onDragOver={handleDragOver}

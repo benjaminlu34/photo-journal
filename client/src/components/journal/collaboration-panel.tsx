@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
+import { useBoardStore } from '@/lib/board-store';
 import type { ContentBlockType, Position } from "@/types/journal";
+import type { NoteData } from "@/types/notes";
 import {
   Search,
   FolderOpen,
@@ -31,37 +33,76 @@ function ContentTypeButton({
   label,
   color,
 }: ContentTypeButtonProps) {
-  const { createContentBlock } = useJournal();
+  const { create } = useBoardStore((s) => s.actions);
 
-  const getDefaultContent = (type: ContentBlockType) => {
-    switch (type) {
+  // Map legacy content block types to new note types
+  const getNoteType = (legacyType: ContentBlockType): NoteData['type'] => {
+    switch (legacyType) {
       case "sticky_note":
-        return { text: "New note..." };
+        return "sticky_note";
       case "text":
-        return { text: "Write your thoughts..." };
+        return "text";
       case "checklist":
-        return { items: [{ text: "New task", completed: false }] };
+        return "checklist";
       case "photo":
-        return { url: "", caption: "" };
+        return "image";
       case "audio":
-        return { url: "", duration: "0:00" };
+        return "voice";
       case "drawing":
-        return { strokes: [] };
+        return "drawing";
       default:
-        return {};
+        return "sticky_note";
     }
   };
 
   const handleClick = () => {
-    const position: Position = {
+    const position = {
       x: Math.random() * 400 + 100,
       y: Math.random() * 300 + 100,
       width: 240,
       height: 180,
       rotation: Math.random() * 6 - 3,
     };
-
-    createContentBlock(type, getDefaultContent(type), position);
+    const noteType = getNoteType(type);
+    console.log('[CollabPanel] handleClick', { type, noteType, position });
+    try {
+      const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      let content: any;
+      switch (noteType) {
+        case 'text':
+          content = { type: 'text', text: 'New text note' };
+          break;
+        case 'sticky_note':
+          content = { type: 'sticky_note', text: 'New sticky note' };
+          break;
+        case 'checklist':
+          content = { type: 'checklist', items: [{ id: '1', text: 'New item', completed: false }] };
+          break;
+        case 'image':
+          content = { type: 'image', imageUrl: undefined, alt: undefined };
+          break;
+        case 'voice':
+          content = { type: 'voice', audioUrl: undefined, duration: undefined };
+          break;
+        case 'drawing':
+          content = { type: 'drawing', strokes: [] };
+          break;
+        default:
+          content = { type: noteType, text: 'New note' };
+      }
+      const newNote = {
+        id,
+        type: noteType,
+        position,
+        content,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      create(newNote);
+      console.log('[CollabPanel] create returned', id);
+    } catch (err) {
+      console.error('[CollabPanel] create error', err);
+    }
   };
 
   return (
@@ -250,32 +291,28 @@ export function CollaborationPanel() {
           <Image className="w-4 h-4 text-purple-500 mr-2" />
           Media Gallery
         </h3>
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3">
           {mediaItems.map((item) => (
             <div
               key={item.id}
-              className="bg-purple-50 rounded-lg overflow-hidden hover:bg-purple-100 transition-colors shadow-lg"
+              className="relative group cursor-pointer rounded-lg overflow-hidden neu-card hover:shadow-neu-active transition-all duration-200"
             >
               <img
                 src={item.url}
                 alt={item.alt}
                 className="w-full h-20 object-cover"
               />
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                <Button
+                  size="sm"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 neu-button text-white"
+                >
+                  <FileIcon className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              </div>
             </div>
           ))}
-        </div>
-
-        {/* File List */}
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3 p-3 rounded-lg glass-button interactive cursor-pointer">
-            <FileIcon className="w-5 h-5 text-red-400" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">
-                presentation.pdf
-              </p>
-              <p className="text-xs text-white/60">1.8 MB</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

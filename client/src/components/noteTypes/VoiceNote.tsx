@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { Mic, Play, Pause, Trash2, AudioWaveform } from "lucide-react";
 import type { VoiceNoteContent } from "@/types/notes";
 
@@ -8,7 +9,7 @@ interface VoiceNoteProps {
   onChange?: (content: VoiceNoteContent) => void;
 }
 
-const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
+const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -88,12 +89,12 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
     setCurrentTime(0);
   };
 
-  if (content.audioUrl) {
+  if (content?.audioUrl) {
     return (
-      <div className="p-3 flex flex-col gap-3">
+      <div className="p-4 flex flex-col gap-3">
         <audio
           ref={audioRef}
-          src={content.audioUrl}
+          src={content?.audioUrl}
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
@@ -104,9 +105,8 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
           <button
             onClick={togglePlayback}
             className={cn(
-              'w-12 h-12 rounded-full shadow-neu flex items-center justify-center',
-              'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-              'text-primary'
+              'w-12 h-12 rounded-full shadow-md hover:shadow-lg flex items-center justify-center',
+              'bg-blue-500 hover:bg-blue-600 text-white transition-all'
             )}
           >
             {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
@@ -125,13 +125,13 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-neutral-500">Voice Recording</span>
+          <span className="text-xs text-gray-500">Voice Recording</span>
           <div className="flex items-center gap-2">
             <div
-              className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden"
-              style={{ backgroundImage: `linear-gradient(to right, #6366f1 ${(currentTime / duration) * 100}%, transparent 0%)` }}
+              className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden"
+              style={{ backgroundImage: `linear-gradient(to right, #3b82f6 ${(currentTime / duration) * 100}%, transparent 0%)` }}
             />
-            <span className="text-xs text-neutral-500">{formatTime(duration)}</span>
+            <span className="text-xs text-gray-500">{formatTime(duration)}</span>
           </div>
         </div>
       </div>
@@ -139,13 +139,13 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
   }
 
   return (
-    <div className="p-3 flex flex-col items-center justify-center gap-4">
+    <div className="p-4 flex flex-col items-center justify-center gap-4">
       <button
         onClick={isRecording ? stopRecording : startRecording}
         className={cn(
-          'w-16 h-16 rounded-full shadow-neu flex items-center justify-center',
-          'hover:shadow-neu-hover active:shadow-neu-pressed transition-all',
-          isRecording ? 'text-red-500' : 'text-primary'
+          'w-16 h-16 rounded-full shadow-md hover:shadow-lg flex items-center justify-center',
+          'transition-all',
+          isRecording ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
         )}
       >
         <Mic className="w-8 h-8" />
@@ -160,7 +160,7 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content, onChange }) => {
           <span className="text-sm">Recording...</span>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-2 text-neutral-500">
+        <div className="flex flex-col items-center gap-2 text-gray-500">
           <AudioWaveform className="w-8 h-8" />
           <div className="text-center">
             <div className="text-sm">Tap to record</div>

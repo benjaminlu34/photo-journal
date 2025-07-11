@@ -1,10 +1,23 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { ViewMode, JournalEntryData, ContentBlockData, Position, ContentBlockType, Friend } from "@/types/journal";
-import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
+import type {
+  ViewMode,
+  JournalEntryData,
+  ContentBlockData,
+  Position,
+  ContentBlockType,
+  Friend,
+} from "@/types/journal";
+// Removed: import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
 
 interface JournalContextType {
   // State
@@ -13,21 +26,19 @@ interface JournalContextType {
   currentEntry: JournalEntryData | null;
   friends: Friend[];
   gridSnap: boolean;
-  
+
   // Legacy content block actions
   setCurrentDate: (date: Date) => void;
   setViewMode: (mode: ViewMode) => void;
-  createContentBlock: (type: ContentBlockType, content: any, position: Position) => void;
+  createContentBlock: (
+    type: ContentBlockType,
+    content: any,
+    position: Position,
+  ) => void;
   updateContentBlock: (id: string, updates: Partial<ContentBlockData>) => void;
   deleteContentBlock: (id: string) => void;
   updateBlockPosition: (id: string, position: Position) => void;
-  
-  // New note-based actions (shim to legacy system)
-  legacyNotes: StickyNoteData[];
-  updateNote: (id: string, data: Partial<StickyNoteData>) => void;
-  deleteNote: (id: string) => void;
-  setGridSnap: (enabled: boolean) => void;
-  
+
   // Loading states
   isLoading: boolean;
   isCreatingBlock: boolean;
@@ -58,50 +69,34 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const dateString = currentDate.toISOString().split('T')[0];
+  const dateString = currentDate.toISOString().split("T")[0];
 
   // Fetch current journal entry
-  const { data: currentEntry, isLoading } = useQuery({
+  const { data: currentEntry, isLoading } = useQuery<
+    JournalEntryData | null,
+    Error,
+    JournalEntryData | null
+  >({
     queryKey: ["/api/journal", dateString],
     enabled: !!dateString,
     retry: false,
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    },
   });
 
   // Fetch friends
-  const { data: friends = [] } = useQuery({
+  const { data: friends = [] } = useQuery<Friend[], Error, Friend[]>({
     queryKey: ["/api/friends"],
     retry: false,
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    },
   });
 
   // Create content block mutation
   const createBlockMutation = useMutation({
-    mutationFn: async (data: { type: ContentBlockType; content: any; position: Position }) => {
+    mutationFn: async (data: {
+      type: ContentBlockType;
+      content: any;
+      position: Position;
+    }) => {
       if (!currentEntry) throw new Error("No current entry");
-      
+
       const response = await apiRequest("POST", "/api/content-blocks", {
         entryId: currentEntry.id,
         type: data.type,
@@ -137,16 +132,62 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  // Update content block mutation
+  // Update content block mutation with optimistic updates
   const updateBlockMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ContentBlockData> }) => {
-      const response = await apiRequest("PATCH", `/api/content-blocks/${id}`, updates);
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<ContentBlockData>;
+    }) => {
+      const response = await apiRequest(
+        "PATCH",
+        `/api/content-blocks/${id}`,
+        updates,
+      );
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
+    onMutate: async ({ id, updates }) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/journal", dateString] });
+
+      // Snapshot the previous value
+      const previousEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+
+      // Optimistically update the cache
+      if (previousEntry) {
+        const optimisticEntry: JournalEntryData = {
+          ...previousEntry,
+          contentBlocks: previousEntry.contentBlocks.map(block =>
+            block.id === id ? { ...block, ...updates, updatedAt: new Date().toISOString() } : block
+          )
+        };
+        queryClient.setQueryData(["/api/journal", dateString], optimisticEntry);
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousEntry };
     },
-    onError: (error: Error) => {
+    onSuccess: (data, variables) => {
+      // Update the cache with the server response to ensure consistency
+      const currentEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+      if (currentEntry) {
+        const updatedEntry: JournalEntryData = {
+          ...currentEntry,
+          contentBlocks: currentEntry.contentBlocks.map(block =>
+            block.id === variables.id ? { ...block, ...data } : block
+          )
+        };
+        queryClient.setQueryData(["/api/journal", dateString], updatedEntry);
+      }
+    },
+    onError: (error: Error, variables, context) => {
+      // If the mutation fails, rollback to the previous value
+      if (context?.previousEntry) {
+        queryClient.setQueryData(["/api/journal", dateString], context.previousEntry);
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -163,6 +204,9 @@ export function JournalProvider({ children }: JournalProviderProps) {
         description: "Failed to update content block. Please try again.",
         variant: "destructive",
       });
+      
+      // Only refetch on error to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
     },
   });
 
@@ -198,11 +242,18 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  const createContentBlock = (type: ContentBlockType, content: any, position: Position) => {
+  const createContentBlock = (
+    type: ContentBlockType,
+    content: any,
+    position: Position,
+  ) => {
     createBlockMutation.mutate({ type, content, position });
   };
 
-  const updateContentBlock = (id: string, updates: Partial<ContentBlockData>) => {
+  const updateContentBlock = (
+    id: string,
+    updates: Partial<ContentBlockData>,
+  ) => {
     updateBlockMutation.mutate({ id, updates });
   };
 
@@ -214,18 +265,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateBlockMutation.mutate({ id, updates: { position } });
   };
 
-  // Convert content blocks to notes for the new system
-  const legacyNotes = currentEntry?.contentBlocks ? blocksToNotes(currentEntry.contentBlocks) : [];
-
-  // Note-based actions that bridge to the legacy system
-  const updateNote = (id: string, data: Partial<StickyNoteData>) => {
-    const blockUpdates = noteToBlockPatch(data);
-    updateContentBlock(id, blockUpdates);
-  };
-
-  const deleteNote = (id: string) => {
-    deleteContentBlock(id);
-  };
+  // Removed: legacyNotes, updateNote, deleteNote, and their usages
 
   const value: JournalContextType = {
     currentDate,
@@ -239,18 +279,12 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateContentBlock,
     deleteContentBlock,
     updateBlockPosition,
-    legacyNotes,
-    updateNote,
-    deleteNote,
-    setGridSnap,
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,
   };
 
   return (
-    <JournalContext.Provider value={value}>
-      {children}
-    </JournalContext.Provider>
+    <JournalContext.Provider value={value}>{children}</JournalContext.Provider>
   );
 }

@@ -1,79 +1,115 @@
-import { useCallback, useState } from 'react';
-import { useJournal } from '@/contexts/journal-context';
-import { noteRegistry, type NoteKind } from './noteRegistry';
-import { NoteProvider } from './noteContext';
-import { StickyNoteShell } from '@/components/noteShell/StickyNoteShell';
-import type { StickyNoteData } from '@/mappers';
+'use client';
+
+import React, { useCallback, useMemo } from 'react';
+import { StickyNoteShell }   from '../noteShell/StickyNoteShell';
+import { noteRegistry }      from './noteRegistry';
+import { useBoardStore }     from '../../lib/board-store';   // ← path matches the new store
+import { useAuth }           from '../../hooks/useAuth';
+import { useCRDT }           from '@/contexts/crdt-context';
+import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
+
+import type { NoteData } from '../../types/notes';
+import type { User }     from '@shared/schema';
 
 interface StickyBoardProps {
-  spaceId?: string;
+  spaceId?: string;        // kept for future routing / debugging
 }
 
-export const StickyBoard: React.FC<StickyBoardProps> = ({ spaceId = 'demo-space' }) => {
-  const { legacyNotes, updateNote, deleteNote, gridSnap, setGridSnap } = useJournal();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export const StickyBoard: React.FC<StickyBoardProps> = ({
+  spaceId = 'default-board',
+}) => {
+  /* ────────────────────────────  state  ──────────────────────────── */
 
-  const handleCreate = useCallback((kind: NoteKind) => {
-    // For now, just create a simple note via the existing system
-    // This will be enhanced later with proper note creation
-    console.log('Creating note of type:', kind);
+  // Zustand slices
+  const notes          = useBoardStore((s) => s.notes);
+  const { create, update, remove } = useBoardStore((s) => s.actions);
+
+  // auth / presence
+  const { user }       = useAuth();
+  const { isConnected } = useCRDT();        // for the "offline" chip
+
+  /* ─────────────────────────── side-effects ───────────────────────── */
+
+
+  /* ─────────────────────────── handlers ──────────────────────────── */
+
+  const handleBoardError = useCallback((err: Error) => {
+    console.error('[StickyBoard] uncaught error', err);
   }, []);
 
-  const handleUpdateNote = useCallback((id: string, data: Partial<StickyNoteData>) => {
-    updateNote(id, data);
-  }, [updateNote]);
+  const handleCreateNote = useCallback(
+    (type: NoteData['type']) => {
+      const id = `note-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  const handleDeleteNote = useCallback((id: string) => {
-    deleteNote(id);
-  }, [deleteNote]);
+      // minimal default content per type
+      const content: NoteData['content'] = (() => {
+        switch (type) {
+          case 'text':       return { type: 'text',       text: '' };
+          case 'checklist':  return { type: 'checklist',  items: [] };
+          case 'image':      return { type: 'image',      imageUrl: '', alt: '' };
+          case 'voice':      return { type: 'voice',      audioUrl: '', duration: 0 };
+          case 'drawing':    return { type: 'drawing',    strokes: [] };
+          default:
+            throw new Error(`Unknown note type: ${type}`);
+        }
+      })();
 
-  const handleSelect = useCallback((id: string | null) => {
-    setSelectedId(id);
-  }, []);
+      create({
+        id,
+        type,
+        position : { x: 100, y: 100, width: 200, height: 150, rotation: 0 },
+        content,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [create],
+  );
 
-  const contextValue = {
-    selectedId,
-    select: handleSelect,
-    updateNote: handleUpdateNote,
-    deleteNote: handleDeleteNote,
-    gridSnap,
-  };
+  /* ─────────────────────────── derived UI ────────────────────────── */
+
+  const renderedNotes = useMemo(
+    () =>
+      Object.values(notes).map((note) => {
+        const NoteComponent = noteRegistry[note.type];
+        if (!NoteComponent) {
+          console.warn(`Unknown note type: ${note.type}`);
+          return null;
+        }
+
+        return (
+          <NoteErrorBoundary key={note.id} noteId={note.id} onDelete={remove}>
+            <StickyNoteShell
+              note={note}
+              updateNote={update}
+              deleteNote={remove}
+            >
+              {/* each note owns its own editor / viewer: */}
+              <NoteComponent
+                content={note.content as any}
+                onChange={(c: any) => update(note.id, { content: c })}
+              />
+            </StickyNoteShell>
+          </NoteErrorBoundary>
+        );
+      }),
+    [notes, update, remove],
+  );
+
+  /* ─────────────────────────── render ────────────────────────────── */
 
   return (
-    <NoteProvider value={contextValue}>
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Grid overlay when grid snap is enabled */}
-        {gridSnap && (
-          <div 
-            className="absolute inset-0 opacity-20 pointer-events-none"
-            style={{
-              backgroundImage: `
-                linear-gradient(to right, #e0e7ff 1px, transparent 1px),
-                linear-gradient(to bottom, #e0e7ff 1px, transparent 1px)
-              `,
-              backgroundSize: '20px 20px'
-            }}
-          />
-        )}
-        
-        {/* Render notes */}
-        {legacyNotes.map((note) => (
-          <StickyNoteShell key={note.id} note={note} />
-        ))}
-        
-        {/* Grid snap toggle button */}
-        <button
-          onClick={() => setGridSnap(!gridSnap)}
-          className="fixed bottom-8 right-8 w-12 h-12 bg-white/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50 pointer-events-auto"
-          title={gridSnap ? 'Disable grid snap' : 'Enable grid snap'}
-        >
-          <div className={`w-6 h-6 grid grid-cols-3 gap-0.5 ${gridSnap ? 'text-blue-500' : 'text-gray-400'}`}>
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="w-1 h-1 bg-current rounded-full" />
-            ))}
+    <ErrorBoundary onError={handleBoardError}>
+      <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
+        {/* connection status chip */}
+        {!isConnected && (
+          <div className="absolute top-2 right-2 z-50 rounded bg-yellow-100 border border-yellow-400 px-2 py-1 text-xs text-yellow-800">
+            Offline mode
           </div>
-        </button>
+        )}
+
+        {renderedNotes}
       </div>
-    </NoteProvider>
+    </ErrorBoundary>
   );
 };

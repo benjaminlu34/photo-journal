@@ -15,6 +15,7 @@ import DrawingNote from "@/components/noteTypes/DrawingNote";
 
 export const noteRegistry: Record<string, React.ComponentType<any>> = {
   text: TextNote,
+  sticky_note: TextNote,
   checklist: ChecklistNote,
   image: ImageNote,
   voice: VoiceNote,

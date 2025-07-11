@@ -1,116 +1,245 @@
-import React, {
-  useState,
-  useRef,
-  useCallback,
-  useEffect,
-  MouseEvent as ReactMouseEvent,
-} from "react";
-import { useNoteContext } from "@/contexts/journal-context";
-import { noteRegistry } from "@/components/board/noteRegistry";
-import { snapToGrid } from "@/utils/snapToGrid";
-import type { StickyNoteData } from "@/types/notes";
+'use client';
 
-interface StickyNoteShellProps {
-  note: StickyNoteData;
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { useNoteContext } from '../board/noteContext';
+import { noteRegistry } from '../board/noteRegistry';
+import { useMobile } from '../../hooks/use-mobile';
+import type { NotePosition, NoteData } from '../../types/notes';
+
+interface DragPosition {
+  x: number;
+  y: number;
 }
 
-/**
- * Drag-&-resize shell – visual chrome only.
- * Children (rendered through noteRegistry) own their own content.
- */
-export const StickyNoteShell: React.FC<StickyNoteShellProps> = ({ note }) => {
-  const { updateNote, deleteNote, gridSnap } = useNoteContext();
+interface StickyNoteShellProps {
+  note: NoteData;
+  updateNote: (id: string, updates: Partial<NoteData>) => void;
+  deleteNote: (id: string) => void;
+  children: React.ReactNode;
+}
 
-  /* ---------------- state / refs ---------------- */
+const getNoteTint = (type: NoteData['type']) => {
+  switch (type) {
+    case 'text': return 'bg-blue-50';
+    case 'checklist': return 'bg-green-50';
+    case 'image': return 'bg-pink-50';
+    case 'voice': return 'bg-purple-50';
+    case 'drawing': return 'bg-yellow-50';
+    default: return 'bg-blue-50';
+  }
+};
+
+export const StickyNoteShell = React.memo(function StickyNoteShell({ 
+  note,
+  updateNote,
+  deleteNote
+}: StickyNoteShellProps) {
+  const { id, position, type, content } = note;
   const [isDragging, setIsDragging] = useState(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-  const shellRef = useRef<HTMLDivElement>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const isMobile = useMobile();
+  
+  const noteRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef<DragPosition>({ x: 0, y: 0 });
+  const livePosRef = useRef<DragPosition>({ x: position.x, y: position.y });
+  const optimisticPosRef = useRef<DragPosition>({ x: position.x, y: position.y }); // Single writer: optimistic position
+  const rafRef = useRef<number>();
+  const touchIdentifierRef = useRef<number | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* ---------------- handlers ---------------- */
-  const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
-    // ignore clicks that bubble from inner content
-    if (e.target !== e.currentTarget) return;
+  // Update optimistic position when prop changes
+  useEffect(() => {
+    optimisticPosRef.current = { x: position.x, y: position.y };
+  }, [position.x, position.y]);
 
-    const rect = shellRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    dragOffset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+  // Cleanup RAF and timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
     };
-    setIsDragging(true);
   }, []);
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging || !shellRef.current) return;
+  // Debounced position update function - only for final commit
+  const debouncedUpdatePosition = useCallback((newPosition: NotePosition) => {
+    // Clear any pending update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    // Set a new debounced update
+    updateTimeoutRef.current = setTimeout(() => {
+      updateNote(id, { position: newPosition });
+    }, 100); // 100ms debounce
+  }, [id, updateNote]);
 
-      const workspaceRect =
-        shellRef.current.parentElement?.getBoundingClientRect();
-      if (!workspaceRect) return;
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Ignore if clicking on content that shouldn't trigger drag
+    if ((e.target as HTMLElement).closest('[data-drag-ignore]')) {
+      return;
+    }
 
-      let newX = e.clientX - workspaceRect.left - dragOffset.current.x;
-      let newY = e.clientY - workspaceRect.top - dragOffset.current.y;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    document.body.classList.add('user-select-none');
+    
+    const board = noteRef.current?.closest('.sticky-board');
+    const boardRect = board?.getBoundingClientRect();
+    
+    if (boardRect) {
+      dragStartRef.current = {
+        x: e.clientX - position.x - boardRect.left,
+        y: e.clientY - position.y - boardRect.top
+      };
+    }
 
-      if (gridSnap) {
-        newX = snapToGrid(newX);
-        newY = snapToGrid(newY);
-      }
+    setIsDragging(true);
+    touchIdentifierRef.current = e.pointerId;
+  }, [position]);
 
-      /* 💡 Only update position here; onMouseUp you might persist. */
-      updateNote(note.id, {
-        position: { ...note.position, x: newX, y: newY },
-        /* updatedAt will be set in updateNote implementation */
+  const moveNote = useCallback((e: React.PointerEvent) => {
+    if (!isDragging || e.pointerId !== touchIdentifierRef.current) return;
+    e.preventDefault();
+
+    const board = noteRef.current?.closest('.sticky-board');
+    const boardRect = board?.getBoundingClientRect();
+    
+    if (!boardRect) return;
+
+    // Calculate raw position
+    let rawX = e.clientX - dragStartRef.current.x - boardRect.left;
+    let rawY = e.clientY - dragStartRef.current.y - boardRect.top;
+
+    // No grid snapping - removed as requested
+
+    // Single writer: update optimistic position ref (not store)
+    optimisticPosRef.current = { x: rawX, y: rawY };
+    
+    // Update live position for visual updates
+    livePosRef.current = { x: rawX, y: rawY };
+    
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        if (noteRef.current) {
+          noteRef.current.style.transform = `translate(${livePosRef.current.x}px, ${livePosRef.current.y}px)`;
+        }
+        rafRef.current = undefined;
       });
-    },
-    [isDragging, gridSnap, note.id, note.position, updateNote],
-  );
+    }
+  }, [isDragging]);
 
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!isDragging || e.pointerId !== touchIdentifierRef.current) return;
+    
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    document.body.classList.remove('user-select-none');
+    setIsDragging(false);
+    touchIdentifierRef.current = null;
 
-  /* ---------------- global listeners while dragging ---------------- */
-  useEffect(() => {
-    if (!isDragging) return;
+    // Cancel any pending RAF
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+    }
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.body.style.userSelect = "none";
+    // Clear any pending debounced update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
 
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.userSelect = "";
+    // Single writer: commit optimistic position to store
+    const finalPosition: NotePosition = {
+      ...position,
+      x: optimisticPosRef.current.x,
+      y: optimisticPosRef.current.y
     };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+    
+    // Use debounced update to prevent rapid successive calls
+    debouncedUpdatePosition(finalPosition);
 
-  /* ---------------- dynamic note body ---------------- */
-  const NoteComponent = noteRegistry[note.type]; // 🔑 property is `type`, not `kind`
-  if (!NoteComponent) {
-    console.warn(`Unknown note type: ${note.type}`);
-    return null;
-  }
+  }, [id, isDragging, position, debouncedUpdatePosition]);
 
-  /* ---------------- render shell ---------------- */
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    if (e.pointerId !== touchIdentifierRef.current) return;
+
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    document.body.classList.remove('user-select-none');
+    setIsDragging(false);
+    touchIdentifierRef.current = null;
+
+    // Cancel any pending RAF
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+    }
+
+    // Clear any pending debounced update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
+
+    // Revert to original position
+    if (noteRef.current) {
+      noteRef.current.style.transform = `translate(${position.x}px, ${position.y}px)`;
+    }
+  }, [position]);
+
   return (
     <div
-      ref={shellRef}
-      className="absolute cursor-move neu-card rounded-xl p-4 shadow-lg
-                 hover:shadow-xl transition-shadow duration-200"
+      ref={noteRef}
+      className={`
+        absolute rounded-2xl p-4 min-w-[200px] min-h-[150px]
+        ${getNoteTint(type)}
+        ${!isDragging && !isResizing ? 'transition-shadow duration-200' : ''}
+        ${isDragging ? 'opacity-90 cursor-grabbing shadow-lg' : 'cursor-grab shadow-md hover:shadow-lg'}
+        ${isResizing ? 'select-none' : ''}
+        ${isMobile ? 'touch-none' : ''}
+      `}
       style={{
-        left: note.position.x,
-        top: note.position.y,
-        width: note.position.width,
-        height: note.position.height,
-        transform: `rotate(${note.position.rotation}deg)`,
-        zIndex: isDragging ? 1000 : 1,
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        willChange: isDragging ? 'transform' : 'auto',
+        transition: isDragging ? 'none' : undefined,
+        touchAction: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        userSelect: 'none',
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={moveNote}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
-      <NoteComponent
-        {...note}
-        onChange={(content: any) => updateNote(note.id, { content })}
-        onDelete={() => deleteNote(note.id)}
-      />
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => deleteNote(id)}
+          className={`
+            p-1 hover:bg-black/10 rounded
+            ${isMobile ? 'opacity-100 p-3' : ''}
+          `}
+          data-drag-ignore="true"
+        >
+          ✕
+        </button>
+      </div>
+      {(() => {
+        const NoteComponent = noteRegistry[type];
+        if (!NoteComponent) return null;
+        return (
+          <NoteComponent
+            content={content}
+            onChange={(newContent: any) => updateNote(id, { content: newContent })}
+          />
+        );
+      })()}
     </div>
   );
-};
+});
+
+StickyNoteShell.displayName = 'StickyNoteShell';

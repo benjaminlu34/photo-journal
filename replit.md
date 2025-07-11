@@ -139,6 +139,26 @@ Preferred communication style: Simple, everyday language.
 - **Anti-Selection System**: Added user-select-none during drag operations to prevent text selection issues
 - **Visual Improvements**: Enhanced upload interfaces with hover states, progress indicators, and better file handling
 - **Scrollable Views**: Made all main content areas between sidebars scrollable for consistent behavior across daily, weekly, and monthly views
+- **Component-Based Architecture Refactor (July 10, 2025)**: 
+  - Fixed major performance regression where drag operations were hitting REST API on every pixel move
+  - Implemented local state buffering for 60fps smooth drag/resize with single network call on completion
+  - Added comprehensive resize handles (8 directions) with grid snapping support
+  - Restored full interactive functionality: drag, resize, and responsive content editing
+  - Successfully completed transition to component-based pinboard system while maintaining legacy system compatibility
+- **Grid Snap Removal and Architecture Alignment (July 11, 2025)**:
+  - Completely removed grid snap functionality as requested by user
+  - Refactored StickyBoard from legacy `useJournal()` to proper `useBoardStore` architecture
+  - Aligned implementation with intended Yjs collaboration architecture specification
+  - StickyNoteShell now receives full note object and manages its own component rendering
+  - Added floating action buttons for creating new notes of all 5 types
+  - Maintained all note types (text, checklist, image, voice, drawing) with neumorphic styling
+- **Database Connectivity and Validation Fixes (July 11, 2025)**:
+  - Fixed "Control plane request failed: endpoint is disabled" error by implementing in-memory storage for both data and session management
+  - Removed floating action buttons in favor of existing "Add Content" sidebar per user request
+  - Fixed validation errors where imageUrl and audioUrl fields expected string but received null
+  - Fixed Immer MapSet plugin issues by replacing Map usage with plain objects in store
+  - Reduced excessive awareness logging from collaboration hook - now only logs when states contain actual data
+  - All 5 note types (text, checklist, image, voice, drawing) now work without validation errors
 
 ### Scalability Considerations
 - Stateless server design enables horizontal scaling

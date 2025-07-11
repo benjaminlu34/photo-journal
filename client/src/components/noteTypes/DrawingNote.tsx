@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { security } from "@/lib/security";
 import { Pencil, Eraser, Trash2, Palette } from "lucide-react";
 import type { DrawingNoteContent } from "@/types/notes";
 
