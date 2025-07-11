@@ -44,7 +44,22 @@ const CRDT_ECHO_THROTTLE = 150; // ms to ignore remote updates after local drag
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+/**
+ * useCollaboration
+ *
+ * ⚠️ Never call useCollaboration outside CRDTProvider. This hook must only be used inside CRDTProvider to ensure a single Yjs doc/provider per spaceId.
+ *
+ * Handles Yjs document and WebRTC provider setup for real-time board collaboration.
+ */
 export const useCollaboration = (userId: string, userName: string, spaceId: string = 'default-board'): CollaborationResult => {
+  if (import.meta.env.DEV) {
+    (window as any).__yjsRooms = (window as any).__yjsRooms || {};
+    if ((window as any).__yjsRooms[spaceId]) {
+      throw new Error(`Yjs Doc for room "${spaceId}" already exists in this tab!`);
+    }
+    (window as any).__yjsRooms[spaceId] = true;
+  }
+
   const {
     notes,
     batchUpdateNotes,
@@ -199,6 +214,10 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
       }
       if (persistenceRef.current) {
         persistenceRef.current.destroy();
+      }
+      // Remove from __yjsRooms registry (for hot reload/dev)
+      if (import.meta.env.DEV && (window as any).__yjsRooms) {
+        delete (window as any).__yjsRooms[spaceId];
       }
     };
   }, [initYjs]);

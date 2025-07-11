@@ -10,6 +10,7 @@ interface CRDTContextValue {
   createNote: (type: NoteData['type'], position?: { x: number; y: number; width?: number; height?: number; rotation?: number }) => string;
   updateNote: (id: string, updates: Partial<NoteData>) => void;
   deleteNote: (id: string) => void;
+  updateCursor: (x: number, y: number) => void;
   isConnected: boolean;
   spaceId: string;
 }
@@ -39,6 +40,7 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
     createNote, 
     updateNote, 
     deleteNote, 
+    updateCursor, 
     isConnected 
   } = useCollaboration(
     (user as User)?.id || 'anonymous',
@@ -50,9 +52,10 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
     createNote,
     updateNote,
     deleteNote,
+    updateCursor,
     isConnected,
     spaceId,
-  }), [createNote, updateNote, deleteNote, isConnected, spaceId]);
+  }), [createNote, updateNote, deleteNote, updateCursor, isConnected, spaceId]);
 
   return (
     <CRDTContext.Provider value={value}>

@@ -5,7 +5,7 @@ import { NoteContextProvider } from './noteContext';
 import { StickyNoteShell } from '../noteShell/StickyNoteShell';
 import { noteRegistry } from './noteRegistry';
 import { useBoardStore } from '../../lib/store';
-import { useCollaboration } from '../../hooks/useCollaboration';
+import { useCRDT } from '@/contexts/crdt-context';
 import { useAuth } from '../../hooks/useAuth';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
 import { FileText, CheckSquare, Image, Mic, PenTool } from 'lucide-react';
@@ -28,11 +28,7 @@ export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default
     updateNote, 
     deleteNote,
     isConnected 
-  } = useCollaboration(
-    (user as User)?.id || 'anonymous',
-    (user as User)?.firstName || 'Anonymous',
-    spaceId
-  );
+  } = useCRDT();
 
   // Set user ID for rate limiting
   React.useEffect(() => {
