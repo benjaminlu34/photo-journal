@@ -11,7 +11,6 @@ import { Plus } from "lucide-react";
 
 export function JournalWorkspace() {
   const { currentEntry, viewMode } = useJournal();
-  const { createNote } = useCRDT();
 
   // Return appropriate view based on viewMode
   if (viewMode === "weekly-calendar") {
@@ -29,19 +28,6 @@ export function JournalWorkspace() {
   // Daily view (default) - optimized workspace
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  const addQuickNote = () => {
-    const position = {
-      x: Math.random() * 400 + 100,
-      y: Math.random() * 300 + 100,
-      width: 240,
-      height: 180,
-      rotation: Math.random() * 6 - 3,
-    };
-    
-    // Use CRDT-first approach instead of legacy createContentBlock
-    createNote("sticky_note", position);
-  };
-
   if (!currentEntry) {
     return (
       <div className="flex-1 flex items-center justify-center relative overflow-auto min-h-screen">
@@ -51,7 +37,7 @@ export function JournalWorkspace() {
           </div>
           <h3 className="text-2xl font-bold text-foreground mb-4">Begin Your Story</h3>
           <p className="text-muted-foreground mb-6 leading-relaxed">Create your first journal entry by adding beautiful content blocks</p>
-          <Button onClick={addQuickNote} className="gradient-button text-white font-semibold px-6 py-3 rounded-xl">
+          <Button onClick={() => {}} className="gradient-button text-white font-semibold px-6 py-3 rounded-xl">
             <Plus className="w-4 h-4 mr-2" />
             Add First Note
           </Button>
