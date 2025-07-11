@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
+import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
 import { JournalSidebar } from "@/components/journal/sidebar";
 import { JournalWorkspace } from "@/components/journal/workspace";
@@ -110,7 +111,9 @@ export default function Home() {
   return (
     <DndContextProvider>
       <JournalProvider>
-        <HomeContent />
+        <CRDTProvider spaceId="daily-pinboard">
+          <HomeContent />
+        </CRDTProvider>
       </JournalProvider>
     </DndContextProvider>
   );

@@ -17,14 +17,17 @@ import type { User } from '@shared/schema';
 export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default-board' }) => {
   const {
     notes,
-    addNote,
-    updateNote,
-    deleteNote,
     setUserId
   } = useBoardStore();
 
   const { user } = useAuth();
-  const { updateCursor } = useCollaboration(
+  const { 
+    updateCursor, 
+    createNote, 
+    updateNote, 
+    deleteNote,
+    isConnected 
+  } = useCollaboration(
     (user as User)?.id || 'anonymous',
     (user as User)?.firstName || 'Anonymous',
     spaceId
@@ -32,8 +35,8 @@ export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default
 
   // Set user ID for rate limiting
   React.useEffect(() => {
-    setUserId(user?.id || null);
-  }, [user?.id, setUserId]);
+    setUserId((user as User)?.id || null);
+  }, [(user as User)?.id, setUserId]);
 
   const handleBoardError = useCallback((error: Error) => {
     console.error('Board error:', error);
@@ -43,30 +46,14 @@ export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default
   // Convert notes object to array
   const notesList = useMemo(() => Object.values(notes), [notes]);
 
-  // Function to create a new note - exposed for external use
-  const createNote = useCallback((type: NoteData['type']) => {
-    const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const basePosition = { x: 50 + Math.random() * 300, y: 50 + Math.random() * 200, width: 200, height: 150, rotation: 0 };
-    
-    const contentMap = {
-      text: { type: 'text' as const, text: 'New text note' },
-      checklist: { type: 'checklist' as const, items: [{ id: '1', text: 'New item', completed: false }] },
-      image: { type: 'image' as const, imageUrl: undefined, alt: undefined },
-      voice: { type: 'voice' as const, audioUrl: undefined, duration: undefined },
-      drawing: { type: 'drawing' as const, strokes: [] }
-    };
-
-    const newNote: NoteData = {
-      id,
-      type,
-      position: basePosition,
-      content: contentMap[type],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    addNote(newNote);
-  }, [addNote]);
+  // Function to create a new note - now uses CRDT-first approach
+  const handleCreateNote = useCallback((type: NoteData['type']) => {
+    try {
+      createNote(type);
+    } catch (error) {
+      console.error('Failed to create note:', error);
+    }
+  }, [createNote]);
 
   // Memoize note components to prevent unnecessary re-renders
   const noteComponents = useMemo(() => notesList.map(note => {
@@ -92,9 +79,15 @@ export const StickyBoard: React.FC<{ spaceId?: string }> = ({ spaceId = 'default
       <NoteContextProvider
         onUpdate={updateNote}
         onDelete={deleteNote}
-        onCreate={createNote}
+        onCreate={handleCreateNote}
       >
         <div className="sticky-board relative w-full h-full overflow-hidden bg-gray-50">
+          {/* Connection status indicator */}
+          {!isConnected && (
+            <div className="absolute top-2 right-2 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-2 py-1 rounded text-xs">
+              Offline Mode
+            </div>
+          )}
           {noteComponents}
         </div>
       </NoteContextProvider>

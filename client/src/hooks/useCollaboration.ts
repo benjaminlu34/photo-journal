@@ -6,7 +6,7 @@ import { WebrtcProvider } from 'y-webrtc';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Awareness } from 'y-protocols/awareness';
 import { useBoardStore } from '../lib/store';
-import type { NoteData } from '../types/notes';
+import type { NoteData, NoteContent } from '../types/notes';
 
 // Types for awareness (cursor positions, selections, etc.)
 export interface AwarenessState {
@@ -32,6 +32,10 @@ interface YjsChangeEvent {
 interface CollaborationResult {
   updateCursor: (x: number, y: number) => void;
   onLocalDragEnd: () => void; // Signal when local drag ends
+  createNote: (type: NoteData['type'], position?: { x: number; y: number; width?: number; height?: number; rotation?: number }) => string;
+  updateNote: (id: string, updates: Partial<NoteData>) => void;
+  deleteNote: (id: string) => void;
+  isConnected: boolean;
 }
 
 const SYNC_RETRY_DELAY = 1000;
@@ -44,7 +48,7 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
   const {
     notes,
     batchUpdateNotes,
-    deleteNote,
+    deleteNote: storeDeleteNote,
     setUserId,
     selectedId,
   } = useBoardStore();
@@ -55,6 +59,7 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
   const persistenceRef = useRef<IndexeddbPersistence>();
   const retryCountRef = useRef<number>(0);
   const lastLocalDragRef = useRef<number>(0);
+  const isConnectedRef = useRef<boolean>(false);
 
   // Initialize Yjs document and providers
   const initYjs = useCallback((): void => {
@@ -125,7 +130,7 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
             }
           } else if (change.action === 'delete') {
             // Handle remote deletes through the store action
-            deleteNote(key);
+            storeDeleteNote(key);
           }
         });
 
@@ -145,6 +150,14 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
         }
       });
 
+      // Track connection status
+      provider.on('status', ({ connected }: { connected: boolean }) => {
+        isConnectedRef.current = connected;
+        if (isDevelopment) {
+          console.log('Yjs connection status:', connected ? 'connected' : 'disconnected');
+        }
+      });
+
       // Set userId in store
       setUserId(userId);
 
@@ -159,7 +172,7 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
         setTimeout(initYjs, SYNC_RETRY_DELAY * retryCountRef.current);
       }
     }
-  }, [userId, userName, notes, batchUpdateNotes, setUserId, deleteNote, spaceId]);
+  }, [userId, userName, notes, batchUpdateNotes, setUserId, storeDeleteNote, spaceId]);
 
   // Update awareness state when selection changes
   useEffect(() => {
@@ -190,6 +203,83 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
     };
   }, [initYjs]);
 
+  // Create a new note in the Yjs document
+  const createNote = useCallback((type: NoteData['type'], position?: { x: number; y: number; width?: number; height?: number; rotation?: number }): string => {
+    if (!docRef.current) {
+      throw new Error('Yjs document not initialized');
+    }
+
+    const notesMap = docRef.current.getMap('notes');
+    const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const basePosition = {
+      x: position?.x ?? 50 + Math.random() * 300,
+      y: position?.y ?? 50 + Math.random() * 200,
+      width: position?.width ?? 200,
+      height: position?.height ?? 150,
+      rotation: position?.rotation ?? 0
+    };
+    
+    const contentMap: Record<NoteData['type'], NoteContent> = {
+      text: { type: 'text' as const, text: 'New text note' },
+      sticky_note: { type: 'sticky_note' as const, text: 'New sticky note' },
+      checklist: { type: 'checklist' as const, items: [{ id: '1', text: 'New item', completed: false }] },
+      image: { type: 'image' as const, imageUrl: undefined, alt: undefined },
+      voice: { type: 'voice' as const, audioUrl: undefined, duration: undefined },
+      drawing: { type: 'drawing' as const, strokes: [] }
+    };
+
+    const newNote: NoteData = {
+      id,
+      type,
+      position: basePosition,
+      content: contentMap[type],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Add to Yjs document - this will trigger the observer and sync to all clients
+    notesMap.set(id, newNote);
+
+    return id;
+  }, []);
+
+  // Update a note in the Yjs document
+  const updateNote = useCallback((id: string, updates: Partial<NoteData>): void => {
+    if (!docRef.current) {
+      throw new Error('Yjs document not initialized');
+    }
+
+    const notesMap = docRef.current.getMap('notes');
+    const existingNote = notesMap.get(id) as NoteData;
+    
+    if (!existingNote) {
+      console.warn(`Note ${id} not found in Yjs document`);
+      return;
+    }
+
+    const updatedNote: NoteData = {
+      ...existingNote,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Update in Yjs document - this will trigger the observer and sync to all clients
+    notesMap.set(id, updatedNote);
+  }, []);
+
+  // Delete a note from the Yjs document
+  const deleteNote = useCallback((id: string): void => {
+    if (!docRef.current) {
+      throw new Error('Yjs document not initialized');
+    }
+
+    const notesMap = docRef.current.getMap('notes');
+    
+    // Delete from Yjs document - this will trigger the observer and sync to all clients
+    notesMap.delete(id);
+  }, []);
+
   // Update remote cursor position
   const updateCursor = useCallback((x: number, y: number): void => {
     if (providerRef.current) {
@@ -209,5 +299,9 @@ export const useCollaboration = (userId: string, userName: string, spaceId: stri
   return {
     updateCursor,
     onLocalDragEnd,
+    createNote,
+    updateNote,
+    deleteNote,
+    isConnected: isConnectedRef.current,
   };
 }; 

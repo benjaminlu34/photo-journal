@@ -9,20 +9,18 @@ interface BoardState {
   notes: Record<string, NoteData>;
   selectedId: string | null;
   gridSnapEnabled: boolean;
-  updateQueue: Record<string, NoteUpdate>;
-  pendingSync: boolean;
   userId: string | null;
 }
 
 interface BoardActions {
   /**
-   * Add a new note to the board
+   * Add a new note to the board (called by Yjs observer)
    * @param note The complete note data
    */
   addNote: (note: NoteData) => void;
 
   /**
-   * Update an existing note
+   * Update an existing note (called by Yjs observer)
    * @param id The ID of the note to update
    * @param updates Partial updates to apply. When updating content, you MUST include
    * the content type field, e.g.:
@@ -38,19 +36,21 @@ interface BoardActions {
   updateNote: (id: string, updates: Partial<NoteData>) => void;
 
   /**
-   * Delete a note from the board
+   * Delete a note from the board (called by Yjs observer)
    * @param id The ID of the note to delete
    */
   deleteNote: (id: string) => void;
 
+  /**
+   * Batch update multiple notes (called by Yjs observer)
+   * @param updates Array of [id, updates] pairs
+   */
+  batchUpdateNotes: (updates: Array<[string, Partial<NoteData>]>) => void;
+
   setSelectedId: (id: string | null) => void;
   setGridSnapEnabled: (enabled: boolean) => void;
-  batchUpdateNotes: (updates: Array<[string, Partial<NoteData>]>) => void;
-  syncChanges: () => void;
   setUserId: (id: string | null) => void;
 }
-
-const SYNC_DEBOUNCE = 100; // ms
 
 // Create cleanup manager
 const cleanupManager = new CleanupManager();
@@ -84,8 +84,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
         notes: {},
         selectedId: null,
         gridSnapEnabled: true,
-        updateQueue: {},
-        pendingSync: false,
         userId: null,
 
         // Actions
@@ -162,16 +160,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
                 }
               }
 
-              // Queue update for batching
-              const currentUpdates = state.updateQueue.get(id) || {};
-              state.updateQueue.set(id, { ...currentUpdates, ...validatedUpdates });
-
-              // Schedule sync if not already pending
-              if (!state.pendingSync) {
-                state.pendingSync = true;
-                setTimeout(() => void get().syncChanges(), SYNC_DEBOUNCE);
-              }
-
               // Apply update immediately to local state
               Object.assign(state.notes[id], validatedUpdates);
             } catch (error) {
@@ -202,7 +190,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
               }
 
               delete state.notes[id];
-              delete state.updateQueue[id];
               if (state.selectedId === id) {
                 state.selectedId = null;
               }
@@ -263,16 +250,6 @@ export const useBoardStore = create<BoardState & BoardActions>()(
               });
             } catch (error) {
               console.error('Failed to batch update notes:', error);
-            }
-          }),
-
-        syncChanges: () =>
-          set((state) => {
-            try {
-              state.pendingSync = false;
-              state.updateQueue = {};
-            } catch (error) {
-              console.error('Failed to sync changes:', error);
             }
           }),
       }))

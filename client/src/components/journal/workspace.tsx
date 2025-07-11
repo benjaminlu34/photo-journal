@@ -5,11 +5,13 @@ import { WeeklyCreativeView } from "./weekly-creative-view";
 import { MonthlyView } from "./monthly-view";
 import { StickyBoard } from "@/components/board/StickyBoard";
 import { useJournal } from "@/contexts/journal-context";
+import { useCRDT } from "@/contexts/crdt-context";
 import type { Position } from "@/types/journal";
 import { Plus } from "lucide-react";
 
 export function JournalWorkspace() {
-  const { currentEntry, createContentBlock, viewMode } = useJournal();
+  const { currentEntry, viewMode } = useJournal();
+  const { createNote } = useCRDT();
 
   // Return appropriate view based on viewMode
   if (viewMode === "weekly-calendar") {
@@ -28,7 +30,7 @@ export function JournalWorkspace() {
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   const addQuickNote = () => {
-    const position: Position = {
+    const position = {
       x: Math.random() * 400 + 100,
       y: Math.random() * 300 + 100,
       width: 240,
@@ -36,7 +38,8 @@ export function JournalWorkspace() {
       rotation: Math.random() * 6 - 3,
     };
     
-    createContentBlock("sticky_note", { text: "New note..." }, position);
+    // Use CRDT-first approach instead of legacy createContentBlock
+    createNote("sticky_note", position);
   };
 
   if (!currentEntry) {
@@ -65,8 +68,6 @@ export function JournalWorkspace() {
     >
       {/* New StickyBoard Component */}
       <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
-
-
     </div>
   );
 }
