@@ -1,0 +1,101 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - run: pnpm install
+      - run: pnpm test
+
+  pg-tap:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: photo_journal
+          POSTGRES_HOST_AUTH_METHOD: md5
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pg_prove
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client pgtap
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - run: pnpm install
+      - name: Set up DATABASE_URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
+      - name: Run migrations
+        run: pnpm db:push
+      - name: Run pg_tap tests
+        run: PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
+
+  smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: photo_journal
+          POSTGRES_HOST_AUTH_METHOD: md5
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - run: pnpm install
+      - name: Set up DATABASE_URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
+      - name: Run migrations
+        run: pnpm db:push
+      - name: Start server
+        run: |
+          pnpm dev &
+          sleep 15
+      - name: Check server health
+        run: curl -sSf http://localhost:5000 > /dev/null 
