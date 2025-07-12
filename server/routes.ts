@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 
 import { storage } from "./storage";
-import { setupAuth as setupReplitAuth, isAuthenticated as replitAuth } from "./replitAuth";
+import {
+  setupAuth as setupReplitAuth,
+  isAuthenticated as replitAuth,
+} from "./replitAuth";
 import { localAuth } from "./localAuth";
 
 import {
@@ -13,43 +16,40 @@ import {
   insertSharedEntrySchema,
 } from "@shared/schema";
 
-/** -----------------------------------------------------------------------
- *  Helper types
- *  -------------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
 interface AuthedRequest extends Request {
-  /** Populated by either localAuth or replitAuth */
   user: {
-    /** Replit → sub claim, local → header string */
     id: string;
     role?: string;
-    /** Present only when Replit OIDC is active */
     claims?: { sub: string };
   };
 }
 
-/** -----------------------------------------------------------------------
- *  Route registration
- *  -------------------------------------------------------------------- */
-export async function registerRoutes(app: Express): Promise<Server> {
-  /* ─────────────────────────  AUTH MODE SWITCH  ─────────────────────── */
-  const usingReplit = process.env.REPLIT === "true" || Boolean(process.env.REPL_ID);
+/* Small helper so we cast once per route, not on every access */
+const getUserId = (req: Request, replit: boolean): string =>
+  replit
+    ? (req as AuthedRequest).user.claims!.sub
+    : (req as AuthedRequest).user.id;
 
-  // choose middleware
+/* ------------------------------------------------------------------ */
+/*  Route registration                                                */
+/* ------------------------------------------------------------------ */
+export async function registerRoutes(app: Express): Promise<Server> {
+  /* ------------  AUTH MODE SWITCH  ------------ */
+  const usingReplit = process.env.REPLIT === "true" || Boolean(process.env.REPL_ID);
   const isAuthenticated: (req: Request, res: Response, next: NextFunction) => void =
     usingReplit ? replitAuth : localAuth;
 
-  // Replit needs async setup (keys, JWKS, etc.)
-  if (usingReplit) {
-    await setupReplitAuth(app);
-  }
+  if (usingReplit) await setupReplitAuth(app);
 
-  /* ─────────────────────────────  ROUTES  ───────────────────────────── */
+  /* ----------------  ROUTES  ------------------ */
 
-  /* -- Auth ----------------------------------------------------------- */
-  app.get("/api/auth/user", isAuthenticated, async (req: AuthedRequest, res) => {
+  /* Auth */
+  app.get("/api/auth/user", isAuthenticated, async (req, res) => {
     try {
-      const userId = usingReplit ? req.user.claims!.sub : req.user.id;
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(getUserId(req, usingReplit));
       return res.json(user);
     } catch (err) {
       console.error("GET /api/auth/user:", err);
@@ -57,12 +57,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* -- Journal entries ----------------------------------------------- */
-  app.get("/api/journal/:date", isAuthenticated, async (req: AuthedRequest, res) => {
+  /* Journal entry – single date */
+  app.get("/api/journal/:date", isAuthenticated, async (req, res) => {
     try {
-      const userId = usingReplit ? req.user.claims!.sub : req.user.id;
+      const userId = getUserId(req, usingReplit);
       const date = new Date(req.params.date);
-
       if (Number.isNaN(date.getTime())) {
         return res.status(400).json({ message: "Invalid date format" });
       }
@@ -71,7 +70,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!entry) {
         entry = await storage.createJournalEntry({ userId, date, title: null });
       }
-
       const blocks = await storage.getContentBlocks(entry.id);
       return res.json({ ...entry, contentBlocks: blocks });
     } catch (err) {
@@ -80,15 +78,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /* Journal entries – range */
   app.get(
     "/api/journal/range/:startDate/:endDate",
     isAuthenticated,
-    async (req: AuthedRequest, res) => {
+    async (req, res) => {
       try {
-        const userId = usingReplit ? req.user.claims!.sub : req.user.id;
+        const userId = getUserId(req, usingReplit);
         const start = new Date(req.params.startDate);
         const end = new Date(req.params.endDate);
-
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
           return res.status(400).json({ message: "Invalid date format" });
         }
@@ -100,7 +98,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contentBlocks: await storage.getContentBlocks(e.id),
           })),
         );
-
         return res.json(withBlocks);
       } catch (err) {
         console.error("GET /api/journal/range:", err);
@@ -109,9 +106,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
-  app.patch("/api/journal/:entryId", isAuthenticated, async (req: Request, res) => {
+  /* Update a journal entry */
+  app.patch("/api/journal/:entryId", isAuthenticated, async (req, res) => {
     try {
       const updates = insertJournalEntrySchema.partial().parse(req.body);
+      const userId = getUserId(req, usingReplit);
+
+      // Verify the entry actually belongs to this user
+      const entry = await storage.getJournalEntryById(req.params.entryId);
+      if (!entry || entry.userId !== userId) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+
       const updated = await storage.updateJournalEntry(req.params.entryId, updates);
       return res.json(updated);
     } catch (err) {
@@ -123,8 +129,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* -- Content blocks ------------------------------------------------- */
-  app.post("/api/content-blocks", isAuthenticated, async (req: Request, res) => {
+  /* Content blocks */
+  app.post("/api/content-blocks", isAuthenticated, async (req, res) => {
     try {
       const block = insertContentBlockSchema.parse(req.body);
       const created = await storage.createContentBlock(block);
@@ -138,8 +144,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* -- Friendships ---------------------------------------------------- */
-  app.post("/api/friendships", isAuthenticated, async (req: Request, res) => {
+  /* Friendships */
+  app.post("/api/friendships", isAuthenticated, async (req, res) => {
     try {
       const data = insertFriendshipSchema.parse(req.body);
       const created = await storage.createFriendship(data);
@@ -153,11 +159,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* -- Shared entries ------------------------------------------------- */
-  app.post("/api/share-entry", isAuthenticated, async (req: Request, res) => {
+  /* Shared entries */
+  app.post("/api/share-entry", isAuthenticated, async (req, res) => {
     try {
       const data = insertSharedEntrySchema.parse(req.body);
-      const shared = await storage.createSharedEntry(data);
+      const shared = await storage.shareEntry(data);
       return res.json(shared);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -168,9 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* ------------------------------------------------------------------ */
-  /*  CENTRALIZED ERROR HANDLER                                        */
-  /* ------------------------------------------------------------------ */
+  /* Central error handler */
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -178,12 +182,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(status).json({ message });
   });
 
-  /* ------------------------------------------------------------------ */
-  /*  START SERVER (same as original)                                   */
-  /* ------------------------------------------------------------------ */
+  /* Start server */
   const server = createServer(app);
   const port = process.env.PORT ? Number(process.env.PORT) : 5000;
-  server.listen(port, "0.0.0.0", () => console.log(`🚀  API listening on :${port}`));
+  server.listen(port, "0.0.0.0", () => console.log(`🚀 API listening on :${port}`));
 
   return server;
 }

@@ -2,14 +2,15 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-// Only load Replit plugins when in Replit mode
+import runtimeError from "@replit/vite-plugin-runtime-error-modal";
+import { cartographer } from "@replit/vite-plugin-cartographer"; // note the named export
+
 const isReplit = process.env.REPLIT === "true" || Boolean(process.env.REPL_ID);
 
 export default defineConfig({
   plugins: [
     react(),
-    ...(isReplit ? [import("@replit/vite-plugin-runtime-error-modal").then((m) => m.default())] : []),
-    ...(isReplit ? [import("@replit/vite-plugin-cartographer").then((m) => m.cartographer())] : []),
+    ...(isReplit ? [runtimeError(), cartographer()] : [])
   ],
   resolve: {
     alias: {
@@ -24,9 +25,6 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
-    },
+    fs: { strict: true, deny: ["**/.*"] },
   },
 });

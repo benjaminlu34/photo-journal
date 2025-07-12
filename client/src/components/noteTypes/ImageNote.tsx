@@ -2,11 +2,11 @@ import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { security } from "@/lib/security";
 import { X, Upload } from "lucide-react";
-import type { ImageNoteContent } from "@/types/notes";
+import type { NoteContent } from "@/types/notes";
 
-interface ImageNoteProps {
-  content: ImageNoteContent;
-  onChange?: (content: ImageNoteContent) => void;
+type ImageNoteProps = {
+  content: Extract<NoteContent, { type: 'image' }>;
+  onChange?: (content: Extract<NoteContent, { type: 'image' }>) => void;
 }
 
 const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
@@ -23,6 +23,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
       const imageUrl = URL.createObjectURL(file);
       const sanitizedAlt = security.sanitizeHtml(file.name.replace(/\.[^/.]+$/, ""));
       onChange?.({ 
+        type: 'image',
         imageUrl, 
         alt: sanitizedAlt 
       });
@@ -64,7 +65,11 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = {}, onChange }) => {
   }, []);
 
   const handleRemoveImage = useCallback(() => {
-    onChange?.({ imageUrl: undefined, alt: undefined });
+    onChange?.({ 
+      type: 'image',
+      imageUrl: undefined, 
+      alt: undefined 
+    });
   }, [onChange]);
 
   if (content?.imageUrl) {
