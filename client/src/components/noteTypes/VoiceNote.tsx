@@ -2,11 +2,11 @@ import React, { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { security } from "@/lib/security";
 import { Mic, Play, Pause, Trash2, AudioWaveform } from "lucide-react";
-import type { VoiceNoteContent } from "@/types/notes";
+import type { NoteContent } from "@/types/notes";
 
-interface VoiceNoteProps {
-  content: VoiceNoteContent;
-  onChange?: (content: VoiceNoteContent) => void;
+type VoiceNoteProps = {
+  content: Extract<NoteContent, { type: 'voice' }>;
+  onChange?: (content: Extract<NoteContent, { type: 'voice' }>) => void;
 }
 
 const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
@@ -36,7 +36,11 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(blob);
-        onChange?.({ audioUrl, duration: Date.now() / 1000 });
+        onChange?.({ 
+          type: 'voice',
+          audioUrl, 
+          duration: Date.now() / 1000 
+        });
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -84,7 +88,11 @@ const VoiceNote: React.FC<VoiceNoteProps> = ({ content = {}, onChange }) => {
   };
 
   const handleDeleteRecording = () => {
-    onChange?.({ audioUrl: undefined, duration: undefined });
+    onChange?.({ 
+      type: 'voice',
+      audioUrl: undefined, 
+      duration: undefined 
+    });
     setIsPlaying(false);
     setCurrentTime(0);
   };

@@ -2,11 +2,11 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { security } from "@/lib/security";
 import { Pencil, Eraser, Trash2, Palette } from "lucide-react";
-import type { DrawingNoteContent } from "@/types/notes";
+import type { NoteContent, DrawingStroke } from "@/types/notes";
 
-interface DrawingNoteProps {
-  content: DrawingNoteContent;
-  onChange?: (content: DrawingNoteContent) => void;
+type DrawingNoteProps = {
+  content: Extract<NoteContent, { type: 'drawing' }>;
+  onChange?: (content: Extract<NoteContent, { type: 'drawing' }>) => void;
 }
 
 const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
@@ -14,7 +14,7 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentTool, setCurrentTool] = useState<'pencil' | 'eraser'>('pencil');
   const [currentColor, setCurrentColor] = useState('#6366f1');
-  const [currentStroke, setCurrentStroke] = useState<{ points: Array<{ x: number; y: number }>; color: string; width: number } | null>(null);
+  const [currentStroke, setCurrentStroke] = useState<{ points: Array<{ x: number; y: number; pressure: number }>; color: string; width: number } | null>(null);
 
   const colors = ['#6366f1', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
   const brushSize = currentTool === 'pencil' ? 2 : 8;
@@ -30,7 +30,7 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw all strokes
-    content.strokes.forEach(stroke => {
+    content.strokes.forEach((stroke: DrawingStroke) => {
       if (stroke.points.length < 2) return;
 
       ctx.beginPath();
@@ -68,7 +68,7 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return { x: 0, y: 0, pressure: 1 }; // Default pressure to 1
 
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -76,7 +76,8 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
     
     return {
       x: clientX - rect.left,
-      y: clientY - rect.top
+      y: clientY - rect.top,
+      pressure: 1 // Most browsers don't support pressure, default to 1
     };
   };
 
@@ -111,12 +112,18 @@ const DrawingNote: React.FC<DrawingNoteProps> = ({ content, onChange }) => {
     
     // Add stroke to content
     const newStrokes = [...content.strokes, currentStroke];
-    onChange?.({ strokes: newStrokes });
+    onChange?.({ 
+      type: 'drawing',
+      strokes: newStrokes 
+    });
     setCurrentStroke(null);
   };
 
   const clearDrawing = () => {
-    onChange?.({ strokes: [] });
+    onChange?.({ 
+      type: 'drawing',
+      strokes: [] 
+    });
   };
 
   return (

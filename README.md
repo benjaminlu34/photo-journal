@@ -2,177 +2,138 @@
 
 A modern, real-time collaborative photo journal application built with React, TypeScript, and Yjs for seamless multi-user editing experiences.
 
-## 🚀 Recent Major Update: CRDT-First Architecture
+## 🚀 Local Development
 
-### Overview
-The application has been completely refactored to use a **CRDT-first architecture** powered by Yjs, eliminating the dual legacy/modern system and ensuring all note operations are real-time, offline-capable, and conflict-free.
+### Prerequisites
+- Node.js >= 20.11
+- Docker (for local PostgreSQL)
+- pnpm (recommended package manager)
 
-### Key Changes Made
+### Quick Start
 
-#### 1. **Eliminated Dual System Architecture**
-- **Before**: Mixed legacy content blocks (REST) + modern notes (Yjs)
-- **After**: Single CRDT-first system using Yjs for all operations
-- **Removed**: All `/api/content-blocks` REST calls for board notes
-- **Removed**: Legacy mappers (`blockToNote.ts`, `noteToBlockPatch.ts`)
+```bash
+# 1. Clone and install dependencies
+pnpm install
 
-#### 2. **New CRDT Context System**
-- **Created**: `client/src/contexts/crdt-context.tsx` - Provides Yjs-based note operations
-- **Features**: 
-  - `createNote()` - Creates notes directly in Yjs document
-  - `updateNote()` - Updates notes through CRDT
-  - `deleteNote()` - Deletes notes from CRDT
-  - `isConnected` - Connection status indicator
+# 2. Copy environment variables
+cp .env.example .env
 
-#### 3. **Enhanced Collaboration Hook**
-- **Updated**: `client/src/hooks/useCollaboration.ts`
-- **Added**: Direct CRUD operations to Yjs document
-- **Added**: Connection status tracking
-- **Improved**: Error handling and retry logic
+# 3. Start PostgreSQL and run migrations
+pnpm run db:init
 
-#### 4. **Refactored Components**
-- **Updated**: `StickyBoard.tsx` - Now uses CRDT operations exclusively
-- **Updated**: `workspace.tsx` - Uses CRDT context instead of legacy functions
-- **Updated**: `collaboration-panel.tsx` - "Add Content" sidebar now uses CRDT
-- **Added**: Connection status indicator in board UI
-
-#### 5. **Simplified Store**
-- **Removed**: Legacy sync queue and REST-based synchronization
-- **Simplified**: Store now only handles local state management
-- **Maintained**: Security validation and asset cleanup
-
-### Architecture Flow
-
-```mermaid
-graph TD
-    A[User Action] --> B[CRDT Context]
-    B --> C[useCollaboration Hook]
-    C --> D[Yjs Document]
-    D --> E[WebRTC Provider]
-    E --> F[Other Clients]
-    D --> G[IndexedDB Persistence]
-    D --> H[Store Update]
-    H --> I[UI Re-render]
+# 4. Start development server
+pnpm dev
 ```
 
-### Benefits Achieved
+The application will be available at `http://localhost:5000`
 
-#### ✅ **Real-Time Collaboration**
-- Instant synchronization across all connected clients
-- Conflict-free merging using CRDT algorithms
-- Offline capability with automatic sync when reconnected
+### Development Modes
 
-#### ✅ **Performance Improvements**
-- No more REST API calls for note operations
-- Reduced network overhead
-- Immediate local updates with optimistic UI
+#### Local Development (Docker)
+```bash
+pnpm dev
+```
+- Uses local PostgreSQL via Docker
+- Local authentication with dev-user
+- Hot reload for both frontend and backend
 
-#### ✅ **Better User Experience**
-- No perceptible lag during editing
-- Smooth real-time cursor tracking
-- Connection status indicators
+#### Replit Development
+```bash
+pnpm run dev:replit
+```
+- Uses Replit's built-in PostgreSQL
+- Replit OIDC authentication
+- Replit-specific plugins and features
 
-#### ✅ **Simplified Architecture**
-- Single source of truth (Yjs document)
-- Eliminated complex dual-system mapping
-- Cleaner, more maintainable codebase
+### Environment Variables
 
-### Usage Examples
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://postgres:postgres@localhost:5432/photo_journal` |
+| `SESSION_SECRET` | Session encryption key | `replace-me` (must be ≥32 chars) |
+| `NODE_ENV` | Environment mode | `development` |
+| `REPLIT` | Enable Replit mode | `false` |
 
-#### Creating a Note
-```typescript
-import { useCRDT } from '@/contexts/crdt-context';
+### Database Setup
 
-function MyComponent() {
-  const { createNote } = useCRDT();
-  
-  const handleAddNote = () => {
-    const noteId = createNote('text', {
-      x: 100,
-      y: 100,
-      width: 200,
-      height: 150,
-      rotation: 0
-    });
-  };
-}
+#### Local Development
+```bash
+# Start PostgreSQL container
+docker compose up -d db
+
+# Run migrations
+pnpm drizzle-kit push
 ```
 
-#### Updating a Note
-```typescript
-import { useCRDT } from '@/contexts/crdt-context';
+#### Replit
+No additional setup needed - uses Replit's managed PostgreSQL.
 
-function MyComponent() {
-  const { updateNote } = useCRDT();
-  
-  const handleUpdateNote = (noteId: string) => {
-    updateNote(noteId, {
-      content: { type: 'text', text: 'Updated content' }
-    });
-  };
-}
+### Scripts
+
+| Script | Description |
+|--------|-------------|
+| `pnpm dev` | Start local development server |
+| `pnpm run dev:replit` | Start Replit development server |
+| `pnpm run db:init` | Initialize database (Docker + migrations) |
+| `pnpm build` | Build for production |
+| `pnpm start` | Start production server |
+| `pnpm check` | Type checking |
+
+### Architecture Overview
+
+The application uses a **CRDT-first architecture** powered by Yjs for real-time collaboration:
+
+- **Frontend**: React 18 + TypeScript + Tailwind CSS
+- **Backend**: Node.js + Express + PostgreSQL
+- **Real-time**: Yjs + WebRTC for peer-to-peer sync
+- **Authentication**: Replit OIDC (production) / Local dev auth (development)
+- **Database**: PostgreSQL via Drizzle ORM
+
+### Key Features
+
+- **Real-time collaboration** with conflict-free editing
+- **Offline-first** with automatic sync
+- **Multiple note types**: Text, checklist, image, voice, drawing
+- **Social features**: Friendships and entry sharing
+- **Multiple views**: Daily, weekly, monthly layouts
+- **Responsive design** with glassmorphism UI
+
+### Development Workflow
+
+1. **Feature Development**: Use local development mode
+2. **Testing**: Run `pnpm check` for type checking
+3. **Database Changes**: Use `pnpm drizzle-kit push` for migrations
+4. **Production**: Deploy to Replit or your preferred platform
+
+### Troubleshooting
+
+#### Port 5000 already in use
+```bash
+# Kill process on port 5000
+lsof -ti:5000 | xargs kill -9
 ```
 
-#### Deleting a Note
-```typescript
-import { useCRDT } from '@/contexts/crdt-context';
-
-function MyComponent() {
-  const { deleteNote } = useCRDT();
-  
-  const handleDeleteNote = (noteId: string) => {
-    deleteNote(noteId);
-  };
-}
+#### Database connection issues
+```bash
+# Check if PostgreSQL is running
+docker ps
+# Restart PostgreSQL
+docker compose restart db
 ```
 
-### Migration Guide
-
-#### For Existing Components
-1. **Replace** `useJournal().createContentBlock()` with `useCRDT().createNote()`
-2. **Replace** `useJournal().updateContentBlock()` with `useCRDT().updateNote()`
-3. **Replace** `useJournal().deleteContentBlock()` with `useCRDT().deleteNote()`
-4. **Wrap** components with `CRDTProvider` if not already wrapped
-
-#### Type Mapping
-```typescript
-// Legacy to New Type Mapping
-"sticky_note" → "sticky_note"
-"text" → "text"
-"checklist" → "checklist"
-"photo" → "image"
-"audio" → "voice"
-"drawing" → "drawing"
+#### Permission issues on Windows
+```bash
+# Run as administrator or use WSL
+# Ensure Docker Desktop is running
 ```
 
-### Technical Details
+### Contributing
 
-#### Yjs Configuration
-- **Room Name**: `journal-board-${spaceId}` (separates different boards)
-- **Signaling**: `wss://signaling.yjs.dev` (WebRTC peer discovery)
-- **Persistence**: IndexedDB for offline storage
-- **Awareness**: Real-time cursor and selection tracking
+1. Create a feature branch from `main`
+2. Make your changes
+3. Test with both local and Replit modes
+4. Submit a pull request
 
-#### Security Features
-- Input sanitization for all content
-- Rate limiting per user
-- Asset cleanup and memory management
-- XSS protection
+### License
 
-#### Performance Optimizations
-- CRDT echo throttling (150ms) to prevent local update loops
-- RAF-based smooth animations
-- Debounced position updates (100ms)
-- Optimistic UI updates
-
-### Future Enhancements
-
-1. **Enhanced Offline Support**: Better conflict resolution for long offline periods
-2. **File Upload Integration**: Direct file uploads to cloud storage
-3. **Advanced Collaboration**: Comments, annotations, and version history
-4. **Mobile Optimization**: Touch gesture improvements and responsive design
-
----
-
-## Original README Content
-
-[Previous README content would go here...]
+MIT License - see LICENSE file for details
