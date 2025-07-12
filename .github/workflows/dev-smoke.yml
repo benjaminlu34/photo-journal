@@ -1,0 +1,27 @@
+name: Dev smoke test
+
+on:
+  pull_request:
+    paths:
+      - "**/*.ts"
+      - "docker-compose.yml"
+      - "package.json"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    services:
+      docker:
+        image: docker:24.0-dind
+        privileged: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - run: pnpm install
+      - run: docker compose up -d db
+      - run: pnpm run db:init
+      - run: pnpm dev --if-present --clear-screen=false &
+      - run: sleep 25
+      - run: curl -sSf http://localhost:5000 > /dev/null
