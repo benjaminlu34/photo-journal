@@ -7,7 +7,7 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "dev": "tsx watch --clear-screen=false server/index.ts",
+    "dev": "nodemon --exec tsx server/index.ts",
     "dev:replit": "cross-env REPLIT=true pnpm dev",
     "db:init": "dotenv -e .env -- bash ./scripts/db-init.sh",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
@@ -115,6 +115,7 @@
     "dotenv-cli": "^8.0.0",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
+    "nodemon": "^3.1.10",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
