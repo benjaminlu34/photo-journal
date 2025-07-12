@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const usingReplit = process.env.REPLIT === "true" || Boolean(process.env.REPL_ID);
   const isAuthenticated: (req: Request, res: Response, next: NextFunction) => void =
     usingReplit ? replitAuth : localAuth;
-
+  
   if (usingReplit) await setupReplitAuth(app);
 
   /* ----------------  ROUTES  ------------------ */
@@ -182,10 +182,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(status).json({ message });
   });
 
-  /* Start server */
+  /* Create server */
   const server = createServer(app);
-  const port = process.env.PORT ? Number(process.env.PORT) : 5000;
-  server.listen(port, "0.0.0.0", () => console.log(`🚀 API listening on :${port}`));
-
+  
   return server;
 }

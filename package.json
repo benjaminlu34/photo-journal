@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false server/index.ts",
     "dev:replit": "cross-env REPLIT=true pnpm dev",
-    "db:init": "cross-env-shell ./scripts/db-init.sh",
+    "db:init": "dotenv -e .env -- bash ./scripts/db-init.sh",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
@@ -112,6 +112,7 @@
     "cross-env": "^7.0.3",
     "cross-env-shell": "^7.0.3",
     "dotenv": "^17.2.0",
+    "dotenv-cli": "^8.0.0",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",

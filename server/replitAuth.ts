@@ -9,8 +9,11 @@ import connectPg from "connect-pg-simple";
 import MemoryStore from "memorystore";
 import { storage } from "./storage";
 
-if (!process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
+
+const usingReplit = process.env.REPLIT === 'true' || Boolean(process.env.REPL_ID);
+
+if (usingReplit && !process.env.REPLIT_DOMAINS) {
+  throw new Error('Environment variable REPLIT_DOMAINS not provided');
 }
 
 const getOidcConfig = memoize(
