@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -8,6 +9,16 @@ if (g.pj_server?.listening) g.pj_server.close();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configure CORS for API endpoints
+app.use('/api', cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.SUPABASE_URL || ''] 
+    : true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();

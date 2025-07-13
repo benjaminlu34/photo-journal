@@ -50,7 +50,7 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations (mandatory for Replit Auth)
+  // User operations (mandatory for Auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -69,6 +69,20 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // New function for Supabase user provisioning
+  async upsertUserFromSupabase(supabaseUser: { id: string; email?: string | null }): Promise<User> {
+    const userData: UpsertUser = {
+      id: supabaseUser.id,
+      email: supabaseUser.email || undefined,
+      // We don't have these fields from Supabase by default
+      firstName: undefined,
+      lastName: undefined,
+      profileImageUrl: undefined,
+    };
+
+    return this.upsertUser(userData);
   }
 
   // Journal operations

@@ -3,11 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 
 import { storage } from "./storage";
-import {
-  setupAuth as setupReplitAuth,
-  isAuthenticated as replitAuth,
-} from "./replitAuth";
-import { localAuth } from "./localAuth";
+import { isAuthenticatedSupabase } from "./middleware/auth";
 
 import {
   insertJournalEntrySchema,
@@ -22,34 +18,25 @@ import {
 interface AuthedRequest extends Request {
   user: {
     id: string;
-    role?: string;
-    claims?: { sub: string };
+    email: string;
   };
 }
 
 /* Small helper so we cast once per route, not on every access */
-const getUserId = (req: Request, replit: boolean): string =>
-  replit
-    ? (req as AuthedRequest).user.claims!.sub
-    : (req as AuthedRequest).user.id;
+const getUserId = (req: Request): string => (req as AuthedRequest).user.id;
+const getUserEmail = (req: Request): string => (req as AuthedRequest).user.email;
 
 /* ------------------------------------------------------------------ */
 /*  Route registration                                                */
 /* ------------------------------------------------------------------ */
 export async function registerRoutes(app: Express): Promise<Server> {
-  /* ------------  AUTH MODE SWITCH  ------------ */
-  const usingReplit = process.env.REPLIT === "true" || Boolean(process.env.REPL_ID);
-  const isAuthenticated: (req: Request, res: Response, next: NextFunction) => void =
-    usingReplit ? replitAuth : localAuth;
-  
-  if (usingReplit) await setupReplitAuth(app);
 
   /* ----------------  ROUTES  ------------------ */
 
   /* Auth */
-  app.get("/api/auth/user", isAuthenticated, async (req, res) => {
+  app.get("/api/auth/user", isAuthenticatedSupabase, async (req, res) => {
     try {
-      const user = await storage.getUser(getUserId(req, usingReplit));
+      const user = await storage.getUser(getUserId(req));
       return res.json(user);
     } catch (err) {
       console.error("GET /api/auth/user:", err);
@@ -58,9 +45,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Journal entry – single date */
-  app.get("/api/journal/:date", isAuthenticated, async (req, res) => {
+  app.get("/api/journal/:date", isAuthenticatedSupabase, async (req, res) => {
     try {
-      const userId = getUserId(req, usingReplit);
+      const userId = getUserId(req);
       const date = new Date(req.params.date);
       if (Number.isNaN(date.getTime())) {
         return res.status(400).json({ message: "Invalid date format" });
@@ -81,10 +68,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   /* Journal entries – range */
   app.get(
     "/api/journal/range/:startDate/:endDate",
-    isAuthenticated,
+    isAuthenticatedSupabase,
     async (req, res) => {
       try {
-        const userId = getUserId(req, usingReplit);
+        const userId = getUserId(req);
         const start = new Date(req.params.startDate);
         const end = new Date(req.params.endDate);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -107,10 +94,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   /* Update a journal entry */
-  app.patch("/api/journal/:entryId", isAuthenticated, async (req, res) => {
+  app.patch("/api/journal/:entryId", isAuthenticatedSupabase, async (req, res) => {
     try {
       const updates = insertJournalEntrySchema.partial().parse(req.body);
-      const userId = getUserId(req, usingReplit);
+      const userId = getUserId(req);
 
       // Verify the entry actually belongs to this user
       const entry = await storage.getJournalEntryById(req.params.entryId);
@@ -130,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Content blocks */
-  app.post("/api/content-blocks", isAuthenticated, async (req, res) => {
+  app.post("/api/content-blocks", isAuthenticatedSupabase, async (req, res) => {
     try {
       const block = insertContentBlockSchema.parse(req.body);
       const created = await storage.createContentBlock(block);
@@ -145,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Friendships */
-  app.post("/api/friendships", isAuthenticated, async (req, res) => {
+  app.post("/api/friendships", isAuthenticatedSupabase, async (req, res) => {
     try {
       const data = insertFriendshipSchema.parse(req.body);
       const created = await storage.createFriendship(data);
@@ -160,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Shared entries */
-  app.post("/api/share-entry", isAuthenticated, async (req, res) => {
+  app.post("/api/share-entry", isAuthenticatedSupabase, async (req, res) => {
     try {
       const data = insertSharedEntrySchema.parse(req.body);
       const shared = await storage.shareEntry(data);
