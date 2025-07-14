@@ -2,6 +2,13 @@
 BEGIN;
 SELECT plan(12);
 
+-- Mock auth.uid() for testing (overrides to read from session variable)
+-- This assumes auth schema exists; adjust if needed
+DROP FUNCTION IF EXISTS auth.uid();
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS text AS $$
+  SELECT current_setting('auth.uid')::text;
+$$ LANGUAGE sql STABLE;
+
 -- Test RLS is enabled
 SELECT ok(has_table_privilege('postgres', 'yjs_snapshots', 'SELECT'), 'Superuser can access table');
 
@@ -44,12 +51,12 @@ SELECT lives_ok($$
     VALUES 
         ('22222222-2222-2222-2222-222222222222', 'test_user_1', 'view');
     
-    -- Insert snapshots
+    -- Insert snapshots (use valid UUIDs for board_id)
     INSERT INTO yjs_snapshots (id, board_id, version, snapshot, metadata)
     VALUES 
-        ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'board1', 1, 'snapshot1'::bytea, 
+        ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 1, 'snapshot1'::bytea, 
             '{"userId": "test_user_1", "journalEntryId": "11111111-1111-1111-1111-111111111111"}'::jsonb),
-        ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'board2', 1, 'snapshot2'::bytea, 
+        ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 1, 'snapshot2'::bytea, 
             '{"userId": "test_user_2", "journalEntryId": "22222222-2222-2222-2222-222222222222"}'::jsonb);
 $$, 'Insert test data');
 
@@ -82,9 +89,9 @@ SELECT lives_ok($$
     SET ROLE test_user_1;
     SET SESSION "auth.uid" = 'test_user_1';
     
-    -- Should be able to insert own snapshot
+    -- Should be able to insert own snapshot (use valid UUID for board_id)
     INSERT INTO yjs_snapshots (id, board_id, version, snapshot, metadata)
-    VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'board3', 1, 'snapshot3'::bytea, 
+    VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 1, 'snapshot3'::bytea, 
         '{"userId": "test_user_1", "journalEntryId": "11111111-1111-1111-1111-111111111111"}'::jsonb);
 $$, 'User 1 can insert their own snapshot');
 
