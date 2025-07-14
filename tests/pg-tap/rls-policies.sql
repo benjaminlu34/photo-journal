@@ -3,8 +3,7 @@ BEGIN;
 SELECT plan(12);
 
 -- Test RLS is enabled
-SELECT has_table_privilege('postgres', 'yjs_snapshots', 'SELECT') AS has_access \gset
-SELECT ok(:has_access, 'Superuser can access table');
+SELECT ok(has_table_privilege('postgres', 'yjs_snapshots', 'SELECT'), 'Superuser can access table');
 
 SELECT table_is_rls_enabled('public', 'yjs_snapshots', 'RLS should be enabled on yjs_snapshots table');
 
@@ -137,4 +136,4 @@ $$, 'Clean up test data');
 
 -- Finish the tests and clean up.
 SELECT * FROM finish();
-ROLLBACK; 
+ROLLBACK;

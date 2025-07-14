@@ -76,7 +76,7 @@ jobs:
           PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
       - name: Stop and clean up containers
         if: always()
-        run: docker-compose -f docker-compose.ci.yml down -v
+        run: docker compose -f docker-compose.ci.yml down -v
 
   smoke:
     runs-on: ubuntu-latest
@@ -120,4 +120,4 @@ jobs:
         run: curl -sSf http://localhost:5000 > /dev/null
       - name: Stop and clean up containers
         if: always()
-        run: docker-compose -f docker-compose.ci.yml down -v 
+        run: docker compose -f docker-compose.ci.yml down -v 

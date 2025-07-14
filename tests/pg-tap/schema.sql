@@ -1,6 +1,6 @@
 -- Load the pgTAP extension
 BEGIN;
-SELECT plan(7);
+SELECT plan(8);
 
 -- Test if the yjs_snapshots table exists
 SELECT has_table('yjs_snapshots', 'Table yjs_snapshots should exist');
@@ -19,12 +19,14 @@ SELECT col_type_is('yjs_snapshots', 'snapshot', 'bytea', 'Snapshot column should
 
 -- Verify in information_schema
 SELECT ok(
-  (SELECT data_type = 'bytea' 
-   FROM information_schema.columns 
-   WHERE table_name = 'yjs_snapshots' AND column_name = 'snapshot'),
+  EXISTS(
+    SELECT 1 
+    FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'yjs_snapshots' AND column_name = 'snapshot' AND data_type = 'bytea'
+  ),
   'Snapshot column data_type should be bytea in information_schema'
 );
 
 -- Finish the tests and clean up
 SELECT * FROM finish();
-ROLLBACK; 
+ROLLBACK;
