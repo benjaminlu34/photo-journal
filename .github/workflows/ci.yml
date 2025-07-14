@@ -74,6 +74,9 @@ jobs:
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
       - name: Run migrations
         run: pnpm db:push:local
+      - name: Install pgTAP extension in DB
+        run: |
+          psql -U postgres -h localhost -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
       - name: Run pg_tap tests
         run: PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
 
@@ -114,6 +117,9 @@ jobs:
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
       - name: Run migrations
         run: pnpm db:push:local
+      - name: Install pgTAP extension in DB
+        run: |
+          psql -U postgres -h localhost -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
       - name: Start server
         run: |
           pnpm dev &
