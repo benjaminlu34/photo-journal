@@ -2,8 +2,10 @@
 BEGIN;
 SELECT plan(12);
 
+-- Create auth schema if it doesn't exist (temporary for testing)
+CREATE SCHEMA IF NOT EXISTS auth;
+
 -- Mock auth.uid() for testing (overrides to read from session variable)
--- This assumes auth schema exists; adjust if needed
 DROP FUNCTION IF EXISTS auth.uid();
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS text AS $$
   SELECT current_setting('auth.uid')::text;
