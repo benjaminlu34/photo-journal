@@ -2,13 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { verifySupabaseJwt, extractTokenFromHeader } from '../../server/utils/jwt';
 import jwt from 'jsonwebtoken';
 
-// Mock environment variables
-vi.mock('process', () => ({
-  env: {
-    SUPABASE_JWT_SECRET: 'test-jwt-secret',
-  },
-}));
-
 // Mock jsonwebtoken
 vi.mock('jsonwebtoken', () => ({
   default: {
@@ -19,6 +12,7 @@ vi.mock('jsonwebtoken', () => ({
 describe('JWT Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.SUPABASE_JWT_SECRET = 'test-jwt-secret';
   });
 
   describe('verifySupabaseJwt', () => {
@@ -39,10 +33,7 @@ describe('JWT Utils', () => {
     });
 
     it('should throw an error if JWT_SECRET is not set', () => {
-      vi.mock('process', () => ({
-        env: {},
-      }));
-
+      delete process.env.SUPABASE_JWT_SECRET;
       expect(() => verifySupabaseJwt('valid-token')).toThrow(
         'SUPABASE_JWT_SECRET environment variable is not set'
       );
@@ -50,7 +41,7 @@ describe('JWT Utils', () => {
 
     it('should throw an error for invalid token', () => {
       (jwt.verify as any).mockImplementation(() => {
-        throw new Error('Invalid token');
+        throw new Error('jwt malformed');
       });
 
       expect(() => verifySupabaseJwt('invalid-token')).toThrow('Invalid JWT token');
