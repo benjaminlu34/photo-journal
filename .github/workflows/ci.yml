@@ -1,3 +1,9 @@
+# NOTE: The three jobs (unit, pg-tap, smoke) are best kept separate for clarity and parallelism.
+# - unit: runs fast JS/TS tests, no DB needed
+# - pg-tap: runs SQL-level tests, needs a clean DB
+# - smoke: runs end-to-end server checks, needs DB and server
+# Merging would make the workflow slower and less clear, as each job has different dependencies and setup.
+
 name: CI Pipeline
 
 on:
@@ -19,6 +25,11 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
       - run: pnpm install
       - run: pnpm test
 
@@ -53,6 +64,11 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
       - run: pnpm install
       - name: Set up DATABASE_URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
@@ -88,6 +104,11 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
       - run: pnpm install
       - name: Set up DATABASE_URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
