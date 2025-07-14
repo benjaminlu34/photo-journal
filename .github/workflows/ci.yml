@@ -35,68 +35,51 @@ jobs:
 
   pg-tap:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgtap/pgtap:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: photo_journal
-          POSTGRES_HOST_AUTH_METHOD: md5
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
+      - run: pnpm install
+      - name: Build and start Postgres with pgTAP
+        run: docker-compose -f docker-compose.ci.yml up -d db
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            docker exec pj_postgres pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Set up DATABASE_URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
+      - name: Run migrations
+        run: pnpm db:push:local
+      - name: Install pgTAP extension in DB
+        run: |
+           docker exec pj_postgres psql -U postgres -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
       - name: Install pg_prove
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client pgtap
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - name: Use Node 20 LTS
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Check pnpm version and PATH
-        run: |
-          echo $PATH
-          which pnpm
-          pnpm --version
-      - run: pnpm install
-      - name: Set up DATABASE_URL
-        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
-      - name: Run migrations
-        run: pnpm db:push:local
-      - name: Install pgTAP extension in DB
-        run: |
-           PGPASSWORD=postgres psql -U postgres -h localhost -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
       - name: Run pg_tap tests
-        run: PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
+        run: |
+          PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
+      - name: Stop and clean up containers
+        if: always()
+        run: docker-compose -f docker-compose.ci.yml down -v
 
   smoke:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgtap/pgtap:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: photo_journal
-          POSTGRES_HOST_AUTH_METHOD: md5
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -113,16 +96,28 @@ jobs:
           which pnpm
           pnpm --version
       - run: pnpm install
+      - name: Build and start Postgres with pgTAP
+        run: docker-compose -f docker-compose.ci.yml up -d db
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            docker exec pj_postgres pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          exit 1
       - name: Set up DATABASE_URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
       - name: Run migrations
         run: pnpm db:push:local
       - name: Install pgTAP extension in DB
         run: |
-           PGPASSWORD=postgres psql -U postgres -h localhost -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
+           docker exec pj_postgres psql -U postgres -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
       - name: Start server
         run: |
           pnpm dev &
           sleep 15
       - name: Check server health
-        run: curl -sSf http://localhost:5000 > /dev/null 
+        run: curl -sSf http://localhost:5000 > /dev/null
+      - name: Stop and clean up containers
+        if: always()
+        run: docker-compose -f docker-compose.ci.yml down -v 
