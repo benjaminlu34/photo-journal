@@ -5,7 +5,10 @@ SELECT plan(12);
 -- Test RLS is enabled
 SELECT ok(has_table_privilege('postgres', 'yjs_snapshots', 'SELECT'), 'Superuser can access table');
 
-SELECT table_is_rls_enabled('public', 'yjs_snapshots', 'RLS should be enabled on yjs_snapshots table');
+SELECT ok(
+    (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.yjs_snapshots'::regclass),
+    'RLS should be enabled on yjs_snapshots table'
+);
 
 -- Test policies exist
 SELECT policies_are('public', 'yjs_snapshots', ARRAY[
