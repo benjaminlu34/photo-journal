@@ -17,14 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Use Node 20 LTS
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9
+          registry-url: https://registry.npmjs.org
       - name: Check pnpm version and PATH
         run: |
           echo $PATH
@@ -56,14 +56,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client pgtap
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Use Node 20 LTS
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9
+          registry-url: https://registry.npmjs.org
       - name: Check pnpm version and PATH
         run: |
           echo $PATH
@@ -96,14 +96,14 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Use Node 20 LTS
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9
+          registry-url: https://registry.npmjs.org
       - name: Check pnpm version and PATH
         run: |
           echo $PATH
