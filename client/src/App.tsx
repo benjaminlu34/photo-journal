@@ -1,44 +1,58 @@
-import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { Switch, Route, useLocation } from "wouter";
+import { Suspense, lazy } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "./contexts/auth-context";
-import NotFound from "@/pages/not-found";
-import Landing from "@/pages/landing";
-import Home from "@/pages/home";
+import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { queryClient } from "@/lib/queryClient";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useEffect } from "react";
 
-function Router() {
-  const { user, isLoading } = useAuth();
+// Lazy load pages
+const Home = lazy(() => import("@/pages/home"));
+const Landing = lazy(() => import("@/pages/landing"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Welcome = lazy(() => import("@/pages/welcome"));
+
+function AppContent() {
+  const { user, isProfileIncomplete } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (user && isProfileIncomplete() && location !== "/welcome") {
+      setLocation("/welcome");
+    }
+    if (user && !isProfileIncomplete() && location === "/welcome") {
+      setLocation("/");
+    }
+  }, [user, isProfileIncomplete, location, setLocation]);
+
+  if (user && isProfileIncomplete() && location !== "/welcome") {
+    // Prevent rendering app content while redirecting
+    return null;
+  }
 
   return (
-    <Switch>
-      {isLoading || !user ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-        </>
-      )}
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <ErrorBoundary fallback={<div>Something went wrong</div>}>
+        <Suspense fallback={<div>Loading...</div>}>
+          <Switch>
+            <Route path="/welcome" component={Welcome} />
+            <Route path="/" component={user ? Home : Landing} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
+      </ErrorBoundary>
+      <Toaster />
+    </>
   );
 }
 
-function App() {
-  // Enable dark mode by default for our stunning glassmorphism theme
-  document.documentElement.classList.add('dark');
-  
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="dark">
-          <Toaster />
-          <Router />
-        </div>
-      </TooltipProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;

@@ -1,18 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, Calendar, Users, Palette, Mail, Lock } from "lucide-react";
+import { Heart, Calendar, Users, Palette, Mail, Lock, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useAuth } from "../contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Landing() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { signIn, signUp, isLoading } = useAuth();
+  const { signIn, signUp, isLoading, user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      setLocation('/');
+    }
+  }, [user, setLocation]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

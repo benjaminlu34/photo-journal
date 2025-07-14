@@ -7,25 +7,23 @@ import { JournalWorkspace } from "@/components/journal/workspace";
 import { CollaborationPanel } from "@/components/journal/collaboration-panel";
 import { ViewToggle } from "@/components/journal/view-toggle";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "../contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarPlus } from "lucide-react";
 
 function HomeContent() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, signOut } = useAuth();
   const { toast } = useToast();
   const { currentDate, currentEntry } = useJournal();
 
   useEffect(() => {
     if (!isLoading && !user) {
       toast({
-        title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
+        title: "Session Expired",
+        description: "Please sign in to continue",
         variant: "destructive",
       });
-      setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 500);
+      // Don't redirect to /api/login - let the App component handle routing
     }
   }, [user, isLoading, toast]);
 
@@ -88,7 +86,18 @@ function HomeContent() {
 
               <Button
                 variant="ghost"
-                onClick={() => (window.location.href = "/api/logout")}
+                onClick={async () => {
+                  try {
+                    await signOut();
+                  } catch (error) {
+                    console.error('Logout error:', error);
+                    toast({
+                      title: "Logout failed",
+                      description: "Please try again",
+                      variant: "destructive",
+                    });
+                  }
+                }}
                 className="neu-nav-pill font-semibold active text-gray-700 hover:text-red-500"
               >
                 Logout

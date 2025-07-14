@@ -22,6 +22,7 @@ export interface IStorage {
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<UpsertUser>): Promise<User>;
   
   // Journal operations
   getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined>;
@@ -59,7 +60,11 @@ export class DatabaseStorage implements IStorage {
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values({
+        ...userData,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
       .onConflictDoUpdate({
         target: users.id,
         set: {
@@ -76,13 +81,26 @@ export class DatabaseStorage implements IStorage {
     const userData: UpsertUser = {
       id: supabaseUser.id,
       email: supabaseUser.email || undefined,
-      // We don't have these fields from Supabase by default
       firstName: undefined,
       lastName: undefined,
       profileImageUrl: undefined,
     };
 
     return this.upsertUser(userData);
+  }
+
+  async updateUser(id: string, updates: Partial<UpsertUser>): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    
+    if (!updatedUser) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    
+    return updatedUser;
   }
 
   // Journal operations
@@ -114,9 +132,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    // Ensure user exists before creating journal entry
+    const user = await this.getUser(entry.userId);
+    if (!user) {
+      // Create user record from Supabase auth
+      await this.upsertUserFromSupabase({
+        id: entry.userId,
+        email: undefined // Will be populated from auth context
+      });
+    }
+
     const [newEntry] = await db
       .insert(journalEntries)
-      .values(entry)
+      .values({
+        ...entry,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
       .returning();
     return newEntry;
   }
@@ -164,7 +196,11 @@ export class DatabaseStorage implements IStorage {
   async createContentBlock(block: InsertContentBlock): Promise<ContentBlock> {
     const [newBlock] = await db
       .insert(contentBlocks)
-      .values(block)
+      .values({
+        ...block,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
       .returning();
     return newBlock;
   }

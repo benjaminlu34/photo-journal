@@ -4,15 +4,22 @@ export interface AuthUser {
   id: string;
   email: string;
   createdAt: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
 }
 
 export interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
+  showProfileModal: boolean;
+  setShowProfileModal: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  updateProfile: (profileData: Partial<AuthUser>) => Promise<AuthUser | undefined>;
+  isProfileIncomplete: () => boolean;
 }
 
 export interface JwtPayload {
