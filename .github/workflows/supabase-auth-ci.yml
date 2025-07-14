@@ -1,0 +1,62 @@
+name: Supabase Auth CI
+
+on:
+  push:
+    branches: [ main, backend-setup ]
+    paths:
+      - 'client/src/contexts/auth-context.tsx'
+      - 'server/middleware/auth.ts'
+      - 'server/utils/jwt.ts'
+      - 'shared/auth.ts'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/src/contexts/auth-context.tsx'
+      - 'server/middleware/auth.ts'
+      - 'server/utils/jwt.ts'
+      - 'shared/auth.ts'
+
+jobs:
+  test-auth:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+          
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Set up environment variables for auth tests
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env
+          echo "SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_JWT_SECRET }}" >> .env
+          
+      - name: Run auth unit tests
+        run: pnpm vitest run tests/unit/jwt.test.ts 

@@ -10,11 +10,23 @@ import {
   boolean,
   decimal,
   uuid,
+  customType,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-
+const bytea = (name: string) =>
+  customType<{ data: Uint8Array; driverData: Buffer }>({
+    dataType() {
+      return "bytea";               // ← emitted into SQL
+    },
+    toDriver(value) {               // Drizzle → PG
+      return Buffer.isBuffer(value) ? value : Buffer.from(value);
+    },
+    fromDriver(value) {             // PG → Drizzle
+      return new Uint8Array(value); // node-pg gives Buffer
+    },
+  })(name);
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessions = pgTable(
@@ -75,6 +87,23 @@ export const sharedEntries = pgTable("shared_entries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// YJS Snapshots table for CRDT persistence
+export const yjs_snapshots = pgTable(
+  "yjs_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    boardId: uuid("board_id").notNull(),
+    version: integer("version").notNull(),
+    snapshot: bytea("snapshot").notNull(), 
+    createdAt: timestamp("created_at").defaultNow(),
+    metadata: jsonb("metadata"),
+  },
+  (t) => ({
+    boardVersionIdx: index("board_version_idx").on(t.boardId, t.version),
+    createdAtIdx: index("created_at_idx").on(t.createdAt),
+  }),
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   journalEntries: many(journalEntries),
@@ -123,6 +152,10 @@ export const sharedEntriesRelations = relations(sharedEntries, ({ one }) => ({
   }),
 }));
 
+export const yjs_snapshotsRelations = relations(yjs_snapshots, ({ one }) => ({
+  // Can be extended later to relate to boards or other entities
+}));
+
 // Schemas
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({
   id: true,
@@ -158,3 +191,5 @@ export type Friendship = typeof friendships.$inferSelect;
 export type InsertFriendship = z.infer<typeof insertFriendshipSchema>;
 export type SharedEntry = typeof sharedEntries.$inferSelect;
 export type InsertSharedEntry = z.infer<typeof insertSharedEntrySchema>;
+export type YjsSnapshot = typeof yjs_snapshots.$inferSelect;
+export type InsertYjsSnapshot = typeof yjs_snapshots.$inferInsert;

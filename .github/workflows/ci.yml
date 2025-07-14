@@ -1,0 +1,123 @@
+# NOTE: The three jobs (unit, pg-tap, smoke) are best kept separate for clarity and parallelism.
+# - unit: runs fast JS/TS tests, no DB needed
+# - pg-tap: runs SQL-level tests, needs a clean DB
+# - smoke: runs end-to-end server checks, needs DB and server
+# Merging would make the workflow slower and less clear, as each job has different dependencies and setup.
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
+      - run: pnpm install
+      - run: pnpm test
+
+  pg-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
+      - run: pnpm install
+      - name: Build and start Postgres with pgTAP
+        run: docker compose -f docker-compose.ci.yml up -d db
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            docker exec pj_postgres pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Set up DATABASE_URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
+      - name: Run migrations
+        run: pnpm db:push:local
+      - name: Install pgTAP extension in DB
+        run: |
+           docker exec pj_postgres psql -U postgres -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
+      - name: Install pg_prove
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client pgtap
+      - name: Run pg_tap tests
+        run: |
+          PGPASSWORD=postgres pg_prove -U postgres -h localhost -d photo_journal tests/pg-tap/*.sql
+      - name: Stop and clean up containers
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Use Node 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Check pnpm version and PATH
+        run: |
+          echo $PATH
+          which pnpm
+          pnpm --version
+      - run: pnpm install
+      - name: Build and start Postgres with pgTAP
+        run: docker compose -f docker-compose.ci.yml up -d db
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            docker exec pj_postgres pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Set up DATABASE_URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/photo_journal" > .env
+      - name: Run migrations
+        run: pnpm db:push:local
+      - name: Install pgTAP extension in DB
+        run: |
+           docker exec pj_postgres psql -U postgres -d photo_journal -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
+      - name: Start server
+        run: |
+          pnpm dev &
+          sleep 15
+      - name: Check server health
+        run: curl -sSf http://localhost:5000 > /dev/null
+      - name: Stop and clean up containers
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v 
