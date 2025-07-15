@@ -6,7 +6,9 @@ vite.config.ts.*
 *.tar.gz
 .db
 .env
-.kilocode/
+.kilocode/rules/*
+.kilocode/rules/memory-bank/*
 .env.example
-.env.local.supabase
-.docs/
+.env.local
+.env.supabase
+/scripts/check-users.bat
