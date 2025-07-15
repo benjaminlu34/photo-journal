@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
 
+// Import crypto and path utilities for secure filename generation
+// Note: In browser environment, crypto is available globally
+// path module is not available, so we'll implement basic path operations
+
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
@@ -242,9 +246,39 @@ export class StorageService {
   }
 
   private generateSecureFileName(userId: string, originalName: string): string {
-    const extension = originalName.split('.').pop()?.toLowerCase() || 'jpg';
+    // Comprehensive filename sanitization to prevent path traversal and injection attacks
+    
+    // Extract extension using last occurrence of dot
+    const lastDotIndex = originalName.lastIndexOf('.');
+    let extension = 'jpg'; // Default fallback
+    let baseName = originalName;
+    
+    if (lastDotIndex > 0) {
+      extension = originalName.slice(lastDotIndex + 1).toLowerCase();
+      baseName = originalName.slice(0, lastDotIndex);
+    }
+    
+    // Validate extension against whitelist
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    const sanitizedExtension = allowedExtensions.includes(extension) ? extension : 'jpg';
+    
+    // Sanitize base filename: remove special characters, prevent path traversal
+    const sanitizedBaseName = baseName
+      .replace(/[^a-zA-Z0-9-]/g, '') // Remove all non-alphanumeric characters except hyphens
+      .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+      .slice(0, 50); // Limit length to prevent buffer issues
+    
+    // Use crypto-secure random string instead of Math.random()
     const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 10);
-    return `${userId}/${timestamp}-${randomString}.${extension}`;
+    const randomBytes = new Uint8Array(8);
+    crypto.getRandomValues(randomBytes);
+    const randomString = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    // Ensure no empty base name
+    const finalBaseName = sanitizedBaseName || 'profile';
+    
+    return `${userId}/${finalBaseName}-${timestamp}-${randomString}.${sanitizedExtension}`;
   }
 }
