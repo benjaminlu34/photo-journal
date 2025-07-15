@@ -45,9 +45,25 @@ export default function Landing() {
         description: "Please check your email to verify your account",
       });
     } catch (error: any) {
+      let errorMessage = "Sign up failed. Please try again";
+      // Handle specific Supabase auth errors
+      if (error.message?.includes("User already registered") ||
+          error.message?.includes("already exists") ||
+          error.message?.includes("duplicate")) {
+        errorMessage = "This email is already registered. Please sign in instead.";
+      } else if (error.message?.includes("invalid email")) {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.message?.includes("password")) {
+        errorMessage = "Password must be at least 6 characters.";
+      } else if (error.message?.includes("rate limit")) {
+        errorMessage = "Too many attempts. Please try again later.";
+      } else {
+        errorMessage = error.message || "Sign up failed. Please try again.";
+      }
+
       toast({
         title: "Sign up failed",
-        description: error.message || "Please try again",
+        description: errorMessage,
         variant: "destructive",
       });
     }

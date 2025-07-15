@@ -11,5 +11,5 @@ export default function Welcome() {
     setLocation("/");
   };
 
-  return <WelcomePage user={user} onComplete={handleComplete} />;
+  return <WelcomePage user={user} onComplete={handleComplete} updateProfile={updateProfile} />;
 }
