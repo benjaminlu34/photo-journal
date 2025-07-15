@@ -155,6 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateProfileSchema = z.object({
         firstName: z.string().min(0).optional(), // Allow empty strings
         lastName: z.string().min(0).optional(),  // Allow empty strings
+        profileImageUrl: z.string().optional(), // Allow profile image URL updates
       });
       
       const updates = updateProfileSchema.parse(req.body);

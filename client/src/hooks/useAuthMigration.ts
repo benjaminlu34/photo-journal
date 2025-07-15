@@ -7,17 +7,55 @@ export function useAuthMigration() {
   const queryClient = useQueryClient();
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    // TanStack Query will automatically refetch on auth state change
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+      // Enhance error messages for better UX
+      let enhancedError = error;
+      
+      if (error.message.includes("Invalid login credentials")) {
+        enhancedError.message = "Invalid email or password. Please check your credentials and try again.";
+      } else if (error.message.includes("Email not confirmed")) {
+        enhancedError.message = "Please check your email and confirm your account before signing in.";
+      }
+      
+      throw enhancedError;
+    }
+    
+    return data;
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
-    if (error) throw error;
+    
+    // Handle both error cases and duplicate registration
+    if (error) {
+      // Enhance error messages for better UX
+      let enhancedError = error;
+      
+      if (error.message.includes("User already registered")) {
+        enhancedError.message = "This email is already registered. Please sign in instead.";
+      } else if (error.message.includes("email") && error.message.includes("taken")) {
+        enhancedError.message = "This email is already registered. Please sign in instead.";
+      } else if (error.message.includes("already exists")) {
+        enhancedError.message = "This email is already registered. Please sign in instead.";
+      }
+      
+      throw enhancedError;
+    }
+    
+    // Check if user already exists (Supabase returns 200 but no session)
+    if (!data.user || !data.session) {
+      // This indicates the email was already registered
+      const error = new Error("This email is already registered. Please sign in instead.");
+      (error as any).code = "USER_ALREADY_EXISTS";
+      throw error;
+    }
+    
+    return data;
   };
 
   const signOut = async () => {
