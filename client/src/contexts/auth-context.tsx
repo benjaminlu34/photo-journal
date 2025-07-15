@@ -87,8 +87,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         setUser(authUser);
         
-        // For sign-in and sign-up events, fetch the complete profile
-        if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
+        // For sign-in events, fetch the complete profile
+        if (event === 'SIGNED_IN') {
           fetchUserProfile(session.user.id);
         }
       } else {
@@ -127,6 +127,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signOut = async () => {
+    // Import dynamically to avoid circular dependencies
+    const { cleanupUserState } = await import('../lib/cleanup');
+    
+    // Clean up all user state before signing out
+    await cleanupUserState();
+    
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };

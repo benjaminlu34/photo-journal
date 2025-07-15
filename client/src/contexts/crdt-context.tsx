@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useCallback } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useUser } from '../hooks/useUser';
 import { useBoardStore } from '../lib/board-store';
 import { getBoardSdk } from '../lib/board-sdk';
 import type { NoteData } from '../types/notes';
@@ -31,18 +31,18 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
   children, 
   spaceId = 'default-board' 
 }) => {
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const { init } = useBoardStore((s) => s.actions);
   
   // Initialize board store with the SDK
   React.useEffect(() => {
-    init(spaceId, (user as User)?.id || 'anonymous', (user as User)?.firstName || 'Anonymous');
+    init(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
   }, [spaceId, init, user]);
 
   // Get connection status from the SDK
   const [isConnected, setIsConnected] = React.useState(false);
   React.useEffect(() => {
-    const sdk = getBoardSdk(spaceId, (user as User)?.id || 'anonymous', (user as User)?.firstName || 'Anonymous');
+    const sdk = getBoardSdk(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
     const awareness = sdk.presence;
     
     const handleConnectivityChange = () => {

@@ -7,12 +7,14 @@ import { JournalWorkspace } from "@/components/journal/workspace";
 import { CollaborationPanel } from "@/components/journal/collaboration-panel";
 import { ViewToggle } from "@/components/journal/view-toggle";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "../contexts/auth-context";
+import { useUser } from "@/hooks/useUser";
+import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarPlus } from "lucide-react";
 
 function HomeContent() {
-  const { user, isLoading, signOut } = useAuth();
+  const { data: user, isLoading } = useUser();
+  const { signOut } = useAuthMigration();
   const { toast } = useToast();
   const { currentDate, currentEntry } = useJournal();
 
@@ -23,7 +25,6 @@ function HomeContent() {
         description: "Please sign in to continue",
         variant: "destructive",
       });
-      // Don't redirect to /api/login - let the App component handle routing
     }
   }, [user, isLoading, toast]);
 

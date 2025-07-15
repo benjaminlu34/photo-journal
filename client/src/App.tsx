@@ -1,34 +1,76 @@
 import { Switch, Route, useLocation } from "wouter";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { useUser } from "@/hooks/useUser";
 import { queryClient } from "@/lib/queryClient";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 // Lazy load pages
 const Home = lazy(() => import("@/pages/home"));
 const Landing = lazy(() => import("@/pages/landing"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Welcome = lazy(() => import("@/pages/welcome"));
+const Profile = lazy(() => import("@/pages/profile"));
 
 function AppContent() {
-  const { user, isProfileIncomplete } = useAuth();
+  const { data: user, isLoading, error, refetch } = useUser();
   const [location, setLocation] = useLocation();
 
+  const isProfileIncomplete = user && (!user.firstName || !user.lastName);
+
+  // Handle routing based on user state
   useEffect(() => {
-    if (user && isProfileIncomplete() && location !== "/welcome") {
+    if (isLoading) return;
+    
+    if (user && isProfileIncomplete && location !== "/welcome") {
       setLocation("/welcome");
     }
-    if (user && !isProfileIncomplete() && location === "/welcome") {
+    if (user && !isProfileIncomplete && location === "/welcome") {
       setLocation("/");
     }
-  }, [user, isProfileIncomplete, location, setLocation]);
+  }, [user, isProfileIncomplete, location, setLocation, isLoading]);
 
-  if (user && isProfileIncomplete() && location !== "/welcome") {
-    // Prevent rendering app content while redirecting
-    return null;
+  // Handle Supabase auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        refetch();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [refetch]);
+
+  // Handle errors
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Error Loading User</h1>
+          <p className="text-gray-600 mb-4">{(error as Error).message}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -37,6 +79,7 @@ function AppContent() {
         <Suspense fallback={<div>Loading...</div>}>
           <Switch>
             <Route path="/welcome" component={Welcome} />
+            <Route path="/profile" component={Profile} />
             <Route path="/" component={user ? Home : Landing} />
             <Route component={NotFound} />
           </Switch>
@@ -50,9 +93,7 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <AppContent />
     </QueryClientProvider>
   );
 }

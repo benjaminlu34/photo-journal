@@ -6,13 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Calendar, Users, Palette, Mail, Lock, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useAuth } from "../contexts/auth-context";
+import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Landing() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { signIn, signUp, isLoading, user } = useAuth();
+  const { signIn, signUp, isLoading, user } = useAuthMigration();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -67,7 +67,7 @@ export default function Landing() {
                 <h1 className="text-2xl font-bold text-gray-900">
                   Photo Journal
                 </h1>
-                <p className="text-sm text-gray-600">Capture your memories</p>
+                <p className="text-sm text-gray-600">Built for Allie!</p>
               </div>
             </div>
           </div>
@@ -230,21 +230,21 @@ export default function Landing() {
             {/* Mock content blocks */}
             <div className="absolute top-8 left-8 w-48 h-32 bg-gradient-to-br from-yellow-200 to-yellow-300 rounded-2xl transform rotate-2 p-4 shadow-lg">
               <div className="text-sm text-yellow-800 font-medium">
-                Morning thoughts
+                goodmornings :)
               </div>
             </div>
             <div className="absolute top-16 right-12 w-56 h-40 bg-white rounded-2xl transform -rotate-1 p-3 shadow-lg border border-purple-100">
               <div className="bg-purple-100 rounded-xl h-24 mb-2"></div>
               <div className="text-xs text-gray-600">
-                Photo memories
+                selfies !
               </div>
             </div>
             <div className="absolute bottom-8 left-16 w-52 h-36 bg-gradient-to-br from-purple-200 to-purple-300 rounded-2xl transform rotate-1 p-4 shadow-lg">
               <div className="text-sm text-purple-800 font-medium">
-                ✅ Morning walk
+                ✅ Watch MSI!
               </div>
               <div className="text-sm text-purple-800 font-medium">
-                ✅ Read a book
+                ✅ Call on discord :)
               </div>
             </div>
           </div>
@@ -255,7 +255,7 @@ export default function Landing() {
       <div className="bg-white border-t border-purple-100 mt-12">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="text-center">
-            <p className="text-gray-600">Built with ❤️ and modern web technologies</p>
+            <p className="text-gray-600">Built with ❤️ mwah!</p>
           </div>
         </div>
       </div>

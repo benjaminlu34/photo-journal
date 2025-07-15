@@ -8,13 +8,15 @@ import type { NoteData } from '@/types/notes';
 export type BoardSDK = ReturnType<typeof createBoardSDK>;
 
 // Singleton registry for BoardSDK instances
-const sdkRegistry: Record<string, ReturnType<typeof createBoardSDK>> = {};
+export const sdkRegistry: Record<string, ReturnType<typeof createBoardSDK>> = {};
 
 export function getBoardSdk(spaceId: string, userId = 'anonymous', userName = 'Anonymous') {
-  if (!sdkRegistry[spaceId]) {
-    sdkRegistry[spaceId] = createBoardSDK({ spaceId, userId, userName });
+  // Create user-scoped key to prevent cross-user contamination
+  const userScopedKey = `${spaceId}-${userId}`;
+  if (!sdkRegistry[userScopedKey]) {
+    sdkRegistry[userScopedKey] = createBoardSDK({ spaceId, userId, userName });
   }
-  return sdkRegistry[spaceId];
+  return sdkRegistry[userScopedKey];
 }
 
 export function createBoardSDK({

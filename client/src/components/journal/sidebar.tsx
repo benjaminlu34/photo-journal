@@ -1,21 +1,25 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { useAuth } from "@/hooks/useAuth";
+import { useUser } from "@/hooks/useUser";
 import {
   ChevronLeft,
   ChevronRight,
   Heart,
   CalendarDays,
   Calendar,
+  User,
 } from "lucide-react";
+import { ProfilePicture } from "@/components/profile/ProfilePicture";
+import { getInitials } from "@/hooks/useProfilePicture";
 
 export function JournalSidebar() {
   const { currentDate, setCurrentDate, friends } = useJournal();
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [, setLocation] = useLocation();
 
   const navigateMonth = (direction: "prev" | "next") => {
     const newMonth = new Date(currentMonth);
@@ -179,16 +183,7 @@ export function JournalSidebar() {
               className="flex items-center space-x-3 p-3 rounded-xl neu-card interactive cursor-pointer"
             >
               <div className="relative">
-                <Avatar className="w-12 h-12 glass-card">
-                  <AvatarImage src={friend.profileImageUrl || ""} />
-                  <AvatarFallback className="gradient-button text-white font-bold">
-                    {(
-                      friend.firstName?.[0] ||
-                      friend.email?.[0] ||
-                      "?"
-                    ).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <ProfilePicture userId={friend.id} size="md" />
                 <div
                   className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${
                     friend.isOnline
@@ -235,6 +230,23 @@ export function JournalSidebar() {
               🎨 New content blocks added: photos, notes
             </div>
           </div>
+        </div>
+
+        {/* Profile Section */}
+        <div className="mt-12 border-border/20">
+          <Button
+            variant="ghost"
+            className="neu-card w-full flex items-center justify-center space-x-3 p-3 rounded-lg hover:bg-[var(--secondary)] hover:border-[var(--border)] text-[var(--foreground)]"
+            onClick={() => setLocation('/profile')}
+          >
+            <ProfilePicture userId={user?.id} size="sm" />
+            <div className="text-left">
+              <p className="font-medium text-sm">
+                {user?.firstName || ''} {user?.lastName || ''}
+              </p>
+            </div>
+            <User className="w-9 h-9 text-[var(--muted-foreground)]" />
+          </Button>
         </div>
       </div>
     </div>
