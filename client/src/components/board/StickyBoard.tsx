@@ -4,7 +4,7 @@ import React, { useCallback, useMemo } from 'react';
 import { StickyNoteShell }   from '../noteShell/StickyNoteShell';
 import { noteRegistry }      from './noteRegistry';
 import { useBoardStore }     from '../../lib/board-store';   // ← path matches the new store
-import { useAuth }           from '../../hooks/useAuth';
+import { useUser }           from '../../hooks/useUser';
 import { useCRDT }           from '@/contexts/crdt-context';
 import { ErrorBoundary, NoteErrorBoundary } from '../ErrorBoundary';
 
@@ -25,7 +25,7 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
   const { create, update, remove } = useBoardStore((s) => s.actions);
 
   // auth / presence
-  const { user }       = useAuth();
+  const { data: user } = useUser();
   const { isConnected } = useCRDT();        // for the "offline" chip
 
   /* ─────────────────────────── side-effects ───────────────────────── */

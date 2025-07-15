@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 
 import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
@@ -106,13 +107,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   /* ----------------  ROUTES  ------------------ */
 
+  /* Health check - public endpoint */
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   /* Auth */
   app.get("/api/auth/user", isAuthenticatedSupabase, async (req, res) => {
     try {
-      const user = await storage.getUser(getUserId(req));
+      const userId = getUserId(req);
+      const email = getUserEmail(req);
+      
+      let user = await storage.getUser(userId);
+      
+      if (!user) {
+        // Create user if they don't exist in local DB
+        if (email) {
+          user = await storage.upsertUser({
+            id: userId,
+            email,
+            firstName: undefined,
+            lastName: undefined,
+          });
+          return res.json(user);
+        }
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Auto-populate email for legacy users with null email
+      if (!user.email && email) {
+        user = await storage.updateUser(userId, { email });
+      }
+      
       return res.json(user);
     } catch (err) {
-      console.error("GET /api/auth/user:", err);
+      console.error("GET /api/auth/user error:", err);
       return res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -124,15 +153,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create a schema for profile updates
       const updateProfileSchema = z.object({
-        firstName: z.string().min(1).optional(),
-        lastName: z.string().min(1).optional(),
-        profileImageUrl: z.string().url().optional(),
+        firstName: z.string().min(0).optional(), // Allow empty strings
+        lastName: z.string().min(0).optional(),  // Allow empty strings
       });
       
       const updates = updateProfileSchema.parse(req.body);
       
       // Update the user profile
       const updatedUser = await storage.updateUser(userId, updates);
+      console.log('user updated!', updatedUser);
       return res.json(updatedUser);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -143,48 +172,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* Upload profile image */
-  app.post("/api/upload", isAuthenticatedSupabase, upload.single("file"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      const userId = getUserId(req);
-      
-      // Validate that the file belongs to the user
-      if (!validateFileOwnership(userId, path.basename(req.file.path))) {
-        // This should never happen with our setup, but just in case
-        fs.unlinkSync(req.file.path); // Delete the file
-        return res.status(403).json({ message: "Unauthorized file access" });
-      }
-
-      // Get the server URL
-      const protocol = req.protocol;
-      const host = req.get("host");
-      
-      // Create the file URL with user ID in the path for easy validation
-      const fileUrl = `${protocol}://${host}/uploads/${userId}/${path.basename(req.file.path)}`;
-      
-      // Store file metadata in database (optional enhancement)
-      // await storage.createFileRecord({
-      //   userId,
-      //   filename: path.basename(req.file.path),
-      //   originalName: req.file.originalname,
-      //   mimeType: req.file.mimetype,
-      //   size: req.file.size,
-      //   url: fileUrl
-      // });
-      
-      return res.json({ 
-        url: fileUrl,
-        filename: path.basename(req.file.path)
-      });
-    } catch (err) {
-      console.error("POST /api/upload:", err);
-      return res.status(500).json({ message: "Failed to upload file" });
-    }
+  /* Rate limiting for uploads */
+  const uploadRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 uploads per window
+    message: 'Too many upload attempts, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
   });
+
+  /* Enhanced file validation */
+  const validateFileUpload = (req: Request, file: Express.Multer.File): string | null => {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const maxFileSize = 2 * 1024 * 1024; // 2MB
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.';
+    }
+
+    if (file.size > maxFileSize) {
+      return 'File size must be less than 2MB.';
+    }
+
+    return null;
+  };
+
+  /* Upload profile image - with enhanced security */
+  app.post("/api/upload",
+    uploadRateLimit,
+    isAuthenticatedSupabase,
+    upload.single("file"),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const userId = getUserId(req);
+        
+        // Enhanced file validation
+        const validationError = validateFileUpload(req, req.file);
+        if (validationError) {
+          fs.unlinkSync(req.file.path); // Delete invalid file
+          return res.status(400).json({ message: validationError });
+        }
+
+        // Validate that the file belongs to the user
+        if (!validateFileOwnership(userId, path.basename(req.file.path))) {
+          fs.unlinkSync(req.file.path); // Delete the file
+          return res.status(403).json({ message: "Unauthorized file access" });
+        }
+
+        // Get the server URL
+        const protocol = req.protocol;
+        const host = req.get("host");
+        
+        // Create the file URL with user ID in the path for easy validation
+        const fileUrl = `${protocol}://${host}/uploads/${userId}/${path.basename(req.file.path)}`;
+        
+        // Store file metadata in database
+        // await storage.createFileRecord({
+        //   userId,
+        //   filename: path.basename(req.file.path),
+        //   originalName: req.file.originalname,
+        //   mimeType: req.file.mimetype,
+        //   size: req.file.size,
+        //   url: fileUrl
+        // });
+        
+        return res.json({
+          url: fileUrl,
+          filename: path.basename(req.file.path)
+        });
+      } catch (err) {
+        console.error("POST /api/upload:", err);
+        return res.status(500).json({ message: "Failed to upload file" });
+      }
+    }
+  );
 
   /* Serve uploaded files with user validation */
   app.use("/uploads/:userId", isAuthenticatedSupabase, (req, res, next) => {
