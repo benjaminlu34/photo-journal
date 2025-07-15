@@ -11,9 +11,9 @@ export const getSupabaseUrl = (): string => {
 export const getProfilePictureUrl = (userId: string | undefined): string | undefined => {
   if (!userId || !getSupabaseUrl()) return undefined;
   
-  // For backward compatibility, construct the URL pattern
-  // Note: This may not reflect the actual latest profile picture
-  return `${getSupabaseUrl()}/storage/v1/object/public/profile-pictures/${userId}/profile.jpg`;
+  // This function is deprecated and should not be used
+  // Use useProfilePicture hook or StorageService.getLatestProfilePictureUrl instead
+  return undefined;
 };
 
 /**

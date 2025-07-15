@@ -43,6 +43,12 @@ export class StorageService {
     const fileName = this.generateSecureFileName(userId, file.name);
     
     try {
+      // Ensure we have a valid session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No authenticated session found');
+      }
+
       // Clean up existing profile pictures first
       await this.cleanupUserProfilePictures(userId);
 
@@ -57,13 +63,17 @@ export class StorageService {
 
       if (error) throw error;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      // Get signed URL with authentication
+      const { data: signedData, error: signedError } = await supabase.storage
         .from(this.bucket)
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 3600); // 1 hour expiry
+
+      if (signedError) {
+        throw new Error('Failed to create signed URL');
+      }
 
       return {
-        url: publicUrl,
+        url: signedData.signedUrl,
         path: fileName,
         size: file.size,
         mimeType: file.type,
@@ -162,20 +172,46 @@ export class StorageService {
     }
   }
 
-  getProfilePictureUrl(userId: string, fileName?: string): string | null {
+  /**
+   * Get authenticated URL for profile picture using signed URLs
+   * This ensures proper authentication and prevents 400 errors
+   */
+  async getProfilePictureUrl(userId: string, fileName?: string): Promise<string | null> {
     if (!fileName) {
       return null;
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from(this.bucket)
-      .getPublicUrl(fileName);
+    // Ensure the fileName includes the user ID for security
+    if (!fileName.startsWith(`${userId}/`)) {
+      fileName = `${userId}/${fileName}`;
+    }
 
-    return publicUrl;
+    try {
+      const { data, error } = await supabase.storage
+        .from(this.bucket)
+        .createSignedUrl(fileName, 3600); // 1 hour expiry
+
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        return null;
+      }
+
+      return data?.signedUrl || null;
+    } catch (error) {
+      console.error('Failed to create signed URL:', error);
+      return null;
+    }
   }
 
   async getLatestProfilePictureUrl(userId: string): Promise<string | null> {
     try {
+      // Ensure we have a valid session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No authenticated session found');
+        return null;
+      }
+
       const { data, error } = await supabase.storage
         .from(this.bucket)
         .list(`${userId}/`, {
@@ -185,7 +221,20 @@ export class StorageService {
 
       if (error || !data?.length) return null;
 
-      return this.getProfilePictureUrl(userId, data[0].name);
+      // Construct the full path including user ID folder
+      const fullPath = `${userId}/${data[0].name}`;
+      
+      // Use signed URL with authentication
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(this.bucket)
+        .createSignedUrl(fullPath, 3600); // 1 hour expiry
+
+      if (signedError) {
+        console.error('Error creating signed URL:', signedError);
+        return null;
+      }
+
+      return signedData?.signedUrl || null;
     } catch (error) {
       console.error('Failed to get latest profile picture:', error);
       return null;

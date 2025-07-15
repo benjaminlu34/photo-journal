@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { useUser } from '@/hooks/useUser';
 import { supabase } from '@/lib/supabase';
 import { StorageService } from '@/services/storage.service';
 import { useToast } from '@/hooks/use-toast';
-import { getInitials } from '@/hooks/useProfilePicture';
+import { getInitials, invalidateProfilePicture } from '@/hooks/useProfilePicture';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -19,7 +19,6 @@ interface EditProfileModalProps {
     email: string;
     first_name: string | null;
     last_name: string | null;
-    profile_picture_url: string | null;
   };
 }
 
@@ -30,8 +29,18 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   const [firstName, setFirstName] = useState(user.first_name || '');
   const [lastName, setLastName] = useState(user.last_name || '');
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
-  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(user.profile_picture_url);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load current profile picture on mount
+  React.useEffect(() => {
+    const loadProfilePicture = async () => {
+      const storageService = StorageService.getInstance();
+      const url = await storageService.getLatestProfilePictureUrl(user.id);
+      setProfilePicturePreview(url);
+    };
+    loadProfilePicture();
+  }, [user.id]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,6 +81,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       const storageService = StorageService.getInstance();
       const result = await storageService.uploadProfilePicture(user.id, file);
       
+      // Invalidate cache and update preview
+      invalidateProfilePicture(user.id);
+      setProfilePicturePreview(result.url);
+      
       toast({
         title: "Success",
         description: "Profile picture updated and old photos cleaned up",
@@ -95,6 +108,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       await storageService.deleteAllUserProfilePictures(user.id);
       
       setProfilePicturePreview(null);
+      invalidateProfilePicture(user.id);
       
       toast({
         title: "Profile picture removed",
@@ -115,13 +129,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     setIsSubmitting(true);
 
     try {
-      let profilePictureUrl = user.profile_picture_url;
-
       if (profilePicture) {
-        const uploadedUrl = await uploadProfilePicture(profilePicture);
-        if (uploadedUrl) {
-          profilePictureUrl = uploadedUrl;
-        }
+        await uploadProfilePicture(profilePicture);
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -144,6 +153,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       }
 
       await refetch();
+      invalidateProfilePicture(user.id);
       
       toast({
         title: "Profile updated",
