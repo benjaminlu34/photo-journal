@@ -6,6 +6,7 @@ vite.config.ts.*
 *.tar.gz
 .db
 .env
-.kilocode
+.kilocode/
 .env.example
 .env.local.supabase
+.docs/
