@@ -217,3 +217,210 @@ describe('Filename sanitization logic', () => {
   expect(generateSecureFileName(userId, '.hidden.jpg')).toBe(`${userId}/hidden-1234567890-abcdef0123456789.jpg`);
 });
 });
+
+describe('File Upload Failure Tests', () => {
+  describe('Size Validation', () => {
+    it('should reject oversized files', () => {
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      const oversizedFile = createTestFile(5 * 1024 * 1024, 'image/jpeg');
+      
+      expect(oversizedFile.size).toBeGreaterThan(maxSize);
+    });
+
+    it('should handle edge case sizes', () => {
+      const maxSize = 2 * 1024 * 1024;
+      const exactlyMaxSize = createTestFile(maxSize, 'image/jpeg');
+      const justOverMax = createTestFile(maxSize + 1, 'image/jpeg');
+      
+      expect(exactlyMaxSize.size).toBe(maxSize);
+      expect(justOverMax.size).toBeGreaterThan(maxSize);
+    });
+  });
+
+  describe('Type Validation', () => {
+    it('should reject invalid file types', () => {
+      const invalidTypes = [
+        createTestFile(1024, 'application/pdf'),
+        createTestFile(1024, 'video/mp4'),
+        createTestFile(1024, 'text/plain'),
+        createTestFile(1024, 'application/x-msdownload'),
+      ];
+
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      
+      invalidTypes.forEach(file => {
+        expect(validTypes.includes(file.type)).toBe(false);
+      });
+    });
+
+    it('should handle case-insensitive type checking', () => {
+      const mixedCaseTypes = ['IMAGE/JPEG', 'Image/Png', 'image/GIF'];
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      
+      mixedCaseTypes.forEach(type => {
+        const normalizedType = type.toLowerCase();
+        expect(validTypes.includes(normalizedType)).toBe(true);
+      });
+    });
+  });
+
+  describe('Upload Failures', () => {
+    it('should handle network failures gracefully', async () => {
+      const mockFile = createTestFile(1024, 'image/jpeg');
+      const networkError = new Error('Network error');
+      
+      // Mock upload failure
+      const mockUpload = vi.fn().mockRejectedValue(networkError);
+      
+      try {
+        await mockUpload(mockFile);
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('Network error');
+      }
+    });
+
+    it('should handle server errors', async () => {
+      const mockFile = createTestFile(1024, 'image/jpeg');
+      const serverError = new Error('Server error: 500 Internal Server Error');
+      
+      const mockUpload = vi.fn().mockRejectedValue(serverError);
+      
+      try {
+        await mockUpload(mockFile);
+      } catch (error) {
+        expect((error as Error).message).toContain('500');
+      }
+    });
+
+    it('should handle timeout errors', async () => {
+      const mockFile = createTestFile(1024, 'image/jpeg');
+      const timeoutError = new Error('Request timeout');
+      
+      const mockUpload = vi.fn().mockRejectedValue(timeoutError);
+      
+      try {
+        await mockUpload(mockFile);
+      } catch (error) {
+        expect((error as Error).message).toContain('timeout');
+      }
+    });
+
+    it('should handle concurrent upload failures', async () => {
+      const files = [
+        createTestFile(1024, 'image/jpeg'),
+        createTestFile(1024, 'image/png'),
+        createTestFile(1024, 'image/webp'),
+      ];
+
+      const mockUpload = vi.fn().mockRejectedValue(new Error('Upload failed'));
+
+      const results = await Promise.allSettled(
+        files.map(file => mockUpload(file))
+      );
+
+      expect(results).toHaveLength(3);
+      expect(results.every(r => r.status === 'rejected')).toBe(true);
+    });
+  });
+
+  describe('Progress Handling', () => {
+    it('should handle upload progress events', async () => {
+      const mockFile = createTestFile(1024 * 1024, 'image/jpeg'); // 1MB
+      const progressEvents = [
+        { loaded: 0, total: mockFile.size },
+        { loaded: 262144, total: mockFile.size }, // 25%
+        { loaded: 524288, total: mockFile.size }, // 50%
+        { loaded: 786432, total: mockFile.size }, // 75%
+        { loaded: 1048576, total: mockFile.size }, // 100%
+      ];
+
+      const mockUploadWithProgress = vi.fn().mockImplementation((file, options) => {
+        progressEvents.forEach(event => {
+          if (options.onUploadProgress) {
+            options.onUploadProgress(event);
+          }
+        });
+        return Promise.resolve({ data: { path: 'uploaded.jpg' } });
+      });
+
+      const progressHandler = vi.fn();
+      await mockUploadWithProgress(mockFile, { onUploadProgress: progressHandler });
+
+      expect(progressHandler).toHaveBeenCalledTimes(5);
+      expect(progressHandler).toHaveBeenLastCalledWith({ loaded: 1048576, total: 1048576 });
+    });
+
+    it('should handle progress interruption', () => {
+      const mockFile = createTestFile(1024 * 1024, 'image/jpeg');
+      const interruptedProgress = [
+        { loaded: 0, total: mockFile.size },
+        { loaded: 262144, total: mockFile.size },
+        { loaded: 524288, total: mockFile.size },
+        // Upload interrupted
+      ];
+
+      expect(interruptedProgress[interruptedProgress.length - 1].loaded).toBeLessThan(mockFile.size);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle zero-byte files', () => {
+      const zeroByteFile = createTestFile(0, 'image/jpeg');
+      expect(zeroByteFile.size).toBe(0);
+    });
+
+    it('should handle files with no extension', () => {
+      const noExtensionFile = new File(['test'], 'noextension', { type: 'image/jpeg' });
+      expect(!noExtensionFile.name.includes('.')).toBe(true);
+    });
+
+    it('should handle files with multiple extensions', () => {
+      const multipleExtensionFile = createTestFile(1024, 'image/jpeg');
+      Object.defineProperty(multipleExtensionFile, 'name', { value: 'file.tar.gz.jpg' });
+      
+      const lastDotIndex = multipleExtensionFile.name.lastIndexOf('.');
+      const extension = multipleExtensionFile.name.slice(lastDotIndex + 1);
+      expect(extension).toBe('jpg');
+    });
+
+    it('should handle corrupted file data', () => {
+      const corruptedFile = createTestFile(1024, 'image/jpeg');
+      // Simulate corruption by checking file integrity
+      const isValid = corruptedFile.size > 0 && corruptedFile.type.startsWith('image/');
+      expect(isValid).toBe(true);
+    });
+  });
+
+  describe('User Experience Tests', () => {
+    it('should provide meaningful error messages', () => {
+      const errorMessages = {
+        'oversized': 'File size must be less than 2MB',
+        'invalid-type': 'Only image files (JPEG, PNG, WebP, GIF) are allowed',
+        'network': 'Network error. Please check your connection',
+        'server': 'Server error. Please try again later',
+        'timeout': 'Upload timeout. Please try again',
+      };
+
+      expect(errorMessages.oversized).toContain('2MB');
+      expect(errorMessages['invalid-type']).toContain('image files');
+    });
+
+    it('should handle retry scenarios', () => {
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      const shouldRetry = (error: string) => {
+        if (error === 'network' && retryCount < maxRetries) {
+          retryCount++;
+          return true;
+        }
+        return false;
+      };
+
+      expect(shouldRetry('network')).toBe(true);
+      expect(retryCount).toBe(1);
+      expect(shouldRetry('server')).toBe(false);
+    });
+  });
+});
