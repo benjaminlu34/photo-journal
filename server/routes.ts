@@ -18,7 +18,7 @@ import {
   insertFriendshipSchema,
   insertSharedEntrySchema,
   users,
-} from "@shared/schema";
+} from "@shared/schema/schema";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */

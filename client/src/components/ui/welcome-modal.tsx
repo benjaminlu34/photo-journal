@@ -98,7 +98,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
       }
 
       const userId = session.user.id
-      const { StorageService } = await import('@/services/storage.service')
+      const { StorageService } = await import('@/services/storage.service/storage.service')
       const { invalidateProfilePicture } = await import('@/hooks/useProfilePicture')
       const storageService = StorageService.getInstance()
       

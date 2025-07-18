@@ -135,5 +135,13 @@ export default {
       },
     },
   },
+  safelist: [
+    // Theme colors for note color picker - safelist dynamic color classes
+    'bg-[#F4F7FF]', 'bg-[#FEF3C7]', 'bg-[#FCE7F3]', 'bg-[#DBEAFE]',
+    'bg-[#D1FAE5]', 'bg-[#E9D5FF]', 'bg-[#FED7AA]', 'bg-[#FECACA]',
+    'bg-[#CFFAFE]', 'bg-[#C7D2FE]',
+    // Pattern matching for any HEX color - using string pattern
+    { pattern: /bg-\[#[0-9A-Fa-f]{6}\]/, variants: ['hover', 'focus'] }
+  ],
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;

@@ -3,7 +3,7 @@ import 'dotenv/config';               // ← loads .env before anything else
 
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from '@shared/schema';
+import * as schema from '@shared/schema/schema';
 
 /* ------------------------------------------------------------------ */
 /*  Validate env                                                      */

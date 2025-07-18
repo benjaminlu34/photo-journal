@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
-import { EditProfileModal } from '@/components/profile/edit-profile-modal';
+import { EditProfileModal } from '@/components/profile/edit-profile-modal/edit-profile-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLocation } from 'wouter';
-import { ProfilePicture } from '@/components/profile/ProfilePicture';
+import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
 import { getInitials } from '@/hooks/useProfilePicture';
 
 export default function ProfilePage() {

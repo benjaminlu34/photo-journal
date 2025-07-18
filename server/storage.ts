@@ -14,7 +14,7 @@ import {
   type InsertFriendship,
   type SharedEntry,
   type InsertSharedEntry,
-} from "@shared/schema";
+} from "@shared/schema/schema";
 import { db } from "./db";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 
@@ -83,7 +83,6 @@ export class DatabaseStorage implements IStorage {
       email: supabaseUser.email || undefined,
       firstName: undefined,
       lastName: undefined,
-      profileImageUrl: undefined,
     };
 
     return this.upsertUser(userData);

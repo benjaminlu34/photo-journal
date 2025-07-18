@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify';
 import { z } from 'zod';
-import type { NoteData, NotePosition, NoteContent, ChecklistItem, DrawingStroke } from '../types/notes';
+import type { NoteData, NotePosition, NoteContent, ChecklistItem, DrawingStroke } from '@/types/notes';
 
 // Position validation schema
 const positionSchema = z.object({

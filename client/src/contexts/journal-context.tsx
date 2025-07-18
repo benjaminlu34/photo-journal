@@ -6,6 +6,7 @@ import {
   ReactNode,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -18,6 +19,21 @@ import type {
   Friend,
 } from "@/types/journal";
 // Removed: import { blocksToNotes, noteToBlockPatch, type StickyNoteData } from "@/mappers";
+
+// Timezone-safe date parsing utilities
+function parseLocalDate(dateString: string): Date {
+  // Parse date string as local date (not UTC)
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day); // month is 0-indexed
+}
+
+function formatLocalDate(date: Date): string {
+  // Format date as YYYY-MM-DD in local timezone
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 interface JournalContextType {
   // State
@@ -63,13 +79,29 @@ interface JournalProviderProps {
 }
 
 export function JournalProvider({ children }: JournalProviderProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { date: urlDate } = useParams();
+  const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [gridSnap, setGridSnap] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const dateString = currentDate.toISOString().split("T")[0];
+  // Parse date from URL or use today's date (timezone-safe)
+  const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
+  const dateString = formatLocalDate(currentDate);
+
+  // Function to update the current date (updates URL)
+  const setCurrentDate = (newDate: Date) => {
+    const newDateString = formatLocalDate(newDate);
+    const today = formatLocalDate(new Date());
+    
+    // If it's today's date, go to root, otherwise use date in URL
+    if (newDateString === today) {
+      setLocation("/");
+    } else {
+      setLocation(`/journal/${newDateString}`);
+    }
+  };
 
   // Fetch current journal entry
   const { data: currentEntry, isLoading } = useQuery<
@@ -187,7 +219,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
       if (context?.previousEntry) {
         queryClient.setQueryData(["/api/journal", dateString], context.previousEntry);
       }
-      
+
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -204,7 +236,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
         description: "Failed to update content block. Please try again.",
         variant: "destructive",
       });
-      
+
       // Only refetch on error to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
     },

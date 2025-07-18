@@ -2,8 +2,8 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { createBoardSDK, BoardSDK } from '@/lib/board-sdk';
-import { useBoardStore } from '../lib/store';
-import type { NoteData, NoteContent } from '../types/notes';
+import { useBoardStore } from '@/lib/store';
+import type { NoteData, NoteContent } from '@/types/notes';
 
 // Types for awareness (cursor positions, selections, etc.)
 export interface AwarenessState {

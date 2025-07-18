@@ -1,15 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useCallback } from 'react';
-import { useUser } from '../hooks/useUser';
-import { useBoardStore } from '../lib/board-store';
-import { getBoardSdk } from '../lib/board-sdk';
-import type { NoteData } from '../types/notes';
-import type { User } from '@shared/schema';
+import { useUser } from '@/hooks/useUser';
+import { useBoardStore } from '@/lib/board-store';
+import { getBoardSdk } from '@/lib/board-sdk';
+import type { NoteData } from '@/types/notes';
+import type { User } from '@shared/schema/schema';
 
 interface CRDTContextValue {
   isConnected: boolean;
-  spaceId: string;
+  spaceId: string | undefined;
 }
 
 const CRDTContext = createContext<CRDTContextValue | null>(null);
@@ -29,19 +29,29 @@ interface CRDTProviderProps {
 
 export const CRDTProvider: React.FC<CRDTProviderProps> = ({ 
   children, 
-  spaceId = 'default-board' 
+  spaceId 
 }) => {
   const { data: user } = useUser();
   const { init } = useBoardStore((s) => s.actions);
   
-  // Initialize board store with the SDK
+  // Initialize board store with the SDK only when we have a valid spaceId
   React.useEffect(() => {
+    if (!spaceId) {
+      return; // Don't initialize until we have a valid spaceId
+    }
+    
+    console.log('[CRDTProvider] Initializing with spaceId:', spaceId);
     init(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
   }, [spaceId, init, user]);
 
   // Get connection status from the SDK
   const [isConnected, setIsConnected] = React.useState(false);
   React.useEffect(() => {
+    if (!spaceId) {
+      setIsConnected(false);
+      return; // Don't initialize until we have a valid spaceId
+    }
+    
     const sdk = getBoardSdk(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
     const awareness = sdk.presence;
     
