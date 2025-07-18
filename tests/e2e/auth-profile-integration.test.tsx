@@ -85,8 +85,8 @@ describe('Authentication and Profile Management Integration Tests', () => {
       vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: {
           session: {
-            user: { 
-              id: 'test-user-id', 
+            user: {
+              id: 'test-user-id',
               email: 'test@example.com',
               created_at: '2023-01-01T00:00:00Z'
             },
@@ -176,8 +176,8 @@ describe('Authentication and Profile Management Integration Tests', () => {
 
     it('should refresh authentication tokens automatically', async () => {
       let tokenRefreshCount = 0;
-      
-      mockSupabase.auth.getSession.mockImplementation(() => {
+
+      vi.mocked(supabase).auth.getSession.mockImplementation(() => {
         tokenRefreshCount++;
         return Promise.resolve({
           data: {
@@ -206,7 +206,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       });
 
       // Verify token was used in API call
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/user', 
+      expect(global.fetch).toHaveBeenCalledWith('/api/auth/user',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Authorization': 'Bearer mock-token-1',
@@ -225,7 +225,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -237,7 +237,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       renderWithProviders(
         <EditProfileModal
           isOpen={true}
-          onClose={() => {}}
+          onClose={() => { }}
           user={mockUser}
         />
       );
@@ -287,7 +287,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -299,7 +299,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       renderWithProviders(
         <EditProfileModal
           isOpen={true}
-          onClose={() => {}}
+          onClose={() => { }}
           user={mockUser}
         />
       );
@@ -342,7 +342,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -359,7 +359,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       renderWithProviders(
         <EditProfileModal
           isOpen={true}
-          onClose={() => {}}
+          onClose={() => { }}
           user={mockUser}
         />
       );
@@ -374,7 +374,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       });
 
       const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement;
-      
+
       Object.defineProperty(fileInput, 'files', {
         value: [file],
         writable: false,
@@ -409,7 +409,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -426,7 +426,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       renderWithProviders(
         <EditProfileModal
           isOpen={true}
-          onClose={() => {}}
+          onClose={() => { }}
           user={mockUser}
         />
       );
@@ -441,7 +441,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       });
 
       const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement;
-      
+
       Object.defineProperty(fileInput, 'files', {
         value: [file],
         writable: false,
@@ -461,7 +461,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
 
   describe('User Session Management', () => {
     it('should handle concurrent authentication operations', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -511,7 +511,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       await user.type(firstNameInput, 'Johnny');
 
       const saveButton = screen.getByText('Save Changes');
-      
+
       // Click save multiple times rapidly
       await user.click(saveButton);
       await user.click(saveButton);
@@ -528,7 +528,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
         access_token: 'consistent-token',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: sessionData },
       });
 
@@ -549,8 +549,8 @@ describe('Authentication and Profile Management Integration Tests', () => {
       });
 
       // Verify consistent session usage
-      expect(mockSupabase.auth.getSession).toHaveBeenCalled();
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/user', 
+      expect(vi.mocked(supabase).auth.getSession).toHaveBeenCalled();
+      expect(global.fetch).toHaveBeenCalledWith('/api/auth/user',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Authorization': 'Bearer consistent-token',
@@ -563,7 +563,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
   describe('Authentication Error Recovery', () => {
     it('should recover from temporary authentication failures', async () => {
       // Start with failed authentication
-      mockSupabase.auth.getSession
+      vi.mocked(supabase).auth.getSession
         .mockResolvedValueOnce({
           data: { session: null },
         })
@@ -607,12 +607,12 @@ describe('Authentication and Profile Management Integration Tests', () => {
     it('should handle authentication state synchronization', async () => {
       let authStateCallback: ((event: string, session: any) => void) | null = null;
 
-      mockSupabase.auth.onAuthStateChange.mockImplementation((callback) => {
+      vi.mocked(supabase).auth.onAuthStateChange.mockImplementation((callback) => {
         authStateCallback = callback;
         return { data: { subscription: { unsubscribe: vi.fn() } } };
       });
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTestFile } from '../unit/storage.service.test';
+import { createTestFile } from '@/services/storage.service/storage.service.test';
 
 describe('Profile Update Integration Tests', () => {
   describe('API Endpoints', () => {

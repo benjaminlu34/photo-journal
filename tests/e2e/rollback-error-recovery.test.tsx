@@ -14,45 +14,46 @@ import ProfilePage from '@/pages/profile';
 import { EditProfileModal } from '@/components/profile/edit-profile-modal/edit-profile-modal';
 
 // Mock Supabase
-const mockSupabase = {
-  auth: {
-    getSession: vi.fn(),
-    signUp: vi.fn(),
-    signInWithPassword: vi.fn(),
-    signOut: vi.fn(),
-    onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-  },
-  storage: {
-    from: vi.fn(() => ({
-      upload: vi.fn(),
-      list: vi.fn(),
-      remove: vi.fn(),
-      getPublicUrl: vi.fn(),
-    })),
-  },
-};
-
 vi.mock('@/lib/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: {
+    auth: {
+      getSession: vi.fn(),
+      signUp: vi.fn(),
+      signInWithPassword: vi.fn(),
+      signOut: vi.fn(),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+    },
+    storage: {
+      from: vi.fn(() => ({
+        upload: vi.fn(),
+        list: vi.fn(),
+        remove: vi.fn(),
+        getPublicUrl: vi.fn(),
+      })),
+    },
+  },
 }));
 
 // Mock storage service
-const mockStorageService = {
-  uploadProfilePicture: vi.fn(),
-  getLatestProfilePictureUrl: vi.fn(),
-  deleteAllUserProfilePictures: vi.fn(),
-};
-
 vi.mock('@/services/storage.service/storage.service', () => ({
   StorageService: {
-    getInstance: () => mockStorageService,
+    getInstance: () => ({
+      uploadProfilePicture: vi.fn(),
+      getLatestProfilePictureUrl: vi.fn(),
+      deleteAllUserProfilePictures: vi.fn(),
+    }),
   },
 }));
+
+// Import the mocked modules
+import { supabase } from '@/lib/supabase';
+import { StorageService } from '@/services/storage.service/storage.service';
 
 describe('Rollback Scenarios and Error Recovery Tests', () => {
   let queryClient: QueryClient;
   let user: ReturnType<typeof userEvent.setup>;
   let originalOnline: boolean;
+  let mockStorageService: any;
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -63,6 +64,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
     user = userEvent.setup();
     originalOnline = navigator.onLine;
+    mockStorageService = StorageService.getInstance();
     vi.clearAllMocks();
     global.fetch = vi.fn();
   });
@@ -96,7 +98,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
       // Mock network failure
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -130,7 +132,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
 
     it('should handle intermittent network failures with retry', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -169,7 +171,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
 
     it('should handle offline/online state changes', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -252,7 +254,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
   describe('Authentication Failure Recovery', () => {
     it('should handle session expiration during operations', async () => {
       // Start with valid session
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -281,7 +283,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
       });
 
       // Simulate session expiration
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: null },
       });
 
@@ -312,7 +314,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
 
     it('should handle token refresh failures', async () => {
       // Mock token refresh failure
-      mockSupabase.auth.getSession
+      vi.mocked(supabase.auth.getSession)
         .mockResolvedValueOnce({
           data: { session: mockAuthSession },
         })
@@ -356,7 +358,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -422,7 +424,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -477,7 +479,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
         last_name: 'Doe',
       };
 
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -559,7 +561,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
 
   describe('Data Consistency Recovery', () => {
     it('should recover from partial data corruption', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -605,7 +607,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
 
     it('should handle cache corruption recovery', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -637,7 +639,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
 
   describe('System Recovery Scenarios', () => {
     it('should handle server maintenance mode', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -678,7 +680,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
 
     it('should handle database connection failures', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
@@ -701,7 +703,7 @@ describe('Rollback Scenarios and Error Recovery Tests', () => {
     });
 
     it('should handle memory pressure and cleanup', async () => {
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase).auth.getSession.mockResolvedValue({
         data: { session: mockAuthSession },
       });
 
