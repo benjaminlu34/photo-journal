@@ -130,6 +130,11 @@ app.use((req, res, next) => {
     res.redirect('/');
   });
 
+  // Handle 404 for API routes before Vite catch-all
+  app.use('/api/*', (req, res) => {
+    res.status(404).json({ message: 'API endpoint not found' });
+  });
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

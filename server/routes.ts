@@ -112,6 +112,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  /* Handle GET requests to upload endpoint - require auth even for wrong method */
+  app.get("/api/upload", isAuthenticatedSupabase, (_req, res) => {
+    res.status(405).json({ message: "Method not allowed. Use POST for file uploads." });
+  });
+
   /* Auth */
   app.get("/api/auth/user", isAuthenticatedSupabase, async (req, res) => {
     try {
