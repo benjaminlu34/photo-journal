@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { StorageService, MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from '@/services/storage.service';
+import { StorageService, MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from '@/services/storage.service/storage.service';
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({

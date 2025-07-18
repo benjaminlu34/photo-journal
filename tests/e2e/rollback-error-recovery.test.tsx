@@ -11,7 +11,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/auth-context';
 import ProfilePage from '@/pages/profile';
-import { EditProfileModal } from '@/components/profile/edit-profile-modal';
+import { EditProfileModal } from '@/components/profile/edit-profile-modal/edit-profile-modal';
 
 // Mock Supabase
 const mockSupabase = {
@@ -43,7 +43,7 @@ const mockStorageService = {
   deleteAllUserProfilePictures: vi.fn(),
 };
 
-vi.mock('@/services/storage.service', () => ({
+vi.mock('@/services/storage.service/storage.service', () => ({
   StorageService: {
     getInstance: () => mockStorageService,
   },

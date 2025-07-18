@@ -11,43 +11,43 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/auth-context';
 import ProfilePage from '@/pages/profile';
-import { EditProfileModal } from '@/components/profile/edit-profile-modal';
+import { EditProfileModal } from '@/components/profile/edit-profile-modal/edit-profile-modal';
 
 // Mock Supabase
-const mockSupabase = {
-  auth: {
-    getSession: vi.fn(),
-    signUp: vi.fn(),
-    signInWithPassword: vi.fn(),
-    signOut: vi.fn(),
-    onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-  },
-  storage: {
-    from: vi.fn(() => ({
-      upload: vi.fn(),
-      list: vi.fn(),
-      remove: vi.fn(),
-      getPublicUrl: vi.fn(),
-    })),
-  },
-};
-
 vi.mock('@/lib/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: {
+    auth: {
+      getSession: vi.fn(),
+      signUp: vi.fn(),
+      signInWithPassword: vi.fn(),
+      signOut: vi.fn(),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+    },
+    storage: {
+      from: vi.fn(() => ({
+        upload: vi.fn(),
+        list: vi.fn(),
+        remove: vi.fn(),
+        getPublicUrl: vi.fn(),
+      })),
+    },
+  },
 }));
 
 // Mock storage service
-const mockStorageService = {
-  uploadProfilePicture: vi.fn(),
-  getLatestProfilePictureUrl: vi.fn(),
-  deleteAllUserProfilePictures: vi.fn(),
-};
-
-vi.mock('@/services/storage.service', () => ({
+vi.mock('@/services/storage.service/storage.service', () => ({
   StorageService: {
-    getInstance: () => mockStorageService,
+    getInstance: () => ({
+      uploadProfilePicture: vi.fn(),
+      getLatestProfilePictureUrl: vi.fn(),
+      deleteAllUserProfilePictures: vi.fn(),
+    }),
   },
 }));
+
+// Import the mocked modules
+import { supabase } from '@/lib/supabase';
+import { StorageService } from '@/services/storage.service/storage.service';
 
 describe('Authentication and Profile Management Integration Tests', () => {
   let queryClient: QueryClient;
@@ -82,7 +82,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
   describe('Authentication State Integration', () => {
     it('should sync authentication state with profile data', async () => {
       // Mock initial session
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: {
           session: {
             user: { 
@@ -128,7 +128,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
 
     it('should handle authentication state changes during profile operations', async () => {
       // Start with authenticated state
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: {
           session: {
             user: { id: 'test-user-id', email: 'test@example.com' },
@@ -154,7 +154,7 @@ describe('Authentication and Profile Management Integration Tests', () => {
       });
 
       // Simulate session expiration during profile update
-      mockSupabase.auth.getSession.mockResolvedValue({
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: { session: null },
       });
 

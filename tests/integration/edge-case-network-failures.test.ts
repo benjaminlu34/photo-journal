@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { StorageService } from '@/services/storage.service';
+import { StorageService } from '@/services/storage.service/storage.service';
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({

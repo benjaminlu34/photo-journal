@@ -11,8 +11,8 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../../client/src/contexts/auth-context';
 import ProfilePage from '../../client/src/pages/profile';
-import { EditProfileModal } from '../../client/src/components/profile/edit-profile-modal';
-import { ProfilePicture } from '../../client/src/components/profile/ProfilePicture';
+import { EditProfileModal } from '../../client/src/components/profile/edit-profile-modal/edit-profile-modal';
+import { ProfilePicture } from '../../client/src/components/profile/ProfilePicture/ProfilePicture';
 
 // Mock Supabase with detailed storage operations
 const mockSupabaseStorage = {
