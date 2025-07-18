@@ -7,8 +7,8 @@ vite.config.ts.*
 .db
 .env
 .kilocode/rules/*
-.kilocode/rules/memory-bank/*
 .env.example
 .env.local
 .env.supabase
 /scripts/check-users.bat
+.kiro/*

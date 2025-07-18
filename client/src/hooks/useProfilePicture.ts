@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { StorageService } from '@/services/storage.service';
+import { StorageService } from '@/services/storage.service/storage.service';
 import { useUser } from './useUser';
 import { queryClient } from '@/lib/queryClient';
 

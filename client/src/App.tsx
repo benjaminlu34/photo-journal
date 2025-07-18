@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/useUser";
 import { queryClient } from "@/lib/queryClient";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
 import { supabase } from "@/lib/supabase";
 
 // Lazy load pages
@@ -80,6 +80,7 @@ function AppContent() {
           <Switch>
             <Route path="/welcome" component={Welcome} />
             <Route path="/profile" component={Profile} />
+            <Route path="/journal/:date?" component={user ? Home : Landing} />
             <Route path="/" component={user ? Home : Landing} />
             <Route component={NotFound} />
           </Switch>

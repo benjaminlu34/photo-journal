@@ -1,4 +1,4 @@
-import { StorageService } from '@/services/storage.service';
+import { StorageService } from '@/services/storage.service/storage.service';
 
 export const getSupabaseUrl = (): string => {
   return import.meta.env.VITE_SUPABASE_URL || '';

@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { NoteData, NoteUpdate, NoteContent } from '../types/notes';
+import type { NoteData, NoteContent } from '@/types/notes';
 import { security } from './security';
-import { CleanupManager } from './cleanup';
+// Simple asset tracking for cleanup
+const trackedAssets = new Set<string>();
 
 interface BoardState {
   notes: Record<string, NoteData>;
@@ -52,11 +53,7 @@ interface BoardActions {
   setUserId: (id: string | null) => void;
 }
 
-// Create cleanup manager
-const cleanupManager = new CleanupManager();
-
-// Start periodic cleanup
-cleanupManager.startCleanup();
+// Cleanup functionality simplified - no longer using CleanupManager
 
 /**
  * Helper function to create type-safe content updates
@@ -107,13 +104,10 @@ export const useBoardStore = create<BoardState & BoardActions>()(
 
               // Track assets for cleanup
               if (validatedNote.content.type === 'image' && validatedNote.content.imageUrl) {
-                cleanupManager.trackAsset(validatedNote.content.imageUrl);
+                trackedAssets.add(validatedNote.content.imageUrl);
               } else if (validatedNote.content.type === 'voice' && validatedNote.content.audioUrl) {
-                cleanupManager.trackAsset(validatedNote.content.audioUrl);
+                trackedAssets.add(validatedNote.content.audioUrl);
               }
-
-              // Run cleanup if we have too many notes
-              void cleanupManager.cleanupNotes(state.notes);
             } catch (error) {
               console.error('Failed to add note:', error);
             }
@@ -145,17 +139,17 @@ export const useBoardStore = create<BoardState & BoardActions>()(
 
                 if (oldContent.type === 'image' && newContent.type === 'image') {
                   if (oldContent.imageUrl && oldContent.imageUrl !== newContent.imageUrl) {
-                    cleanupManager.untrackAsset(oldContent.imageUrl);
+                    trackedAssets.delete(oldContent.imageUrl);
                   }
                   if (newContent.imageUrl) {
-                    cleanupManager.trackAsset(newContent.imageUrl);
+                    trackedAssets.add(newContent.imageUrl);
                   }
                 } else if (oldContent.type === 'voice' && newContent.type === 'voice') {
                   if (oldContent.audioUrl && oldContent.audioUrl !== newContent.audioUrl) {
-                    cleanupManager.untrackAsset(oldContent.audioUrl);
+                    trackedAssets.delete(oldContent.audioUrl);
                   }
                   if (newContent.audioUrl) {
-                    cleanupManager.trackAsset(newContent.audioUrl);
+                    trackedAssets.add(newContent.audioUrl);
                   }
                 }
               }
@@ -180,13 +174,10 @@ export const useBoardStore = create<BoardState & BoardActions>()(
                 // Track assets for cleanup
                 const content = note.content;
                 if (content.type === 'image' && content.imageUrl) {
-                  cleanupManager.untrackAsset(content.imageUrl);
+                  trackedAssets.delete(content.imageUrl);
                 } else if (content.type === 'voice' && content.audioUrl) {
-                  cleanupManager.untrackAsset(content.audioUrl);
+                  trackedAssets.delete(content.audioUrl);
                 }
-
-                // Track deleted note
-                cleanupManager.trackDeletedNote(id);
               }
 
               delete state.notes[id];
@@ -229,17 +220,17 @@ export const useBoardStore = create<BoardState & BoardActions>()(
 
                     if (oldContent.type === 'image' && newContent.type === 'image') {
                       if (oldContent.imageUrl && oldContent.imageUrl !== newContent.imageUrl) {
-                        cleanupManager.untrackAsset(oldContent.imageUrl);
+                        trackedAssets.delete(oldContent.imageUrl);
                       }
                       if (newContent.imageUrl) {
-                        cleanupManager.trackAsset(newContent.imageUrl);
+                        trackedAssets.add(newContent.imageUrl);
                       }
                     } else if (oldContent.type === 'voice' && newContent.type === 'voice') {
                       if (oldContent.audioUrl && oldContent.audioUrl !== newContent.audioUrl) {
-                        cleanupManager.untrackAsset(oldContent.audioUrl);
+                        trackedAssets.delete(oldContent.audioUrl);
                       }
                       if (newContent.audioUrl) {
-                        cleanupManager.trackAsset(newContent.audioUrl);
+                        trackedAssets.add(newContent.audioUrl);
                       }
                     }
                   }
@@ -257,9 +248,9 @@ export const useBoardStore = create<BoardState & BoardActions>()(
   )
 );
 
-// Cleanup on window unload
+// Cleanup on window unload - simplified cleanup
 if (typeof window !== 'undefined') {
   window.addEventListener('unload', () => {
-    cleanupManager.dispose();
+    // Cleanup functionality simplified
   });
 } 
