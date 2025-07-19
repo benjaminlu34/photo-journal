@@ -98,7 +98,7 @@ export function useAuthMigration() {
   };
 
   const isProfileIncomplete = (user: any) => {
-    return user && (!user.firstName || !user.lastName);
+    return user && (!user.firstName || !user.lastName || !user.username);
   };
 
   return {

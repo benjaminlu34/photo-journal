@@ -16,13 +16,18 @@ import {
   type InsertSharedEntry,
 } from "@shared/schema/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { eq, and, desc, gte, lte, ilike, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<UpsertUser>): Promise<User>;
+  updateUserWithJWTSync(id: string, updates: Partial<UpsertUser>): Promise<User>;
+  
+  // Username operations
+  checkUsernameAvailability(username: string): Promise<boolean>;
+  searchUsersByUsername(query: string, limit?: number): Promise<User[]>;
   
   // Journal operations
   getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined>;
@@ -77,10 +82,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // New function for Supabase user provisioning
-  async upsertUserFromSupabase(supabaseUser: { id: string; email?: string | null }): Promise<User> {
+  async upsertUserFromSupabase(supabaseUser: { id: string; email?: string | null; username?: string }): Promise<User> {
     const userData: UpsertUser = {
       id: supabaseUser.id,
       email: supabaseUser.email || undefined,
+      username: supabaseUser.username || undefined,
       firstName: undefined,
       lastName: undefined,
     };
@@ -100,6 +106,83 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedUser;
+  }
+
+  // Update user with username sync to JWT claims
+  async updateUserWithJWTSync(id: string, updates: Partial<UpsertUser>): Promise<User> {
+    const updatedUser = await this.updateUser(id, updates);
+    
+    // If username was updated, handle JWT sync at application level
+    if (updates.username) {
+      console.log(`Username updated for user ${id}: ${updates.username}`);
+      
+      // The database will send a pg_notify event via the username_notify_trigger
+      // In a production environment, you would:
+      // 1. Call Supabase Admin API to update auth.users metadata
+      // 2. Optionally refresh the user's session to get new JWT with username
+      // 
+      // Sync username to Supabase Auth metadata
+      await this.syncUsernameToSupabaseAuth(id, updates.username);
+      
+      // The client should refresh their session to get the updated JWT
+      // The JWT claims will automatically include the new username
+    }
+    
+    return updatedUser;
+  }
+
+  // Helper method for Supabase auth sync
+  private async syncUsernameToSupabaseAuth(userId: string, username: string): Promise<void> {
+    // Import the sync utility dynamically to avoid circular dependencies
+    try {
+      const { syncUsernameToAuth } = await import('./utils/supabase-sync');
+      await syncUsernameToAuth(userId, username);
+    } catch (error) {
+      console.error(`Failed to sync username to Supabase auth for user ${userId}:`, error);
+    }
+  }
+
+  // Username operations
+  async checkUsernameAvailability(username: string): Promise<boolean> {
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(sql`LOWER(${users.username})`, username.toLowerCase()))
+      .limit(1);
+    
+    return !existingUser;
+  }
+
+  async searchUsersByUsername(query: string, limit: number = 10): Promise<User[]> {
+    const searchQuery = query.toLowerCase();
+    
+    // Use prefix matching with case-insensitive search
+    const results = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(
+        and(
+          sql`${users.username} IS NOT NULL`,
+          sql`LOWER(${users.username}) LIKE ${searchQuery + '%'}`
+        )
+      )
+      .orderBy(
+        // Exact match first, then by prefix length, then by created date
+        sql`CASE WHEN LOWER(${users.username}) = ${searchQuery} THEN 0 ELSE 1 END`,
+        sql`LENGTH(${users.username})`,
+        users.createdAt
+      )
+      .limit(limit);
+
+    return results;
   }
 
   // Journal operations

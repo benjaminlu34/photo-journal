@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { UsernameInput } from "@/components/ui/username-input"
 import { Camera } from "lucide-react"
 import { getInitials } from "@/hooks/useProfilePicture"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
+  username: z.string().min(3, "Username must be at least 3 characters").max(20, "Username must be at most 20 characters").regex(/^[a-z0-9_]+$/, "Username can only contain lowercase letters, numbers, and underscores"),
   profileImageUrl: z.string().optional(),
 })
 
@@ -34,6 +36,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
   const [isUploading, setIsUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isUsernameValid, setIsUsernameValid] = useState(false)
 
   // Initialize form with default values
   const form = useForm<ProfileFormValues>({
@@ -41,6 +44,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
     defaultValues: {
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
+      username: user?.username || "",
       profileImageUrl: user?.profileImageUrl || "",
     },
   })
@@ -52,6 +56,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
       const updatedUser = await updateProfile({
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
+        username: data.username.trim(),
         ...(data.profileImageUrl && { profileImageUrl: data.profileImageUrl }),
       })
       
@@ -187,8 +192,36 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-200">Username</FormLabel>
+                    <FormControl>
+                      <UsernameInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        onValidation={(isValid, error) => {
+                          setIsUsernameValid(isValid);
+                          // Handle validation feedback if needed
+                          if (!isValid && error) {
+                            form.setError("username", { message: error });
+                          } else {
+                            form.clearErrors("username");
+                          }
+                        }}
+                        required
+                        placeholder="Choose a unique username"
+                        className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <Button type="submit" className="w-full text-lg py-2" disabled={isUploading || isSubmitting}>
+            <Button type="submit" className="w-full text-lg py-2" disabled={isUploading || isSubmitting || !isUsernameValid}>
               {isSubmitting ? "Saving..." : "Complete Profile"}
             </Button>
           </form>

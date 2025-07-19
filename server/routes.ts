@@ -11,6 +11,8 @@ import rateLimit from "express-rate-limit";
 
 import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
+import { usernameCheckRateLimit, userSearchRateLimit } from "./middleware/rateLimit";
+import { validateUsername, generateUsernameSuggestions } from "./utils/username";
 
 import {
   insertJournalEntrySchema,
@@ -27,12 +29,14 @@ interface AuthedRequest extends Request {
   user: {
     id: string;
     email: string;
+    username?: string; // Optional during migration phase
   };
 }
 
 /* Small helper so we cast once per route, not on every access */
 const getUserId = (req: Request): string => (req as AuthedRequest).user.id;
 const getUserEmail = (req: Request): string => (req as AuthedRequest).user.email;
+const getUserUsername = (req: Request): string | undefined => (req as AuthedRequest).user.username;
 
 /* ------------------------------------------------------------------ */
 /*  Security helpers                                                  */
@@ -117,17 +121,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const email = getUserEmail(req);
+      const username = getUserUsername(req);
       
       let user = await storage.getUser(userId);
       
       if (!user) {
         // Create user if they don't exist in local DB
         if (email) {
-          user = await storage.upsertUser({
+          user = await storage.upsertUserFromSupabase({
             id: userId,
             email,
-            firstName: undefined,
-            lastName: undefined,
+            username, // Include username from JWT
           });
           return res.json(user);
         }
@@ -137,6 +141,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-populate email for legacy users with null email
       if (!user.email && email) {
         user = await storage.updateUser(userId, { email });
+      }
+      
+      // Auto-populate username from JWT if not in database yet
+      if (!user.username && username) {
+        user = await storage.updateUser(userId, { username });
       }
       
       return res.json(user);
@@ -156,12 +165,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: z.string().min(0).optional(), // Allow empty strings
         lastName: z.string().min(0).optional(),  // Allow empty strings
         profileImageUrl: z.string().optional(), // Allow profile image URL updates
+        username: z.string().min(3).max(20).regex(/^[a-z0-9_]+$/).optional(), // Username updates
       });
       
       const updates = updateProfileSchema.parse(req.body);
       
-      // Update the user profile
-      const updatedUser = await storage.updateUser(userId, updates);
+      // Update the user profile - use JWT sync if username is being updated
+      const updatedUser = updates.username 
+        ? await storage.updateUserWithJWTSync(userId, updates)
+        : await storage.updateUser(userId, updates);
       console.log('user updated!', updatedUser);
       return res.json(updatedUser);
     } catch (err) {
@@ -463,6 +475,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("POST /api/share-entry:", err);
       return res.status(500).json({ message: "Failed to share entry" });
+    }
+  });
+
+  /* Username validation endpoints */
+  
+  /* Check username availability */
+  app.get("/api/user/check-username", usernameCheckRateLimit, async (req, res) => {
+    try {
+      const username = req.query.u as string;
+      
+      if (!username) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST",
+          message: "Username parameter 'u' is required"
+        });
+      }
+
+      // Validate the username format and availability
+      const validation = await validateUsername(username);
+      
+      if (validation.isValid) {
+        return res.json({
+          available: true
+        });
+      } else {
+        // Username is not available or invalid
+        return res.json({
+          available: false,
+          error: validation.error,
+          suggestions: validation.suggestions || []
+        });
+      }
+    } catch (err) {
+      console.error("GET /api/user/check-username:", err);
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Failed to check username availability"
+      });
+    }
+  });
+
+  /* Search users by username */
+  app.get("/api/users/search", userSearchRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const query = req.query.query as string;
+      const limitParam = req.query.limit as string;
+      
+      if (!query) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST",
+          message: "Search query parameter is required"
+        });
+      }
+
+      if (query.length < 1) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST", 
+          message: "Search query must be at least 1 character"
+        });
+      }
+
+      // Parse limit with default of 10, max of 10
+      let limit = 10;
+      if (limitParam) {
+        const parsedLimit = parseInt(limitParam, 10);
+        if (!isNaN(parsedLimit) && parsedLimit > 0) {
+          limit = Math.min(parsedLimit, 10); // Cap at 10
+        }
+      }
+
+      // Search for users
+      const users = await storage.searchUsersByUsername(query, limit);
+      
+      // Format response with match type detection
+      const results = users.map(user => {
+        const matchType = user.username?.toLowerCase() === query.toLowerCase() ? 'exact' : 'prefix';
+        return {
+          id: user.id,
+          username: user.username,
+          avatar: null, // TODO: Add avatar support when implemented
+          matchType
+        };
+      });
+
+      return res.json({
+        users: results
+      });
+    } catch (err) {
+      console.error("GET /api/users/search:", err);
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Failed to search users"
+      });
     }
   });
 

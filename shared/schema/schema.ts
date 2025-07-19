@@ -44,11 +44,23 @@ export const sessions = pgTable(
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().notNull(),
   email: varchar("email").unique(),
+  username: varchar("username", { length: 20 }).unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Username changes audit table for tracking username modifications
+export const usernameChanges = pgTable("username_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  oldUsername: varchar("old_username", { length: 20 }).notNull().default(''), // Store empty string for first change
+  newUsername: varchar("new_username", { length: 20 }).notNull(),
+  changedAt: timestamp("changed_at").defaultNow(),
+}, (table) => [
+  index("username_changes_user_id_idx").on(table.userId, table.changedAt),
+]);
 
 export const journalEntries = pgTable("journal_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -109,6 +121,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   friendships: many(friendships, { relationName: "userFriendships" }),
   friendOf: many(friendships, { relationName: "friendOfUser" }),
   sharedEntries: many(sharedEntries),
+  usernameChanges: many(usernameChanges),
+}));
+
+export const usernameChangesRelations = relations(usernameChanges, ({ one }) => ({
+  user: one(users, {
+    fields: [usernameChanges.userId],
+    references: [users.id],
+  }),
 }));
 
 export const journalEntriesRelations = relations(journalEntries, ({ one, many }) => ({
@@ -178,6 +198,39 @@ export const insertSharedEntrySchema = createInsertSchema(sharedEntries).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertUsernameChangeSchema = createInsertSchema(usernameChanges).omit({
+  id: true,
+  changedAt: true,
+});
+
+// Username validation schemas
+const RESERVED_USERNAMES = ['admin', 'api', 'support', 'help', 'root', 'system', 'moderator'];
+
+export const usernameSchema = z.string()
+  .min(3, "Username must be at least 3 characters")
+  .max(20, "Username must be at most 20 characters")
+  .regex(/^[a-z0-9_]+$/, "Username can only contain lowercase letters, numbers, and underscores")
+  .refine((username) => !RESERVED_USERNAMES.includes(username.toLowerCase()), "Username is reserved");
+
+export const signUpSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  username: usernameSchema,
+});
+
+export const profileUpdateSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  username: usernameSchema.optional(),
+});
+
+export const usernameCheckSchema = z.object({
+  username: usernameSchema,
+});
+
+// Export reserved usernames for use in other modules
+export { RESERVED_USERNAMES };
 
 // Content type schemas with validation
 export const stickyNoteContentSchema = z.object({
@@ -266,6 +319,8 @@ export type Friendship = typeof friendships.$inferSelect;
 export type InsertFriendship = z.infer<typeof insertFriendshipSchema>;
 export type SharedEntry = typeof sharedEntries.$inferSelect;
 export type InsertSharedEntry = z.infer<typeof insertSharedEntrySchema>;
+export type UsernameChange = typeof usernameChanges.$inferSelect;
+export type InsertUsernameChange = z.infer<typeof insertUsernameChangeSchema>;
 export type YjsSnapshot = typeof yjs_snapshots.$inferSelect;
 export type InsertYjsSnapshot = typeof yjs_snapshots.$inferInsert;
 
@@ -279,3 +334,9 @@ export type DrawingContent = z.infer<typeof drawingContentSchema>;
 export type ContentType = z.infer<typeof contentSchema>;
 export type Position = z.infer<typeof positionSchema>;
 export type ValidatedContentBlock = z.infer<typeof contentBlockSchema>;
+
+// Username validation types
+export type UsernameSchema = z.infer<typeof usernameSchema>;
+export type SignUpSchema = z.infer<typeof signUpSchema>;
+export type ProfileUpdateSchema = z.infer<typeof profileUpdateSchema>;
+export type UsernameCheckSchema = z.infer<typeof usernameCheckSchema>;
