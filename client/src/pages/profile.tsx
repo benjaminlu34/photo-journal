@@ -68,11 +68,22 @@ export default function ProfilePage() {
                 <h3 className="text-xl font-semibold text-[var(--foreground)]">
                   {user.firstName || ''} {user.lastName || ''}
                 </h3>
+                {user.username && (
+                  <p className="text-lg font-medium text-[var(--primary)] mb-1">
+                    @{user.username}
+                  </p>
+                )}
                 <p className="text-[var(--muted-foreground)]">{user.email}</p>
               </div>
             </div>
 
             <div className="grid gap-4">
+              <div>
+                <label className="text-sm font-medium text-[var(--muted-foreground)]">Username</label>
+                <p className="text-lg text-[var(--foreground)]">
+                  {user.username ? `@${user.username}` : 'Not set'}
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-[var(--muted-foreground)]">First Name</label>

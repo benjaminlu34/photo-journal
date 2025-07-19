@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Check, X, Loader2, User } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usernameSchema } from '@shared/schema/schema';
 
 interface UsernameInputProps {
   value: string;
@@ -10,217 +11,176 @@ interface UsernameInputProps {
   onValidation: (isValid: boolean, error?: string) => void;
   debounceMs?: number;
   className?: string;
+  disabled?: boolean;
   label?: string;
   placeholder?: string;
   required?: boolean;
 }
 
 interface ValidationState {
+  isValid: boolean;
   isChecking: boolean;
-  isValid: boolean | null;
   error?: string;
   suggestions?: string[];
 }
 
-export function UsernameInput({
+export const UsernameInput: React.FC<UsernameInputProps> = ({
   value,
   onChange,
   onValidation,
   debounceMs = 300,
   className,
+  disabled = false,
   label = "Username",
-  placeholder = "Enter your username",
-  required = false,
-}: UsernameInputProps) {
+  placeholder = "Enter username",
+  required = false
+}) => {
   const [validation, setValidation] = useState<ValidationState>({
-    isChecking: false,
-    isValid: null,
+    isValid: false,
+    isChecking: false
   });
 
-  // Client-side format validation
-  const validateFormat = useCallback((username: string): { isValid: boolean; error?: string } => {
-    if (!username) {
-      return { isValid: false, error: "Username is required" };
-    }
-
-    if (username.length < 3) {
-      return { isValid: false, error: "Username must be at least 3 characters" };
-    }
-
-    if (username.length > 20) {
-      return { isValid: false, error: "Username must be at most 20 characters" };
-    }
-
-    if (!/^[a-z0-9_]+$/.test(username)) {
-      return { isValid: false, error: "Username can only contain lowercase letters, numbers, and underscores" };
-    }
-
-    return { isValid: true };
-  }, []);
-
-  // Debounced availability check
-  const checkAvailability = useCallback(
+  // Debounced validation function
+  const validateUsername = useCallback(
     async (username: string) => {
-      if (!username) return;
-
-      // First check format
-      const formatValidation = validateFormat(username);
-      if (!formatValidation.isValid) {
-        setValidation({
-          isChecking: false,
-          isValid: false,
-          error: formatValidation.error,
-        });
-        onValidation(false, formatValidation.error);
+      if (!username.trim()) {
+        setValidation({ isValid: false, isChecking: false });
+        onValidation(false);
         return;
       }
 
-      setValidation(prev => ({ ...prev, isChecking: true }));
+      // First, validate format locally
+      try {
+        usernameSchema.parse(username);
+      } catch (error: any) {
+        const errorMessage = error.errors?.[0]?.message || 'Invalid username format';
+        setValidation({ 
+          isValid: false, 
+          isChecking: false, 
+          error: errorMessage 
+        });
+        onValidation(false, errorMessage);
+        return;
+      }
 
+      // Then check availability via API
+      setValidation({ isValid: false, isChecking: true });
+      
       try {
         const response = await fetch(`/api/user/check-username?u=${encodeURIComponent(username)}`);
         const data = await response.json();
 
         if (response.ok) {
-          const isValid = data.available;
-          const error = isValid ? undefined : (data.error || "Username is not available");
-          const suggestions = data.suggestions || [];
-
-          setValidation({
-            isChecking: false,
-            isValid,
-            error,
-            suggestions,
-          });
-          onValidation(isValid, error);
+          if (data.available) {
+            setValidation({ isValid: true, isChecking: false });
+            onValidation(true);
+          } else {
+            setValidation({ 
+              isValid: false, 
+              isChecking: false, 
+              error: data.error || 'Username is not available',
+              suggestions: data.suggestions 
+            });
+            onValidation(false, data.error || 'Username is not available');
+          }
         } else {
-          // Handle API errors
-          const error = data.message || "Failed to check username availability";
-          setValidation({
-            isChecking: false,
-            isValid: false,
-            error,
+          const errorMessage = data.message || 'Failed to check username availability';
+          setValidation({ 
+            isValid: false, 
+            isChecking: false, 
+            error: errorMessage 
           });
-          onValidation(false, error);
+          onValidation(false, errorMessage);
         }
       } catch (error) {
-        console.error('Username availability check failed:', error);
-        setValidation({
-          isChecking: false,
-          isValid: false,
-          error: "Failed to check username availability",
+        console.error('Username validation error:', error);
+        setValidation({ 
+          isValid: false, 
+          isChecking: false, 
+          error: 'Failed to check username availability' 
         });
-        onValidation(false, "Failed to check username availability");
+        onValidation(false, 'Failed to check username availability');
       }
     },
-    [validateFormat, onValidation]
+    [onValidation]
   );
 
-  // Debounce the availability check
+  // Debounce the validation
   useEffect(() => {
-    if (!value) {
-      setValidation({ isChecking: false, isValid: null });
-      onValidation(false, "Username is required");
+    if (!value.trim()) {
+      setValidation({ isValid: false, isChecking: false });
+      onValidation(false);
       return;
     }
 
-    const timer = setTimeout(() => {
-      checkAvailability(value);
+    const timeoutId = setTimeout(() => {
+      validateUsername(value);
     }, debounceMs);
 
-    return () => clearTimeout(timer);
-  }, [value, debounceMs, checkAvailability, onValidation]);
+    return () => clearTimeout(timeoutId);
+  }, [value, debounceMs, validateUsername]);
 
-  // Handle input change
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value.toLowerCase(); // Convert to lowercase
-    onChange(newValue);
-  };
-
-  // Get validation icon
   const getValidationIcon = () => {
     if (validation.isChecking) {
-      return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />;
+      return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
     }
-    if (validation.isValid === true) {
-      return <Check className="h-4 w-4 text-green-500" />;
+    if (validation.isValid) {
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
     }
-    if (validation.isValid === false) {
-      return <X className="h-4 w-4 text-red-500" />;
+    if (validation.error && value.trim()) {
+      return <XCircle className="h-4 w-4 text-red-500" />;
     }
     return null;
   };
 
-  // Get input border color based on validation state
-  const getBorderColor = () => {
-    if (validation.isValid === true) return "border-green-500 focus:border-green-500";
-    if (validation.isValid === false) return "border-red-500 focus:border-red-500";
-    return "";
+  const getValidationMessage = () => {
+    if (validation.isChecking) {
+      return <span className="text-sm text-muted-foreground">Checking availability...</span>;
+    }
+    if (validation.isValid) {
+      return <span className="text-sm text-green-600">Username is available!</span>;
+    }
+    if (validation.error && value.trim()) {
+      return (
+        <div className="space-y-1">
+          <span className="text-sm text-red-600">{validation.error}</span>
+          {validation.suggestions && validation.suggestions.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Suggestions: {validation.suggestions.join(', ')}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
-    <div className={cn("space-y-2", className)}>
-      {label && (
-        <Label htmlFor="username" className="text-sm font-medium">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </Label>
-      )}
-      
+    <div className="space-y-2">
+      <Label className="text-foreground">{label}</Label>
       <div className="relative">
-        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
         <Input
-          id="username"
-          type="text"
-          placeholder={placeholder}
           value={value}
-          onChange={handleChange}
+          onChange={(e) => onChange(e.target.value.toLowerCase())}
           className={cn(
-            "pl-10 pr-10",
-            getBorderColor()
+            "bg-secondary border-border text-foreground placeholder:text-muted-foreground pr-10",
+            validation.isValid && "border-green-500",
+            validation.error && value.trim() && "border-red-500",
+            className
           )}
+          placeholder={placeholder}
+          disabled={disabled}
+          maxLength={20}
           required={required}
-          autoComplete="username"
         />
-        <div className="absolute right-3 top-3">
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
           {getValidationIcon()}
         </div>
       </div>
-
-      {/* Error message */}
-      {validation.error && (
-        <p className="text-sm text-red-600 flex items-center gap-1">
-          <X className="h-3 w-3" />
-          {validation.error}
-        </p>
-      )}
-
-      {/* Success message */}
-      {validation.isValid === true && (
-        <p className="text-sm text-green-600 flex items-center gap-1">
-          <Check className="h-3 w-3" />
-          Username is available!
-        </p>
-      )}
-
-      {/* Suggestions */}
-      {validation.suggestions && validation.suggestions.length > 0 && (
-        <div className="text-sm text-gray-600">
-          <p className="mb-1">Try these suggestions:</p>
-          <div className="flex flex-wrap gap-1">
-            {validation.suggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onChange(suggestion)}
-                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs transition-colors"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {getValidationMessage()}
+      <div className="text-xs text-muted-foreground">
+        3-20 characters, lowercase letters, numbers, and underscores only
+      </div>
     </div>
   );
-}
+};

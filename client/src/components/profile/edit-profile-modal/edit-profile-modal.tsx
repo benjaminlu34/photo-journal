@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { StorageService } from '@/services/storage.service/storage.service';
 import { useToast } from '@/hooks/use-toast';
 import { getInitials, invalidateProfilePicture } from '@/hooks/useProfilePicture';
+import { UsernameInput } from '@/components/ui/username-input';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface EditProfileModalProps {
   user: {
     id: string;
     email: string;
+    username?: string;
     first_name: string | null;
     last_name: string | null;
   };
@@ -28,6 +30,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   
   const [firstName, setFirstName] = useState(user.first_name || '');
   const [lastName, setLastName] = useState(user.last_name || '');
+  const [username, setUsername] = useState(user.username || '');
+  const [isUsernameValid, setIsUsernameValid] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | undefined>();
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,27 +134,63 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     setIsSubmitting(true);
 
     try {
+      // Check if username is being changed and validate it
+      const isUsernameChanged = username.trim() !== '' && username !== user.username;
+      
+      if (isUsernameChanged && (!isUsernameValid || usernameError)) {
+        toast({
+          title: "Invalid username",
+          description: usernameError || "Please enter a valid username",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (profilePicture) {
         await uploadProfilePicture(profilePicture);
       }
 
       const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`,
-        },
-        body: JSON.stringify({
-          ...(firstName.trim() !== '' && { firstName: firstName.trim() }),
-          ...(lastName.trim() !== '' && { lastName: lastName.trim() }),
-        }),
-      });
+      const updateData: any = {};
+      
+      // Only include fields that have changed
+      if (firstName.trim() !== '' && firstName.trim() !== user.first_name) {
+        updateData.firstName = firstName.trim();
+      }
+      if (lastName.trim() !== '' && lastName.trim() !== user.last_name) {
+        updateData.lastName = lastName.trim();
+      }
+      if (isUsernameChanged) {
+        updateData.username = username.trim();
+      }
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || 'Failed to update profile');
+      // Only make API call if there are changes
+      if (Object.keys(updateData).length > 0) {
+        const response = await fetch('/api/auth/profile', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+          },
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to update profile' }));
+          
+          // Handle rate limiting specifically
+          if (response.status === 429) {
+            toast({
+              title: "Rate limit exceeded",
+              description: errorData.message || "You can only change your username 2 times per 30 days",
+              variant: "destructive",
+            });
+            return;
+          }
+          
+          throw new Error(errorData.message || 'Failed to update profile');
+        }
       }
 
       await refetch();
@@ -157,7 +198,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       
       toast({
         title: "Profile updated",
-        description: "Your profile has been updated successfully",
+        description: isUsernameChanged 
+          ? "Your profile and username have been updated successfully" 
+          : "Your profile has been updated successfully",
       });
       
       onClose();
@@ -222,6 +265,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           </div>
 
           <div className="space-y-4">
+            <UsernameInput
+              value={username}
+              onChange={setUsername}
+              onValidation={(isValid, error) => {
+                setIsUsernameValid(isValid);
+                setUsernameError(error);
+              }}
+              disabled={isSubmitting}
+              placeholder="Enter username"
+            />
+
             <div>
               <Label className="text-foreground">First Name</Label>
               <Input

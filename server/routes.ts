@@ -11,7 +11,7 @@ import rateLimit from "express-rate-limit";
 
 import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
-import { usernameCheckRateLimit, userSearchRateLimit } from "./middleware/rateLimit";
+import { usernameCheckRateLimit, userSearchRateLimit, usernameChangeRateLimit } from "./middleware/rateLimit";
 import { validateUsername, generateUsernameSuggestions } from "./utils/username";
 
 import {
@@ -156,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Update user profile */
-  app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res, next) => {
     try {
       const userId = getUserId(req);
       
@@ -170,12 +170,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updates = updateProfileSchema.parse(req.body);
       
-      // Update the user profile - use JWT sync if username is being updated
-      const updatedUser = updates.username 
-        ? await storage.updateUserWithJWTSync(userId, updates)
-        : await storage.updateUser(userId, updates);
-      console.log('user updated!', updatedUser);
-      return res.json(updatedUser);
+      // If username is being updated, apply rate limiting
+      if (updates.username) {
+        // Apply rate limiting middleware for username changes
+        return usernameChangeRateLimit(req, res, async () => {
+          try {
+            // Get current user to track the change
+            const currentUser = await storage.getUser(userId);
+            if (!currentUser) {
+              return res.status(404).json({ message: "User not found" });
+            }
+
+            // Update the user profile with JWT sync for username changes
+            const updatedUser = await storage.updateUserWithJWTSync(userId, updates);
+            
+            // Track the username change in audit table
+            if (currentUser.username !== updates.username && updates.username) {
+              await storage.trackUsernameChange({
+                userId,
+                oldUsername: currentUser.username || '',
+                newUsername: updates.username,
+              });
+            }
+            
+            console.log('user updated with username change!', updatedUser);
+            return res.json(updatedUser);
+          } catch (err) {
+            console.error("PATCH /api/auth/profile (username change):", err);
+            return res.status(500).json({ message: "Failed to update user profile" });
+          }
+        });
+      } else {
+        // Regular profile update without username change
+        const updatedUser = await storage.updateUser(userId, updates);
+        console.log('user updated!', updatedUser);
+        return res.json(updatedUser);
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid data", errors: err.errors });

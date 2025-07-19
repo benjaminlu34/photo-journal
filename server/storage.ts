@@ -4,6 +4,7 @@ import {
   contentBlocks,
   friendships,
   sharedEntries,
+  usernameChanges,
   type User,
   type UpsertUser,
   type JournalEntry,
@@ -14,6 +15,8 @@ import {
   type InsertFriendship,
   type SharedEntry,
   type InsertSharedEntry,
+  type UsernameChange,
+  type InsertUsernameChange,
 } from "@shared/schema/schema";
 import { db } from "./db";
 import { eq, and, desc, gte, lte, ilike, sql } from "drizzle-orm";
@@ -28,6 +31,7 @@ export interface IStorage {
   // Username operations
   checkUsernameAvailability(username: string): Promise<boolean>;
   searchUsersByUsername(query: string, limit?: number): Promise<User[]>;
+  trackUsernameChange(change: { userId: string; oldUsername: string; newUsername: string }): Promise<void>;
   
   // Journal operations
   getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined>;
@@ -183,6 +187,16 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
 
     return results;
+  }
+
+  async trackUsernameChange(change: { userId: string; oldUsername: string; newUsername: string }): Promise<void> {
+    await db
+      .insert(usernameChanges)
+      .values({
+        userId: change.userId,
+        oldUsername: change.oldUsername,
+        newUsername: change.newUsername,
+      });
   }
 
   // Journal operations
