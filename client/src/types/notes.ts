@@ -28,6 +28,14 @@ export type NoteContent =
 
 type ContentFor<T extends NoteContent['type']> = Extract<NoteContent, { type: T }>;
 
+export interface NoteCreator {
+  id: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
 export interface NoteData<T extends NoteContent['type'] = NoteContent['type']> {
   id: string;
   type: T;
@@ -35,6 +43,7 @@ export interface NoteData<T extends NoteContent['type'] = NoteContent['type']> {
   content: ContentFor<T>;
   createdAt: string;
   updatedAt: string;
+  createdBy?: NoteCreator;
 }
 
 export type NoteUpdate = Partial<Omit<NoteData, 'id' | 'type'>>;

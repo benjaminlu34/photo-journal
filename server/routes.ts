@@ -20,7 +20,16 @@ import {
   insertFriendshipSchema,
   insertSharedEntrySchema,
   users,
+  usernameSchema,
 } from "@shared/schema/schema";
+
+// Date formatting utility
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -160,12 +169,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       
-      // Create a schema for profile updates
+      // Create a schema for profile updates using shared validation
       const updateProfileSchema = z.object({
         firstName: z.string().min(0).optional(), // Allow empty strings
         lastName: z.string().min(0).optional(),  // Allow empty strings
         profileImageUrl: z.string().optional(), // Allow profile image URL updates
-        username: z.string().min(3).max(20).regex(/^[a-z0-9_]+$/).optional(), // Username updates
+        username: usernameSchema.optional(), // Use shared schema with case normalization
       });
       
       const updates = updateProfileSchema.parse(req.body);
@@ -324,6 +333,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ...entry, contentBlocks: blocks });
     } catch (err) {
       console.error("GET /api/journal/:date:", err);
+      return res.status(500).json({ message: "Failed to fetch journal entry" });
+    }
+  });
+
+  /* Username-based journal entry access */
+  app.get("/api/journal/user/:username/:date", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { username, date } = req.params;
+      
+      // Validate date format
+      const parsedDate = new Date(date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      // Find user by username
+      const targetUser = await storage.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if current user has permission to view this user's journal
+      // For now, only allow users to view their own journals
+      // TODO: Implement friend permissions in future friend system
+      if (targetUser.id !== currentUserId) {
+        return res.status(403).json({ message: "Access denied: You can only view your own journal entries" });
+      }
+
+      // Get the journal entry
+      let entry = await storage.getJournalEntry(targetUser.id, parsedDate);
+      if (!entry) {
+        entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
+      }
+      const blocks = await storage.getContentBlocks(entry.id);
+      
+      return res.json({ 
+        ...entry, 
+        contentBlocks: blocks,
+        owner: {
+          id: targetUser.id,
+          username: targetUser.username,
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName
+        }
+      });
+    } catch (err) {
+      console.error("GET /api/journal/user/:username/:date:", err);
       return res.status(500).json({ message: "Failed to fetch journal entry" });
     }
   });
@@ -584,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return {
           id: user.id,
           username: user.username,
-          avatar: null, // TODO: Add avatar support when implemented
+          avatar: null, // Profile images not yet implemented in schema
           matchType
         };
       });
@@ -616,6 +673,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/auth', (_req, res) => {
     res.redirect('/');
+  });
+
+  /* Legacy user ID route redirects - 302 redirects to username-based URLs */
+  app.get('/user/:userId/:date?', async (req, res) => {
+    try {
+      const { userId, date } = req.params;
+      
+      // Get user by ID to find their username
+      const user = await storage.getUser(userId);
+      if (!user || !user.username) {
+        return res.status(404).json({ message: "User not found or username not available" });
+      }
+
+      // Construct the new username-based URL
+      const redirectUrl = date 
+        ? `/@${user.username}/${date}`
+        : `/@${user.username}/${formatLocalDate(new Date())}`;
+      
+      // 302 redirect to username-based URL
+      return res.redirect(302, redirectUrl);
+    } catch (err) {
+      console.error("GET /user/:userId/:date redirect error:", err);
+      return res.status(500).json({ message: "Failed to redirect to username-based URL" });
+    }
   });
 
   /* Central error handler */

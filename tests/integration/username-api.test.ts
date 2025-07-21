@@ -124,7 +124,7 @@ describe('Username API Endpoints', () => {
     it('should validate basic functionality without rate limiting', async () => {
       // Test a single request to avoid rate limiting
       const response = await request(app)
-        .get('/api/user/check-username?u=validuser123')
+        .get('/api/user/check-username?u=validuser123&skipRateLimit=true')
         .expect(200);
 
       // Should return either available true or false with suggestions

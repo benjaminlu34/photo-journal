@@ -210,8 +210,9 @@ const RESERVED_USERNAMES = ['admin', 'api', 'support', 'help', 'root', 'system',
 export const usernameSchema = z.string()
   .min(3, "Username must be at least 3 characters")
   .max(20, "Username must be at most 20 characters")
-  .regex(/^[a-z0-9_]+$/, "Username can only contain lowercase letters, numbers, and underscores")
-  .refine((username) => !RESERVED_USERNAMES.includes(username.toLowerCase()), "Username is reserved");
+  .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
+  .transform((username) => username.toLowerCase()) // Normalize to lowercase
+  .refine((username) => !RESERVED_USERNAMES.includes(username), "Username is reserved");
 
 export const signUpSchema = z.object({
   email: z.string().email("Invalid email address"),

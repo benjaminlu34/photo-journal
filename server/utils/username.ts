@@ -49,7 +49,7 @@ export async function generateUsernameSuggestions(
 
 /**
  * Validate username format and availability
- * @param username The username to validate
+ * @param username The username to validate (accepts mixed case, normalizes to lowercase)
  * @returns Validation result with error details if invalid
  */
 export async function validateUsername(username: string): Promise<{
@@ -57,7 +57,7 @@ export async function validateUsername(username: string): Promise<{
   error?: string;
   suggestions?: string[];
 }> {
-  // Format validation
+  // Format validation on original input
   if (username.length < 3) {
     return { isValid: false, error: "Username must be at least 3 characters" };
   }
@@ -66,6 +66,7 @@ export async function validateUsername(username: string): Promise<{
     return { isValid: false, error: "Username must be at most 20 characters" };
   }
   
+  // Check if input contains only valid characters (lowercase letters, numbers, underscores)
   if (!/^[a-z0-9_]+$/.test(username)) {
     return { 
       isValid: false, 
@@ -73,9 +74,12 @@ export async function validateUsername(username: string): Promise<{
     };
   }
   
+  // Normalize to lowercase for database operations
+  const normalizedUsername = username.toLowerCase();
+  
   // Reserved username check
-  if (RESERVED_USERNAMES.includes(username.toLowerCase())) {
-    const suggestions = await generateUsernameSuggestions(username);
+  if (RESERVED_USERNAMES.includes(normalizedUsername)) {
+    const suggestions = await generateUsernameSuggestions(normalizedUsername);
     return { 
       isValid: false, 
       error: "Username is reserved",
@@ -83,10 +87,10 @@ export async function validateUsername(username: string): Promise<{
     };
   }
   
-  // Availability check
-  const isAvailable = await storage.checkUsernameAvailability(username);
+  // Availability check (use normalized username for database lookup)
+  const isAvailable = await storage.checkUsernameAvailability(normalizedUsername);
   if (!isAvailable) {
-    const suggestions = await generateUsernameSuggestions(username);
+    const suggestions = await generateUsernameSuggestions(normalizedUsername);
     return { 
       isValid: false, 
       error: "Username is already taken",

@@ -274,6 +274,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               }}
               disabled={isSubmitting}
               placeholder="Enter username"
+              currentUsername={user.username}
             />
 
             <div>

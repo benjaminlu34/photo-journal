@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { UserDisplay } from "@/components/ui/user-display";
 import { useJournal } from "@/contexts/journal-context";
 import { useBoardStore } from '@/lib/board-store';
+import { useUser } from '@/hooks/useUser';
 import type { ContentBlockType, Position } from "@/types/journal";
 import type { NoteData } from "@/types/notes";
+import type { UserDisplayData } from '@/lib/usernameUtils';
 import {
   Search,
   FolderOpen,
-  Clock,
   StickyNote,
   Camera,
   Mic,
@@ -18,6 +20,7 @@ import {
   Palette,
   Image,
   FileIcon,
+  Users,
 } from "lucide-react";
 
 interface ContentTypeButtonProps {
@@ -119,6 +122,51 @@ function ContentTypeButton({
 export function CollaborationPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const { currentEntry } = useJournal();
+  const { data: currentUser } = useUser();
+  const { sdk } = useBoardStore();
+  const [activeCollaborators, setActiveCollaborators] = useState<Array<{
+    id: string;
+    name: string;
+    username?: string;
+    displayName?: string;
+    color: string;
+  }>>([]);
+
+  // Track active collaborators
+  useEffect(() => {
+    if (!sdk?.presence) return;
+
+    const awareness = sdk.presence;
+
+    const updateCollaborators = () => {
+      const states = awareness.getStates();
+      const collaborators: Array<{
+        id: string;
+        name: string;
+        username?: string;
+        displayName?: string;
+        color: string;
+      }> = [];
+      
+      states.forEach((state, clientId) => {
+        if (state.user && clientId !== awareness.clientID) {
+          collaborators.push(state.user);
+        }
+      });
+      
+      setActiveCollaborators(collaborators);
+    };
+
+    // Initial update
+    updateCollaborators();
+
+    // Listen for changes
+    awareness.on('change', updateCollaborators);
+
+    return () => {
+      awareness.off('change', updateCollaborators);
+    };
+  }, [sdk]);
 
   const contentTypes: ContentTypeButtonProps[] = [
     {
@@ -149,29 +197,7 @@ export function CollaborationPanel() {
     },
   ];
 
-  const recentEntries = [
-    {
-      id: "1",
-      title: "Design Mockup v2",
-      description: "Just finished the new interface...",
-      icon: FileText,
-      color: "bg-primary-500",
-    },
-    {
-      id: "2",
-      title: "Product Launch Notes",
-      description: "Meeting notes from today's session",
-      icon: StickyNote,
-      color: "bg-purple-500",
-    },
-    {
-      id: "3",
-      title: "Demo Recording",
-      description: "Voice notes about user feedback",
-      icon: Mic,
-      color: "bg-green-500",
-    },
-  ];
+
 
   const mediaItems = [
     {
@@ -239,35 +265,57 @@ export function CollaborationPanel() {
         </div>
       </div>
 
-      {/* Recent Entries */}
+      {/* Active Collaborators - Always visible */}
       <div className="p-6 border-b border-purple-100">
         <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-          <Clock className="w-4 h-4 text-purple-500 mr-2" />
-          Recent Entries
+          <Users className="w-4 h-4 text-purple-500 mr-2" />
+          Active Collaborators ({activeCollaborators.length})
         </h3>
-        <div className="space-y-3">
-          {recentEntries.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex items-start space-x-3 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 cursor-pointer transition-colors"
-            >
-              <div
-                className={`w-10 h-10 gradient-button rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-lg`}
-              >
-                <entry.icon className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-gray-800 text-sm">
-                  {entry.title}
-                </h4>
-                <p className="text-xs text-gray-600 truncate">
-                  {entry.description}
-                </p>
-              </div>
+        {activeCollaborators.length > 0 ? (
+          <div className="space-y-3">
+            {activeCollaborators.map((collaborator) => {
+              const userDisplayData: UserDisplayData = {
+                id: collaborator.id,
+                username: collaborator.username,
+                firstName: collaborator.name,
+              };
+
+              return (
+                <div
+                  key={collaborator.id}
+                  className="flex items-center space-x-3 p-3 rounded-xl bg-green-50 hover:bg-green-100 transition-colors"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full shadow-sm"
+                    style={{ backgroundColor: collaborator.color }}
+                  />
+                  <UserDisplay
+                    user={userDisplayData}
+                    variant="short"
+                    size="sm"
+                    showAvatar={true}
+                    className="flex-1"
+                  />
+                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                    Online
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <div className="text-gray-500 text-sm">
+              No other collaborators online
             </div>
-          ))}
-        </div>
+            <div className="text-gray-400 text-xs mt-1">
+              Share this journal entry to collaborate in real-time
+            </div>
+          </div>
+        )}
       </div>
+
+
 
       {/* Content Types */}
       <div className="p-6 border-b border-purple-100">

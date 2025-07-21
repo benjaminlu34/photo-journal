@@ -41,7 +41,7 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
     }
     
     console.log('[CRDTProvider] Initializing with spaceId:', spaceId);
-    init(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
+    init(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
   }, [spaceId, init, user]);
 
   // Get connection status from the SDK
@@ -52,7 +52,7 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
       return; // Don't initialize until we have a valid spaceId
     }
     
-    const sdk = getBoardSdk(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous');
+    const sdk = getBoardSdk(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
     const awareness = sdk.presence;
     
     const handleConnectivityChange = () => {

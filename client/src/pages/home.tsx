@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
@@ -6,17 +6,52 @@ import { JournalSidebar } from "@/components/journal/sidebar/sidebar";
 import { JournalWorkspace } from "@/components/journal/workspace/workspace";
 import { CollaborationPanel } from "@/components/journal/collaboration-panel/collaboration-panel";
 import { ViewToggle } from "@/components/journal/view-toggle/view-toggle";
+import { FriendSearch } from "@/components/ui/friend-search";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/useUser";
 import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarPlus } from "lucide-react";
+import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
 function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
   const { currentDate, currentEntry } = useJournal();
+
+
+  // Handle friend request from header search
+  const handleFriendRequest = async (searchUser: UserSearchResult) => {
+    // Prevent users from adding themselves as friends
+    if (user && searchUser.id === user.id) {
+      toast({
+        title: "Cannot add yourself",
+        description: "You cannot send a friend request to yourself",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // TODO: Implement actual friend request API call
+      // For now, simulate the request
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      toast({
+        title: "Friend request sent",
+        description: `Friend request sent to ${searchUser.username}`,
+      });
+    } catch (error) {
+      console.error('Failed to send friend request:', error);
+      
+      toast({
+        title: "Failed to send friend request",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -72,6 +107,17 @@ function HomeContent() {
               </p>
             </div>
 
+            {/* Friend Search */}
+            <div className="w-80">
+              <FriendSearch
+                onFriendRequest={handleFriendRequest}
+                placeholder="Find friends..."
+                showRecentSearches={false}
+                className="w-full"
+                currentUserId={user?.id}
+              />
+            </div>
+
             {/* View Toggle */}
             <ViewToggle />
 
@@ -117,6 +163,8 @@ function HomeContent() {
           </CRDTProvider>
         ) : null}
       </div>
+
+
     </div>
   );
 }

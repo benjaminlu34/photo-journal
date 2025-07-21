@@ -15,6 +15,7 @@ interface UsernameInputProps {
   label?: string;
   placeholder?: string;
   required?: boolean;
+  currentUsername?: string; // The user's current username to skip validation for
 }
 
 interface ValidationState {
@@ -33,7 +34,8 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
   disabled = false,
   label = "Username",
   placeholder = "Enter username",
-  required = false
+  required = false,
+  currentUsername
 }) => {
   const [validation, setValidation] = useState<ValidationState>({
     isValid: false,
@@ -54,10 +56,10 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
         usernameSchema.parse(username);
       } catch (error: any) {
         const errorMessage = error.errors?.[0]?.message || 'Invalid username format';
-        setValidation({ 
-          isValid: false, 
-          isChecking: false, 
-          error: errorMessage 
+        setValidation({
+          isValid: false,
+          isChecking: false,
+          error: errorMessage
         });
         onValidation(false, errorMessage);
         return;
@@ -65,7 +67,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
 
       // Then check availability via API
       setValidation({ isValid: false, isChecking: true });
-      
+
       try {
         const response = await fetch(`/api/user/check-username?u=${encodeURIComponent(username)}`);
         const data = await response.json();
@@ -75,29 +77,29 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
             setValidation({ isValid: true, isChecking: false });
             onValidation(true);
           } else {
-            setValidation({ 
-              isValid: false, 
-              isChecking: false, 
+            setValidation({
+              isValid: false,
+              isChecking: false,
               error: data.error || 'Username is not available',
-              suggestions: data.suggestions 
+              suggestions: data.suggestions
             });
             onValidation(false, data.error || 'Username is not available');
           }
         } else {
           const errorMessage = data.message || 'Failed to check username availability';
-          setValidation({ 
-            isValid: false, 
-            isChecking: false, 
-            error: errorMessage 
+          setValidation({
+            isValid: false,
+            isChecking: false,
+            error: errorMessage
           });
           onValidation(false, errorMessage);
         }
       } catch (error) {
         console.error('Username validation error:', error);
-        setValidation({ 
-          isValid: false, 
-          isChecking: false, 
-          error: 'Failed to check username availability' 
+        setValidation({
+          isValid: false,
+          isChecking: false,
+          error: 'Failed to check username availability'
         });
         onValidation(false, 'Failed to check username availability');
       }
@@ -113,12 +115,19 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
       return;
     }
 
+    // Skip validation if the value matches the user's current username (case-insensitive)
+    if (currentUsername && value.toLowerCase() === currentUsername.toLowerCase()) {
+      setValidation({ isValid: true, isChecking: false });
+      onValidation(true);
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       validateUsername(value);
     }, debounceMs);
 
     return () => clearTimeout(timeoutId);
-  }, [value, debounceMs, validateUsername]);
+  }, [value, debounceMs, validateUsername, currentUsername]);
 
   const getValidationIcon = () => {
     if (validation.isChecking) {
@@ -138,7 +147,13 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
       return <span className="text-sm text-muted-foreground">Checking availability...</span>;
     }
     if (validation.isValid) {
-      return <span className="text-sm text-green-600">Username is available!</span>;
+      // Check if this is the user's current username
+      const isCurrentUsername = currentUsername && value.toLowerCase() === currentUsername.toLowerCase();
+      return (
+        <span className="text-sm text-green-600">
+          {isCurrentUsername ? "This is your current username" : "Username is available!"}
+        </span>
+      );
     }
     if (validation.error && value.trim()) {
       return (
@@ -161,7 +176,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
       <div className="relative">
         <Input
           value={value}
-          onChange={(e) => onChange(e.target.value.toLowerCase())}
+          onChange={(e) => onChange(e.target.value)}
           className={cn(
             "bg-secondary border-border text-foreground placeholder:text-muted-foreground pr-10",
             validation.isValid && "border-green-500",
@@ -179,7 +194,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
       </div>
       {getValidationMessage()}
       <div className="text-xs text-muted-foreground">
-        3-20 characters, lowercase letters, numbers, and underscores only
+        3-20 characters, letters, numbers, and underscores
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ import { eq, and, desc, gte, lte, ilike, sql } from "drizzle-orm";
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<UpsertUser>): Promise<User>;
   updateUserWithJWTSync(id: string, updates: Partial<UpsertUser>): Promise<User>;
@@ -32,6 +33,7 @@ export interface IStorage {
   checkUsernameAvailability(username: string): Promise<boolean>;
   searchUsersByUsername(query: string, limit?: number): Promise<User[]>;
   trackUsernameChange(change: { userId: string; oldUsername: string; newUsername: string }): Promise<void>;
+  getUsernameChangesInPeriod(userId: string, since: Date): Promise<UsernameChange[]>;
   
   // Journal operations
   getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined>;
@@ -63,6 +65,14 @@ export class DatabaseStorage implements IStorage {
   // User operations (mandatory for Auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(sql`LOWER(${users.username})`, username.toLowerCase()));
     return user;
   }
 
@@ -125,8 +135,10 @@ export class DatabaseStorage implements IStorage {
       // 1. Call Supabase Admin API to update auth.users metadata
       // 2. Optionally refresh the user's session to get new JWT with username
       // 
-      // Sync username to Supabase Auth metadata
-      await this.syncUsernameToSupabaseAuth(id, updates.username);
+      // Sync username to Supabase Auth metadata (non-blocking)
+      this.syncUsernameToSupabaseAuth(id, updates.username).catch(error => {
+        console.error(`Background sync failed for user ${id}:`, error);
+      });
       
       // The client should refresh their session to get the updated JWT
       // The JWT claims will automatically include the new username
@@ -197,6 +209,21 @@ export class DatabaseStorage implements IStorage {
         oldUsername: change.oldUsername,
         newUsername: change.newUsername,
       });
+  }
+
+  async getUsernameChangesInPeriod(userId: string, since: Date): Promise<UsernameChange[]> {
+    const results = await db
+      .select()
+      .from(usernameChanges)
+      .where(
+        and(
+          eq(usernameChanges.userId, userId),
+          gte(usernameChanges.changedAt, since)
+        )
+      )
+      .orderBy(desc(usernameChanges.changedAt));
+
+    return results;
   }
 
   // Journal operations

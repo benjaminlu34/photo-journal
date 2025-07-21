@@ -4,6 +4,7 @@ import { WeeklyCalendarView } from "../weekly-calendar-view/weekly-calendar-view
 import { WeeklyCreativeView } from "../weekly-creative-view/weekly-creative-view";
 import { MonthlyView } from "../monthly-view/monthly-view";
 import { StickyBoard } from "@/components/board/StickyBoard/StickyBoard";
+import { CollaborationCursor, FloatingCollaborationCursors } from "@/components/collaboration/collaboration-cursor";
 import { useJournal } from "@/contexts/journal-context";
 import { useCRDT } from "@/contexts/crdt-context";
 import type { Position } from "@/types/journal";
@@ -52,8 +53,16 @@ export function JournalWorkspace() {
       data-workspace="true"
       className="flex-1 relative overflow-auto min-h-screen pinboard-bg"
     >
+      {/* Collaboration status indicator */}
+      <div className="absolute top-4 left-4 z-10">
+        <CollaborationCursor />
+      </div>
+
       {/* New StickyBoard Component */}
       <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
+
+      {/* Floating collaboration cursors */}
+      <FloatingCollaborationCursors />
     </div>
   );
 }
