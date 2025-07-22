@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/useUser";
 import { queryClient } from "@/lib/queryClient";
 import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
+import { UsernameRouteValidator } from "@/components/routing/UsernameRouteValidator";
 import { supabase } from "@/lib/supabase";
 
 // Lazy load pages
@@ -80,6 +81,11 @@ function AppContent() {
           <Switch>
             <Route path="/welcome" component={Welcome} />
             <Route path="/profile" component={Profile} />
+            <Route path="/@:username/:date">
+              <UsernameRouteValidator>
+                {user ? <Home /> : <Landing />}
+              </UsernameRouteValidator>
+            </Route>
             <Route path="/journal/:date?" component={user ? Home : Landing} />
             <Route path="/" component={user ? Home : Landing} />
             <Route component={NotFound} />

@@ -10,11 +10,11 @@ export type BoardSDK = ReturnType<typeof createBoardSDK>;
 // Singleton registry for BoardSDK instances
 export const sdkRegistry: Record<string, ReturnType<typeof createBoardSDK>> = {};
 
-export function getBoardSdk(spaceId: string, userId = 'anonymous', userName = 'Anonymous') {
+export function getBoardSdk(spaceId: string, userId = 'anonymous', userName = 'Anonymous', username?: string) {
   // Create user-scoped key to prevent cross-user contamination
   const userScopedKey = `${spaceId}-${userId}`;
   if (!sdkRegistry[userScopedKey]) {
-    sdkRegistry[userScopedKey] = createBoardSDK({ spaceId, userId, userName });
+    sdkRegistry[userScopedKey] = createBoardSDK({ spaceId, userId, userName, username });
   }
   return sdkRegistry[userScopedKey];
 }
@@ -23,10 +23,12 @@ export function createBoardSDK({
   spaceId,
   userId,
   userName,
+  username,
 }: {
   spaceId: string;
   userId: string;
   userName: string;
+  username?: string;
 }) {
   // Yjs doc and providers
   const doc = new Y.Doc();
@@ -43,11 +45,14 @@ export function createBoardSDK({
 
   // Presence (awareness)
   const awareness = provider.awareness;
-  awareness.setLocalStateField('user', {
+  const currentUser = {
     id: userId,
     name: userName,
+    username: username, // Add username field for display
+    displayName: username ? `@${username}` : userName, // Prefer @username over name
     color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
-  });
+  };
+  awareness.setLocalStateField('user', currentUser);
 
   // Change listeners
   let changeListeners: Array<(notes: NoteData[]) => void> = [];
@@ -62,7 +67,16 @@ export function createBoardSDK({
       return Array.from(notesMap.values());
     },
     createNote(note: NoteData) {
-      notesMap.set(note.id, note);
+      // Add creator information to the note
+      const noteWithCreator = {
+        ...note,
+        createdBy: {
+          id: userId,
+          username: username,
+          firstName: userName,
+        }
+      };
+      notesMap.set(note.id, noteWithCreator);
     },
     updateNote(id: string, updates: Partial<NoteData>) {
       const note = notesMap.get(id);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createClient, User } from '@supabase/supabase-js';
 import { AuthContextType, AuthUser } from '@shared/auth';
 
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Function to check if profile is incomplete
   const isProfileIncomplete = (user: AuthUser | null): boolean => {
     if (!user) return false;
-    return !user.firstName || !user.lastName;
+    return !user.firstName || !user.lastName || !user.username;
   };
 
   // Function to fetch complete user profile from API
@@ -40,16 +40,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.ok) {
         const userData = await response.json();
         
-        // Update the user state with complete profile data
-        setUser(prev => ({
-          ...prev,
-          ...userData
-        }));
-        
-        // Show profile modal if the profile is incomplete
-        if (isProfileIncomplete(userData)) {
-          setShowProfileModal(true);
-        }
+        // Update the user state with complete profile data including username
+        setUser(prev => {
+          const updatedUser = {
+            ...prev,
+            ...userData,
+            username: userData.username || prev?.username, // Preserve username from JWT if not in DB yet
+          };
+          
+          // Show profile modal if the profile is incomplete (check the merged user data)
+          if (isProfileIncomplete(updatedUser)) {
+            setShowProfileModal(true);
+          }
+          
+          return updatedUser;
+        });
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -60,9 +65,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        // Extract username from JWT token custom claims
+        const username = session.user.user_metadata?.username || 
+                        session.user.app_metadata?.username;
+        
         const authUser: AuthUser = {
           id: session.user.id,
           email: session.user.email!,
+          username: username, // Include username from JWT
           createdAt: session.user.created_at!,
         };
         
@@ -79,9 +89,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+        // Extract username from JWT token custom claims
+        const username = session.user.user_metadata?.username || 
+                        session.user.app_metadata?.username;
+        
         const authUser: AuthUser = {
           id: session.user.id,
           email: session.user.email!,
+          username: username, // Include username from JWT
           createdAt: session.user.created_at!,
         };
         
@@ -142,9 +157,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (error) throw error;
     
     if (session?.user) {
+      // Extract username from JWT token custom claims
+      const username = session.user.user_metadata?.username || 
+                      session.user.app_metadata?.username;
+      
       setUser({
         id: session.user.id,
         email: session.user.email!,
+        username: username, // Include username from JWT
         createdAt: session.user.created_at!,
       });
       

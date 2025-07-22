@@ -14,6 +14,7 @@ import type { NotePosition, NoteData } from '@/types/notes';
 import { cn } from '@/lib/utils';
 import { ResizeHandle } from '../ResizeHandle/ResizeHandle';
 import { NoteHeader } from '../NoteHeader/NoteHeader';
+import { FloatingNoteAttribution } from '@/components/ui/note-attribution';
 import { safeColor, getOptimalTextColor } from '@/utils/colorUtils/colorUtils';
 
 // Throttle utility for color updates
@@ -439,6 +440,12 @@ export const StickyNoteShell = React.memo(
           currentColor={content.type === 'sticky_note' ? content.backgroundColor : undefined}
           onColorChange={content.type === 'sticky_note' ? throttledColorChange : undefined}
           onColorPreview={content.type === 'sticky_note' ? handleColorPreview : undefined}
+        />
+
+        {/* Note attribution showing creator username */}
+        <FloatingNoteAttribution
+          creator={note.createdBy}
+          createdAt={note.createdAt}
         />
 
         <div className="note-content h-full pt-10 overflow-hidden">  {/* Increased pt-10 from pt-8 to account for header height */}

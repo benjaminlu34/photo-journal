@@ -8,6 +8,7 @@ declare global {
       user?: {
         id: string;
         email: string;
+        username?: string; // Optional during migration phase
       };
     }
   }
@@ -35,6 +36,7 @@ export function isAuthenticatedSupabase(
     req.user = {
       id: decoded.sub,
       email: decoded.email,
+      username: decoded.username, // Extract username from JWT
     };
 
     next();
@@ -67,6 +69,7 @@ export function optionalAuth(
     req.user = {
       id: decoded.sub,
       email: decoded.email,
+      username: decoded.username, // Extract username from JWT
     };
   } catch (error) {
     // Continue without user, don't fail the request

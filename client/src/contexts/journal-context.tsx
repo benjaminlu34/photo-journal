@@ -79,7 +79,7 @@ interface JournalProviderProps {
 }
 
 export function JournalProvider({ children }: JournalProviderProps) {
-  const { date: urlDate } = useParams();
+  const { date: urlDate, username: urlUsername } = useParams();
   const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [gridSnap, setGridSnap] = useState(true);
@@ -99,17 +99,26 @@ export function JournalProvider({ children }: JournalProviderProps) {
     if (newDateString === today) {
       setLocation("/");
     } else {
-      setLocation(`/journal/${newDateString}`);
+      // Check if we're in a username-based route
+      if (urlUsername) {
+        setLocation(`/@${urlUsername}/${newDateString}`);
+      } else {
+        setLocation(`/journal/${newDateString}`);
+      }
     }
   };
 
-  // Fetch current journal entry
+  // Fetch current journal entry - use username-based API if in username route
+  const apiEndpoint = urlUsername 
+    ? `/api/journal/user/${urlUsername}/${dateString}`
+    : `/api/journal/${dateString}`;
+  
   const { data: currentEntry, isLoading } = useQuery<
     JournalEntryData | null,
     Error,
     JournalEntryData | null
   >({
-    queryKey: ["/api/journal", dateString],
+    queryKey: [apiEndpoint],
     enabled: !!dateString,
     retry: false,
   });
@@ -138,7 +147,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
+      queryClient.invalidateQueries({ queryKey: [apiEndpoint] });
       toast({
         title: "Content added",
         description: "Your content block has been created successfully.",
@@ -182,10 +191,10 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
     onMutate: async ({ id, updates }) => {
       // Cancel any outgoing refetches to avoid overwriting our optimistic update
-      await queryClient.cancelQueries({ queryKey: ["/api/journal", dateString] });
+      await queryClient.cancelQueries({ queryKey: [apiEndpoint] });
 
       // Snapshot the previous value
-      const previousEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+      const previousEntry = queryClient.getQueryData<JournalEntryData>([apiEndpoint]);
 
       // Optimistically update the cache
       if (previousEntry) {
@@ -195,7 +204,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
             block.id === id ? { ...block, ...updates, updatedAt: new Date().toISOString() } : block
           )
         };
-        queryClient.setQueryData(["/api/journal", dateString], optimisticEntry);
+        queryClient.setQueryData([apiEndpoint], optimisticEntry);
       }
 
       // Return a context object with the snapshotted value
@@ -203,7 +212,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
     onSuccess: (data, variables) => {
       // Update the cache with the server response to ensure consistency
-      const currentEntry = queryClient.getQueryData<JournalEntryData>(["/api/journal", dateString]);
+      const currentEntry = queryClient.getQueryData<JournalEntryData>([apiEndpoint]);
       if (currentEntry) {
         const updatedEntry: JournalEntryData = {
           ...currentEntry,
@@ -211,13 +220,13 @@ export function JournalProvider({ children }: JournalProviderProps) {
             block.id === variables.id ? { ...block, ...data } : block
           )
         };
-        queryClient.setQueryData(["/api/journal", dateString], updatedEntry);
+        queryClient.setQueryData([apiEndpoint], updatedEntry);
       }
     },
     onError: (error: Error, variables, context) => {
       // If the mutation fails, rollback to the previous value
       if (context?.previousEntry) {
-        queryClient.setQueryData(["/api/journal", dateString], context.previousEntry);
+        queryClient.setQueryData([apiEndpoint], context.previousEntry);
       }
 
       if (isUnauthorizedError(error)) {
@@ -238,7 +247,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
       });
 
       // Only refetch on error to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
+      queryClient.invalidateQueries({ queryKey: [apiEndpoint] });
     },
   });
 
@@ -248,7 +257,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
       await apiRequest("DELETE", `/api/content-blocks/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/journal", dateString] });
+      queryClient.invalidateQueries({ queryKey: [apiEndpoint] });
       toast({
         title: "Content deleted",
         description: "Your content block has been removed.",

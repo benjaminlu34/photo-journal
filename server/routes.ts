@@ -11,6 +11,8 @@ import rateLimit from "express-rate-limit";
 
 import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
+import { usernameCheckRateLimit, userSearchRateLimit, usernameChangeRateLimit } from "./middleware/rateLimit";
+import { validateUsername, generateUsernameSuggestions } from "./utils/username";
 
 import {
   insertJournalEntrySchema,
@@ -18,7 +20,16 @@ import {
   insertFriendshipSchema,
   insertSharedEntrySchema,
   users,
+  usernameSchema,
 } from "@shared/schema/schema";
+
+// Date formatting utility
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -27,12 +38,14 @@ interface AuthedRequest extends Request {
   user: {
     id: string;
     email: string;
+    username?: string; // Optional during migration phase
   };
 }
 
 /* Small helper so we cast once per route, not on every access */
 const getUserId = (req: Request): string => (req as AuthedRequest).user.id;
 const getUserEmail = (req: Request): string => (req as AuthedRequest).user.email;
+const getUserUsername = (req: Request): string | undefined => (req as AuthedRequest).user.username;
 
 /* ------------------------------------------------------------------ */
 /*  Security helpers                                                  */
@@ -117,17 +130,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const email = getUserEmail(req);
+      const username = getUserUsername(req);
       
       let user = await storage.getUser(userId);
       
       if (!user) {
         // Create user if they don't exist in local DB
         if (email) {
-          user = await storage.upsertUser({
+          user = await storage.upsertUserFromSupabase({
             id: userId,
             email,
-            firstName: undefined,
-            lastName: undefined,
+            username, // Include username from JWT
           });
           return res.json(user);
         }
@@ -139,6 +152,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.updateUser(userId, { email });
       }
       
+      // Auto-populate username from JWT if not in database yet
+      if (!user.username && username) {
+        user = await storage.updateUser(userId, { username });
+      }
+      
       return res.json(user);
     } catch (err) {
       console.error("GET /api/auth/user error:", err);
@@ -147,23 +165,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Update user profile */
-  app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res, next) => {
     try {
       const userId = getUserId(req);
       
-      // Create a schema for profile updates
+      // Create a schema for profile updates using shared validation
       const updateProfileSchema = z.object({
         firstName: z.string().min(0).optional(), // Allow empty strings
         lastName: z.string().min(0).optional(),  // Allow empty strings
         profileImageUrl: z.string().optional(), // Allow profile image URL updates
+        username: usernameSchema.optional(), // Use shared schema with case normalization
       });
       
       const updates = updateProfileSchema.parse(req.body);
       
-      // Update the user profile
-      const updatedUser = await storage.updateUser(userId, updates);
-      console.log('user updated!', updatedUser);
-      return res.json(updatedUser);
+      // If username is being updated, apply rate limiting
+      if (updates.username) {
+        // Apply rate limiting middleware for username changes
+        return usernameChangeRateLimit(req, res, async () => {
+          try {
+            // Get current user to track the change
+            const currentUser = await storage.getUser(userId);
+            if (!currentUser) {
+              return res.status(404).json({ message: "User not found" });
+            }
+
+            // Update the user profile with JWT sync for username changes
+            const updatedUser = await storage.updateUserWithJWTSync(userId, updates);
+            
+            // Track the username change in audit table
+            if (currentUser.username !== updates.username && updates.username) {
+              await storage.trackUsernameChange({
+                userId,
+                oldUsername: currentUser.username || '',
+                newUsername: updates.username,
+              });
+            }
+            
+            console.log('user updated with username change!', updatedUser);
+            return res.json(updatedUser);
+          } catch (err) {
+            console.error("PATCH /api/auth/profile (username change):", err);
+            return res.status(500).json({ message: "Failed to update user profile" });
+          }
+        });
+      } else {
+        // Regular profile update without username change
+        const updatedUser = await storage.updateUser(userId, updates);
+        console.log('user updated!', updatedUser);
+        return res.json(updatedUser);
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid data", errors: err.errors });
@@ -282,6 +333,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ...entry, contentBlocks: blocks });
     } catch (err) {
       console.error("GET /api/journal/:date:", err);
+      return res.status(500).json({ message: "Failed to fetch journal entry" });
+    }
+  });
+
+  /* Username-based journal entry access */
+  app.get("/api/journal/user/:username/:date", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { username, date } = req.params;
+      
+      // Validate date format
+      const parsedDate = new Date(date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      // Find user by username
+      const targetUser = await storage.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if current user has permission to view this user's journal
+      // For now, only allow users to view their own journals
+      // TODO: Implement friend permissions in future friend system
+      if (targetUser.id !== currentUserId) {
+        return res.status(403).json({ message: "Access denied: You can only view your own journal entries" });
+      }
+
+      // Get the journal entry
+      let entry = await storage.getJournalEntry(targetUser.id, parsedDate);
+      if (!entry) {
+        entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
+      }
+      const blocks = await storage.getContentBlocks(entry.id);
+      
+      return res.json({ 
+        ...entry, 
+        contentBlocks: blocks,
+        owner: {
+          id: targetUser.id,
+          username: targetUser.username,
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName
+        }
+      });
+    } catch (err) {
+      console.error("GET /api/journal/user/:username/:date:", err);
       return res.status(500).json({ message: "Failed to fetch journal entry" });
     }
   });
@@ -466,6 +565,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /* Username validation endpoints */
+  
+  /* Check username availability */
+  app.get("/api/user/check-username", usernameCheckRateLimit, async (req, res) => {
+    try {
+      const username = req.query.u as string;
+      
+      if (!username) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST",
+          message: "Username parameter 'u' is required"
+        });
+      }
+
+      // Validate the username format and availability
+      const validation = await validateUsername(username);
+      
+      if (validation.isValid) {
+        return res.json({
+          available: true
+        });
+      } else {
+        // Username is not available or invalid
+        return res.json({
+          available: false,
+          error: validation.error,
+          suggestions: validation.suggestions || []
+        });
+      }
+    } catch (err) {
+      console.error("GET /api/user/check-username:", err);
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Failed to check username availability"
+      });
+    }
+  });
+
+  /* Search users by username */
+  app.get("/api/users/search", userSearchRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const query = req.query.query as string;
+      const limitParam = req.query.limit as string;
+      
+      if (!query) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST",
+          message: "Search query parameter is required"
+        });
+      }
+
+      if (query.length < 1) {
+        return res.status(400).json({
+          error: "INVALID_REQUEST", 
+          message: "Search query must be at least 1 character"
+        });
+      }
+
+      // Parse limit with default of 10, max of 10
+      let limit = 10;
+      if (limitParam) {
+        const parsedLimit = parseInt(limitParam, 10);
+        if (!isNaN(parsedLimit) && parsedLimit > 0) {
+          limit = Math.min(parsedLimit, 10); // Cap at 10
+        }
+      }
+
+      // Search for users
+      const users = await storage.searchUsersByUsername(query, limit);
+      
+      // Format response with match type detection
+      const results = users.map(user => {
+        const matchType = user.username?.toLowerCase() === query.toLowerCase() ? 'exact' : 'prefix';
+        return {
+          id: user.id,
+          username: user.username,
+          avatar: null, // Profile images not yet implemented in schema
+          matchType
+        };
+      });
+
+      return res.json({
+        users: results
+      });
+    } catch (err) {
+      console.error("GET /api/users/search:", err);
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Failed to search users"
+      });
+    }
+  });
+
   /* Legacy redirect handlers - prevent 404s from old auth routes */
   app.get('/api/login', (_req, res) => {
     res.redirect('/');
@@ -481,6 +673,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/auth', (_req, res) => {
     res.redirect('/');
+  });
+
+  /* Legacy user ID route redirects - 302 redirects to username-based URLs */
+  app.get('/user/:userId/:date?', async (req, res) => {
+    try {
+      const { userId, date } = req.params;
+      
+      // Get user by ID to find their username
+      const user = await storage.getUser(userId);
+      if (!user || !user.username) {
+        return res.status(404).json({ message: "User not found or username not available" });
+      }
+
+      // Construct the new username-based URL
+      const redirectUrl = date 
+        ? `/@${user.username}/${date}`
+        : `/@${user.username}/${formatLocalDate(new Date())}`;
+      
+      // 302 redirect to username-based URL
+      return res.redirect(302, redirectUrl);
+    } catch (err) {
+      console.error("GET /user/:userId/:date redirect error:", err);
+      return res.status(500).json({ message: "Failed to redirect to username-based URL" });
+    }
   });
 
   /* Central error handler */
