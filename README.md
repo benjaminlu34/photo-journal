@@ -1,139 +1,188 @@
-# Photo Journal - CRDT-First Real-Time Collaboration
+# Photo Journal
 
-A modern, real-time collaborative photo journal application built with React, TypeScript, and Yjs for seamless multi-user editing experiences.
+A real-time collaborative journaling application built with React, TypeScript, and Yjs. Create multimedia journal entries with text, images, voice recordings, and drawings that sync instantly across devices and users.
 
-## 🚀 Local Development
+Created for my girlfriend as a fun side project inspired by some pinterest designs :)
+
+## Features
+
+- **Real-time collaboration** - Multiple users can edit the same journal entry simultaneously
+- **Offline-first** - Full functionality without internet connection, automatic sync when reconnected
+- **Rich content types** - Text notes, checklists, images, voice recordings, and freehand drawings
+- **Flexible layouts** - Drag-and-drop positioning with multiple view modes (daily, weekly, monthly)
+- **User management** - Username system with search, profiles, and social features
+- **Responsive design** - Works on desktop, tablet, and mobile devices
+
+## Tech Stack
+
+**Frontend**
+- React with TypeScript
+- Tailwind CSS
+- Radix UI components
+- Yjs
+- WebRTC 
+- IndexedDB
+
+**Backend**
+- Node.js with Express
+- PostgreSQL with Drizzle ORM
+- Supabase Auth for authentication
+- JWT-based session management
+
+**Development**
+- Vite/Vitest
+- Docker for local dev environment (for testing)
+
+## Getting Started
 
 ### Prerequisites
-- Node.js >= 20.11
+
+- Node.js 20.11 or higher
 - Docker (for local PostgreSQL)
-- pnpm (recommended package manager)
+- pnpm (switched from npm for this project, like it a lot)
 
-### Quick Start
+### Installation
 
+1. Clone the repository and install dependencies:
 ```bash
-# 1. Clone and install dependencies
+git clone <repository-url>
+cd photo-journal
 pnpm install
+```
 
-# 2. Copy environment variables
+2. Set up environment variables:
+```bash
 cp .env.example .env
 
-# 3. Start PostgreSQL and run migrations
-pnpm run db:init
+for my environment I have a supabase env and local env for their respective urls. This is optional
+```
 
-# 4. Start development server
+3. Start the database and run migrations:
+```bash
+pnpm run db:init
+```
+
+4. Start the development server:
+```bash
 pnpm dev
 ```
 
 The application will be available at `http://localhost:5000`
 
-### Development Modes
+## Development
 
-#### Local Development (Docker)
-```bash
-pnpm dev
-```
-- Uses local PostgreSQL via Docker
-- Local authentication with dev-user
-- Hot reload for both frontend and backend
+### Environment Configurations
 
-#### Replit Development
-```bash
-pnpm run dev:replit
-```
-- Uses Replit's built-in PostgreSQL
-- Replit OIDC authentication
-- Replit-specific plugins and features
+The project supports multiple environment configurations:
 
-### Environment Variables
+- **Local development** (`pnpm dev`) - use if you just have one db url
+- **Local with Supabase** (`pnpm dev:local`), (`pnpm dev:supabase`)  - my setup, one for local and one for supabase url
+### Available Scripts
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://postgres:postgres@localhost:5432/photo_journal` |
-| `SESSION_SECRET` | Session encryption key | `replace-me` (must be ≥32 chars) |
-| `NODE_ENV` | Environment mode | `development` |
-| `REPLIT` | Enable Replit mode | `false` |
-
-### Database Setup
-
-#### Local Development
-```bash
-# Start PostgreSQL container
-docker compose up -d db
-
-# Run migrations
-pnpm drizzle-kit push
-```
-
-#### Replit
-No additional setup needed - uses Replit's managed PostgreSQL.
-
-### Scripts
-
-| Script | Description |
-|--------|-------------|
-| `pnpm dev` | Start local development server |
-| `pnpm run dev:replit` | Start Replit development server |
-| `pnpm run db:init` | Initialize database (Docker + migrations) |
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start development server with default environment |
+| `pnpm dev:local` | Start with local database and Supabase auth |
+| `pnpm dev:supabase` | Start with Supabase cloud database |
 | `pnpm build` | Build for production |
 | `pnpm start` | Start production server |
+| `pnpm test` | Run test suite |
+| `pnpm test:watch` | Run tests in watch mode |
 | `pnpm check` | Type checking |
+| `pnpm db:studio` | Open Drizzle Studio for database management |
 
-### Architecture Overview
+### Database Management
 
-The application uses a **CRDT-first architecture** powered by Yjs for real-time collaboration:
-
-- **Frontend**: React 18 + TypeScript + Tailwind CSS
-- **Backend**: Node.js + Express + PostgreSQL
-- **Real-time**: Yjs + WebRTC for peer-to-peer sync
-- **Authentication**: Replit OIDC (production) / Local dev auth (development)
-- **Database**: PostgreSQL via Drizzle ORM
-
-### Key Features
-
-- **Real-time collaboration** with conflict-free editing
-- **Offline-first** with automatic sync
-- **Multiple note types**: Text, checklist, image, voice, drawing
-- **Social features**: Friendships and entry sharing
-- **Multiple views**: Daily, weekly, monthly layouts
-- **Responsive design** with glassmorphism UI
-
-### Development Workflow
-
-1. **Feature Development**: Use local development mode
-2. **Testing**: Run `pnpm check` for type checking
-3. **Database Changes**: Use `pnpm drizzle-kit push` for migrations
-4. **Production**: Deploy to Replit or your preferred platform
-
-### Troubleshooting
-
-#### Port 5000 already in use
 ```bash
-# Kill process on port 5000
-lsof -ti:5000 | xargs kill -9
+# Push schema changes to local database
+pnpm db:push:local
+
+# Push schema changes to Supabase
+pnpm db:push:supabase
+
 ```
 
-#### Database connection issues
+## Environment Variables
+
+### Required Variables
+
 ```bash
-# Check if PostgreSQL is running
-docker ps
-# Restart PostgreSQL
-docker compose restart db
+# Database
+DATABASE_URL=your db url
+SESSION_SECRET=your-secret-key-minimum-32-characters
+NODE_ENV=development
+
+# Supabase env variables
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-#### Permission issues on Windows
-```bash
-# Run as administrator or use WSL
-# Ensure Docker Desktop is running
+## Architecture
+
+### CRDT-First Design
+
+The application uses Conflict-free Replicated Data Types (CRDTs) via Yjs to enable real-time collaboration without conflicts. This was how I decided to implement the feature that allows multiple users to edit the same online "pinboard" simultaneously while maintaining consistency.
+
+### Project Structure
+
+```
+├── client/src/          
+├── server/             
+├── shared/              
+├── migrations/         
+├── tests/               
+├── scripts/            
+└── supabase/            
 ```
 
-### Contributing
+## Testing
 
-1. Create a feature branch from `main`
-2. Make your changes
-3. Test with both local and Replit modes
-4. Submit a pull request
+The project includes pretty comprehensive testing:
 
-### License
+- **Unit tests** - Component and function testing with Vitest
+- **Integration tests** - API endpoint and database testing
+- **PostgreSQL tests** - Database constraint and migration testing with pg_prove
 
-MIT License - see LICENSE file for details
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run PostgreSQL-specific tests
+pnpm test:pg
+```
+
+## Deployment
+
+### Production Build
+
+```bash
+pnpm build
+pnpm start
+```
+
+### Environment Setup
+
+1. Set up a PostgreSQL database
+2. Configure Supabase project for authentication
+3. Set production environment variables
+4. Run database migrations
+5. Deploy the built application
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`pnpm test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. (If not made yet sorry lazy)
