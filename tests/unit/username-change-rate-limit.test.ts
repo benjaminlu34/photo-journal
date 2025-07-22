@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { Request, Response } from 'express';
 import { usernameChangeRateLimit } from '../../server/middleware/rateLimit';
 import { storage } from '../../server/storage';
@@ -13,11 +13,11 @@ vi.mock('../../server/storage', () => ({
 describe('Username Change Rate Limiting', () => {
   let mockReq: Partial<Request>;
   let mockRes: Partial<Response>;
-  let mockNext: vi.Mock;
+  let mockNext: Mock;
 
   beforeEach(() => {
     mockReq = {
-      user: { id: 'test-user-id' },
+      user: { id: 'test-user-id', email: 'test@example.com' },
       query: {},
     };
     
