@@ -41,16 +41,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const userData = await response.json();
         
         // Update the user state with complete profile data including username
-        setUser(prev => ({
-          ...prev,
-          ...userData,
-          username: userData.username || prev?.username, // Preserve username from JWT if not in DB yet
-        }));
-        
-        // Show profile modal if the profile is incomplete
-        if (isProfileIncomplete(userData)) {
-          setShowProfileModal(true);
-        }
+        setUser(prev => {
+          const updatedUser = {
+            ...prev,
+            ...userData,
+            username: userData.username || prev?.username, // Preserve username from JWT if not in DB yet
+          };
+          
+          // Show profile modal if the profile is incomplete (check the merged user data)
+          if (isProfileIncomplete(updatedUser)) {
+            setShowProfileModal(true);
+          }
+          
+          return updatedUser;
+        });
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);

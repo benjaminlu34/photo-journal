@@ -31,11 +31,21 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   const [firstName, setFirstName] = useState(user.first_name || '');
   const [lastName, setLastName] = useState(user.last_name || '');
   const [username, setUsername] = useState(user.username || '');
-  const [isUsernameValid, setIsUsernameValid] = useState(false);
+  const [isUsernameValid, setIsUsernameValid] = useState(true); // Start as valid if it's the current username
   const [usernameError, setUsernameError] = useState<string | undefined>();
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync form state with user prop changes
+  useEffect(() => {
+    setFirstName(user.first_name || '');
+    setLastName(user.last_name || '');
+    setUsername(user.username || '');
+    // If we have a username, it's valid by default (it's the current username)
+    setIsUsernameValid(!!user.username);
+    setUsernameError(undefined);
+  }, [user]);
 
   // Load current profile picture on mount
   React.useEffect(() => {
@@ -134,8 +144,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     setIsSubmitting(true);
 
     try {
-      // Check if username is being changed and validate it
-      const isUsernameChanged = username.trim() !== '' && username !== user.username;
+      // Check if username is being changed and validate it (case-insensitive comparison)
+      const isUsernameChanged = username.trim() !== '' && username.toLowerCase() !== (user.username || '').toLowerCase();
       
       if (isUsernameChanged && (!isUsernameValid || usernameError)) {
         toast({

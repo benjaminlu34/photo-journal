@@ -66,11 +66,11 @@ export async function validateUsername(username: string): Promise<{
     return { isValid: false, error: "Username must be at most 20 characters" };
   }
   
-  // Check if input contains only valid characters (lowercase letters, numbers, underscores)
-  if (!/^[a-z0-9_]+$/.test(username)) {
+  // Check if input contains only valid characters (letters, numbers, underscores)
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
     return { 
       isValid: false, 
-      error: "Username can only contain lowercase letters, numbers, and underscores" 
+      error: "Username can only contain letters, numbers, and underscores" 
     };
   }
   

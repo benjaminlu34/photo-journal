@@ -51,7 +51,7 @@ describe('Username API Endpoints', () => {
         .expect(200);
 
       expect(response.body.available).toBe(false);
-      expect(response.body.error).toBe('Username can only contain lowercase letters, numbers, and underscores');
+      expect(response.body.error).toBe('Username can only contain letters, numbers, and underscores');
     });
 
     it('should handle rate limiting', async () => {

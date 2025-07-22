@@ -32,13 +32,15 @@ describe('Username Validation', () => {
     it('should reject usernames with invalid characters', async () => {
       const result = await validateUsername('user-name');
       expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Username can only contain lowercase letters, numbers, and underscores');
+      expect(result.error).toBe('Username can only contain letters, numbers, and underscores');
     });
 
-    it('should reject usernames with uppercase letters', async () => {
+    it('should accept usernames with uppercase letters (normalized to lowercase)', async () => {
+      mockStorage.checkUsernameAvailability.mockResolvedValue(true);
+      
       const result = await validateUsername('UserName');
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Username can only contain lowercase letters, numbers, and underscores');
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
     });
 
     it('should reject reserved usernames', async () => {
