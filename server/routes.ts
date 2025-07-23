@@ -11,8 +11,23 @@ import rateLimit from "express-rate-limit";
 
 import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
-import { usernameCheckRateLimit, userSearchRateLimit, usernameChangeRateLimit } from "./middleware/rateLimit";
+import {
+  usernameCheckRateLimit,
+  userSearchRateLimit,
+  usernameChangeRateLimit,
+  friendRequestRateLimit,
+  friendManagementRateLimit,
+  sharingRateLimit
+} from "./middleware/rateLimit";
 import { validateUsername, generateUsernameSuggestions } from "./utils/username";
+import {
+  resolveJournalPermissions,
+  requireViewPermission,
+  requireEditPermission,
+  requireCreatePermission,
+  requireContentBlockEditPermission,
+  requireContentBlockDeletePermission
+} from "./middleware/permission";
 
 import {
   insertJournalEntrySchema,
@@ -338,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Username-based journal entry access */
-  app.get("/api/journal/user/:username/:date", isAuthenticatedSupabase, async (req, res) => {
+  app.get("/api/journal/user/:username/:date", isAuthenticatedSupabase, resolveJournalPermissions, requireViewPermission, async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { username, date } = req.params;
@@ -355,28 +370,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Check if current user has permission to view this user's journal
-      // For now, only allow users to view their own journals
-      // TODO: Implement friend permissions in future friend system
-      if (targetUser.id !== currentUserId) {
-        return res.status(403).json({ message: "Access denied: You can only view your own journal entries" });
-      }
-
       // Get the journal entry
       let entry = await storage.getJournalEntry(targetUser.id, parsedDate);
       if (!entry) {
-        entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
+        // Only create entry if current user is the owner
+        if (currentUserId === targetUser.id) {
+          entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
+        } else {
+          return res.status(404).json({ message: "Journal entry not found" });
+        }
       }
+      
       const blocks = await storage.getContentBlocks(entry.id);
       
-      return res.json({ 
-        ...entry, 
+      return res.json({
+        ...entry,
         contentBlocks: blocks,
         owner: {
           id: targetUser.id,
           username: targetUser.username,
           firstName: targetUser.firstName,
           lastName: targetUser.lastName
+        },
+        permissions: {
+          canEdit: req.permissionResult?.canEdit || false,
+          canCreate: req.permissionResult?.canCreate || false,
+          canDelete: req.permissionResult?.canDelete || false,
+          effectiveRole: req.permissionResult?.effectiveRole || null
         }
       });
     } catch (err) {
@@ -437,23 +457,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Content blocks */
-  app.post("/api/content-blocks", isAuthenticatedSupabase, async (req, res) => {
+  app.post("/api/content-blocks", isAuthenticatedSupabase, resolveJournalPermissions, requireCreatePermission, async (req, res) => {
     try {
       const userId = getUserId(req);
       const block = insertContentBlockSchema.parse(req.body);
       
-      // Verify that the journal entry belongs to the current user
+      // Verify that the journal entry belongs to the current user or is accessible
       const entry = await storage.getJournalEntryById(block.entryId);
       if (!entry) {
         return res.status(404).json({ message: "Journal entry not found" });
       }
       
-      // Check ownership
-      if (entry.userId !== userId) {
-        return res.status(403).json({ message: "Unauthorized: You don't own this journal entry" });
-      }
-      
-      const created = await storage.createContentBlock(block);
+      // Create content block with created_by field
+      const created = await storage.createContentBlock({
+        ...block,
+        createdBy: userId
+      });
       return res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -464,31 +483,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add route to update content block with ownership validation
-  app.patch("/api/content-blocks/:blockId", isAuthenticatedSupabase, async (req, res) => {
+  // Add route to update content block with permission validation
+  app.patch("/api/content-blocks/:blockId", isAuthenticatedSupabase, resolveJournalPermissions, requireContentBlockEditPermission, async (req, res) => {
     try {
       const userId = getUserId(req);
       const blockId = req.params.blockId;
       
-      // Get the content block
-      const block = await storage.getContentBlock(blockId);
-      if (!block) {
-        return res.status(404).json({ message: "Content block not found" });
-      }
-      
-      // Get the journal entry to verify ownership
-      const entry = await storage.getJournalEntryById(block.entryId);
-      if (!entry) {
-        return res.status(404).json({ message: "Journal entry not found" });
-      }
-      
-      // Check ownership
-      if (entry.userId !== userId) {
-        return res.status(403).json({ message: "Unauthorized: You don't own this content block" });
-      }
-      
       // Parse and validate the updates
-      const updateSchema = insertContentBlockSchema.partial().omit({ entryId: true });
+      const updateSchema = insertContentBlockSchema.partial().omit({ entryId: true, createdBy: true });
       const updates = updateSchema.parse(req.body);
       
       // Update the content block
@@ -503,28 +505,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add route to delete content block with ownership validation
-  app.delete("/api/content-blocks/:blockId", isAuthenticatedSupabase, async (req, res) => {
+  // Add route to delete content block with permission validation
+  app.delete("/api/content-blocks/:blockId", isAuthenticatedSupabase, resolveJournalPermissions, requireContentBlockDeletePermission, async (req, res) => {
     try {
       const userId = getUserId(req);
       const blockId = req.params.blockId;
-      
-      // Get the content block
-      const block = await storage.getContentBlock(blockId);
-      if (!block) {
-        return res.status(404).json({ message: "Content block not found" });
-      }
-      
-      // Get the journal entry to verify ownership
-      const entry = await storage.getJournalEntryById(block.entryId);
-      if (!entry) {
-        return res.status(404).json({ message: "Journal entry not found" });
-      }
-      
-      // Check ownership
-      if (entry.userId !== userId) {
-        return res.status(403).json({ message: "Unauthorized: You don't own this content block" });
-      }
       
       // Delete the content block
       await storage.deleteContentBlock(blockId);
@@ -535,7 +520,312 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* Friendships */
+  /* Friend Management API Endpoints */
+  
+  /* Send friend request by username */
+  app.post("/api/friends/:username/request", friendRequestRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { username } = req.params;
+      
+      // Find target user by username
+      const targetUser = await storage.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Prevent self-friendship
+      if (targetUser.id === currentUserId) {
+        return res.status(400).json({ message: "Cannot send friend request to yourself" });
+      }
+      
+      // Check if user can send friend request (cooldown validation)
+      const canSend = await storage.canSendFriendRequestTo(currentUserId, targetUser.id);
+      if (!canSend) {
+        const existingFriendship = await storage.getFriendship(currentUserId, targetUser.id);
+        if (existingFriendship?.status === 'blocked') {
+          return res.status(403).json({ message: "Cannot send friend request to blocked user" });
+        } else if (existingFriendship?.status === 'pending') {
+          return res.status(409).json({ message: "Friend request already pending" });
+        } else if (existingFriendship?.status === 'accepted') {
+          return res.status(409).json({ message: "Already friends with this user" });
+        } else {
+          return res.status(429).json({ 
+            message: "Must wait 24 hours before sending another friend request to this user",
+            retryAfter: 86400 // 24 hours in seconds
+          });
+        }
+      }
+      
+      // Create friendship with canonical ordering and initiator tracking
+      const friendship = await storage.createFriendshipWithCanonicalOrdering(
+        currentUserId, 
+        targetUser.id, 
+        currentUserId
+      );
+      
+      return res.status(201).json({
+        id: friendship.id,
+        status: friendship.status,
+        targetUser: {
+          id: targetUser.id,
+          username: targetUser.username,
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName
+        },
+        createdAt: friendship.createdAt
+      });
+    } catch (err) {
+      console.error("POST /api/friends/:username/request:", err);
+      return res.status(500).json({ message: "Failed to send friend request" });
+    }
+  });
+  
+  /* Accept friend request */
+  app.patch("/api/friends/:friendshipId/accept", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { friendshipId } = req.params;
+      
+      // Get friendship to validate
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (!friendship) {
+        return res.status(404).json({ message: "Friend request not found" });
+      }
+      
+      // Verify user is part of this friendship and not the initiator
+      if (friendship.userId !== currentUserId && friendship.friendId !== currentUserId) {
+        return res.status(403).json({ message: "Not authorized to accept this friend request" });
+      }
+      
+      // Prevent initiator from accepting their own request
+      if (friendship.initiatorId === currentUserId) {
+        return res.status(400).json({ message: "Cannot accept your own friend request" });
+      }
+      
+      // Verify friendship is in pending status
+      if (friendship.status !== 'pending') {
+        return res.status(400).json({ message: `Cannot accept friend request with status: ${friendship.status}` });
+      }
+      
+      // Update friendship status to accepted
+      const updatedFriendship = await storage.updateFriendshipStatusWithAudit(
+        friendshipId, 
+        'accepted', 
+        currentUserId
+      );
+      
+      // Get friend user info for response
+      const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      const friendUser = await storage.getUser(friendId);
+      
+      return res.json({
+        id: updatedFriendship.id,
+        status: updatedFriendship.status,
+        friend: friendUser ? {
+          id: friendUser.id,
+          username: friendUser.username,
+          firstName: friendUser.firstName,
+          lastName: friendUser.lastName
+        } : null,
+        updatedAt: updatedFriendship.updatedAt
+      });
+    } catch (err) {
+      console.error("PATCH /api/friends/:friendshipId/accept:", err);
+      return res.status(500).json({ message: "Failed to accept friend request" });
+    }
+  });
+  
+  /* Decline friend request */
+  app.patch("/api/friends/:friendshipId/decline", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { friendshipId } = req.params;
+      
+      // Get friendship to validate
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (!friendship) {
+        return res.status(404).json({ message: "Friend request not found" });
+      }
+      
+      // Verify user is part of this friendship and not the initiator
+      if (friendship.userId !== currentUserId && friendship.friendId !== currentUserId) {
+        return res.status(403).json({ message: "Not authorized to decline this friend request" });
+      }
+      
+      // Prevent initiator from declining their own request
+      if (friendship.initiatorId === currentUserId) {
+        return res.status(400).json({ message: "Cannot decline your own friend request" });
+      }
+      
+      // Verify friendship is in pending status
+      if (friendship.status !== 'pending') {
+        return res.status(400).json({ message: `Cannot decline friend request with status: ${friendship.status}` });
+      }
+      
+      // Update friendship status to declined
+      const updatedFriendship = await storage.updateFriendshipStatusWithAudit(
+        friendshipId, 
+        'declined', 
+        currentUserId
+      );
+      
+      return res.json({
+        id: updatedFriendship.id,
+        status: updatedFriendship.status,
+        updatedAt: updatedFriendship.updatedAt
+      });
+    } catch (err) {
+      console.error("PATCH /api/friends/:friendshipId/decline:", err);
+      return res.status(500).json({ message: "Failed to decline friend request" });
+    }
+  });
+  
+  /* Block user */
+  app.patch("/api/friends/:friendshipId/block", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { friendshipId } = req.params;
+      
+      // Get friendship to validate
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (!friendship) {
+        return res.status(404).json({ message: "Friendship not found" });
+      }
+      
+      // Verify user is part of this friendship
+      if (friendship.userId !== currentUserId && friendship.friendId !== currentUserId) {
+        return res.status(403).json({ message: "Not authorized to block this user" });
+      }
+      
+      // Block is allowed from any status except already blocked
+      if (friendship.status === 'blocked') {
+        return res.status(400).json({ message: "User is already blocked" });
+      }
+      
+      // Update friendship status to blocked
+      const updatedFriendship = await storage.updateFriendshipStatusWithAudit(
+        friendshipId, 
+        'blocked', 
+        currentUserId
+      );
+      
+      return res.json({
+        id: updatedFriendship.id,
+        status: updatedFriendship.status,
+        updatedAt: updatedFriendship.updatedAt
+      });
+    } catch (err) {
+      console.error("PATCH /api/friends/:friendshipId/block:", err);
+      return res.status(500).json({ message: "Failed to block user" });
+    }
+  });
+  
+  /* Update friend role (directional role management) */
+  app.patch("/api/friends/:friendshipId/role", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { friendshipId } = req.params;
+      
+      // Validate request body
+      const roleSchema = z.object({
+        role: z.enum(['viewer', 'contributor', 'editor'])
+      });
+      
+      const { role } = roleSchema.parse(req.body);
+      
+      // Get friendship to validate
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (!friendship) {
+        return res.status(404).json({ message: "Friendship not found" });
+      }
+      
+      // Verify user is part of this friendship
+      if (friendship.userId !== currentUserId && friendship.friendId !== currentUserId) {
+        return res.status(403).json({ message: "Not authorized to update role for this friendship" });
+      }
+      
+      // Only allow role updates for accepted friendships
+      if (friendship.status !== 'accepted') {
+        return res.status(400).json({ message: "Can only update roles for accepted friendships" });
+      }
+      
+      // Update the friendship role (directional)
+      const updatedFriendship = await storage.updateFriendshipRole(
+        friendshipId, 
+        currentUserId, 
+        role
+      );
+      
+      // Get friend user info for response
+      const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      const friendUser = await storage.getUser(friendId);
+      
+      return res.json({
+        id: updatedFriendship.id,
+        status: updatedFriendship.status,
+        roleUserToFriend: updatedFriendship.roleUserToFriend,
+        roleFriendToUser: updatedFriendship.roleFriendToUser,
+        friend: friendUser ? {
+          id: friendUser.id,
+          username: friendUser.username,
+          firstName: friendUser.firstName,
+          lastName: friendUser.lastName
+        } : null,
+        updatedAt: updatedFriendship.updatedAt
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid role", errors: err.errors });
+      }
+      console.error("PATCH /api/friends/:friendshipId/role:", err);
+      return res.status(500).json({ message: "Failed to update friend role" });
+    }
+  });
+  
+  /* Unfriend user (soft delete to 'unfriended' status) */
+  app.delete("/api/friends/:friendshipId", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { friendshipId } = req.params;
+      
+      // Get friendship to validate
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (!friendship) {
+        return res.status(404).json({ message: "Friendship not found" });
+      }
+      
+      // Verify user is part of this friendship
+      if (friendship.userId !== currentUserId && friendship.friendId !== currentUserId) {
+        return res.status(403).json({ message: "Not authorized to unfriend this user" });
+      }
+      
+      // Only allow unfriending accepted friendships
+      if (friendship.status !== 'accepted') {
+        return res.status(400).json({ message: "Can only unfriend accepted friendships" });
+      }
+      
+      // Update friendship status to unfriended (soft delete)
+      const updatedFriendship = await storage.updateFriendshipStatusWithAudit(
+        friendshipId, 
+        'unfriended', 
+        currentUserId
+      );
+      
+      // Return 200 with JSON (not 204) as specified in requirements
+      return res.status(200).json({
+        id: updatedFriendship.id,
+        status: updatedFriendship.status,
+        message: "Successfully unfriended user",
+        updatedAt: updatedFriendship.updatedAt
+      });
+    } catch (err) {
+      console.error("DELETE /api/friends/:friendshipId:", err);
+      return res.status(500).json({ message: "Failed to unfriend user" });
+    }
+  });
+
+  /* Legacy Friendships endpoint (kept for backward compatibility) */
   app.post("/api/friendships", isAuthenticatedSupabase, async (req, res) => {
     try {
       const data = insertFriendshipSchema.parse(req.body);
@@ -547,6 +837,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("POST /api/friendships:", err);
       return res.status(500).json({ message: "Failed to create friendship" });
+    }
+  });
+
+  /* Friend List and Request Management Endpoints */
+  
+  /* Get friends list with pagination and role information */
+  app.get("/api/friends", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Parse pagination parameters
+      const limitParam = req.query.limit as string;
+      const offsetParam = req.query.offset as string;
+      
+      const limit = Math.min(parseInt(limitParam) || 50, 100); // Cap at 100
+      const offset = Math.max(parseInt(offsetParam) || 0, 0);
+      
+      const { friends, totalCount } = await storage.getFriendsWithRoles(userId, {
+        limit,
+        offset,
+      });
+      
+      return res.json({
+        friends,
+        pagination: {
+          limit,
+          offset,
+          totalCount,
+          hasMore: offset + limit < totalCount,
+        },
+      });
+    } catch (err) {
+      console.error("GET /api/friends:", err);
+      return res.status(500).json({ message: "Failed to fetch friends list" });
+    }
+  });
+  
+  /* Get friend requests (sent and received) */
+  app.get("/api/friends/requests", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Parse pagination parameters
+      const limitParam = req.query.limit as string;
+      const offsetParam = req.query.offset as string;
+      
+      const limit = Math.min(parseInt(limitParam) || 50, 100); // Cap at 100
+      const offset = Math.max(parseInt(offsetParam) || 0, 0);
+      
+      const { sent, received, totalCount } = await storage.getFriendRequests(userId, {
+        limit,
+        offset,
+      });
+      
+      return res.json({
+        sent,
+        received,
+        pagination: {
+          limit,
+          offset,
+          totalCount,
+          hasMore: offset + limit < totalCount,
+        },
+      });
+    } catch (err) {
+      console.error("GET /api/friends/requests:", err);
+      return res.status(500).json({ message: "Failed to fetch friend requests" });
     }
   });
 
@@ -562,6 +919,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("POST /api/share-entry:", err);
       return res.status(500).json({ message: "Failed to share entry" });
+    }
+  });
+
+  /* Journal sharing with friends */
+  app.post("/api/journal/:entryId/share", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { entryId } = req.params;
+      
+      // Validate request body
+      const shareSchema = z.object({
+        friendUsername: z.string().min(1, "Friend username is required"),
+        permissions: z.enum(['view', 'edit'])
+      });
+      
+      const { friendUsername, permissions } = shareSchema.parse(req.body);
+
+      // Verify the journal entry belongs to the current user
+      const entry = await storage.getJournalEntryById(entryId);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+
+      if (entry.userId !== currentUserId) {
+        return res.status(403).json({ message: "You can only share your own journal entries" });
+      }
+
+      // Share entry with friend
+      const sharedEntry = await storage.shareEntryWithFriend(
+        entryId,
+        currentUserId,
+        friendUsername,
+        permissions
+      );
+
+      // Get friend details for response
+      const friend = await storage.getUserByUsername(friendUsername);
+      
+      return res.status(201).json({
+        id: sharedEntry.id,
+        entryId: sharedEntry.entryId,
+        permissions: sharedEntry.permissions,
+        sharedWith: {
+          id: friend?.id,
+          username: friend?.username,
+          firstName: friend?.firstName,
+          lastName: friend?.lastName
+        },
+        createdAt: sharedEntry.createdAt
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      if (err instanceof Error && err.message === 'Friend not found') {
+        return res.status(404).json({ message: "Friend not found" });
+      }
+      if (err instanceof Error && err.message === 'Friendship not found or not accepted') {
+        return res.status(403).json({ message: "You can only share with accepted friends" });
+      }
+      console.error("POST /api/journal/:entryId/share:", err);
+      return res.status(500).json({ message: "Failed to share journal entry" });
+    }
+  });
+
+  /* Revoke journal sharing */
+  app.delete("/api/journal/:entryId/share/:friendUsername", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { entryId, friendUsername } = req.params;
+
+      // Verify the journal entry belongs to the current user
+      const entry = await storage.getJournalEntryById(entryId);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+
+      if (entry.userId !== currentUserId) {
+        return res.status(403).json({ message: "You can only revoke sharing of your own journal entries" });
+      }
+
+      // Revoke sharing
+      await storage.revokeEntrySharing(entryId, currentUserId, friendUsername);
+
+      return res.status(200).json({
+        message: "Successfully revoked sharing with friend",
+        entryId,
+        friendUsername
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Friend not found') {
+        return res.status(404).json({ message: "Friend not found" });
+      }
+      console.error("DELETE /api/journal/:entryId/share/:friendUsername:", err);
+      return res.status(500).json({ message: "Failed to revoke sharing" });
+    }
+  });
+
+  /* Get shared entries for a journal entry */
+  app.get("/api/journal/:entryId/shares", isAuthenticatedSupabase, async (req, res) => {
+    try {
+      const currentUserId = getUserId(req);
+      const { entryId } = req.params;
+
+      // Verify the journal entry belongs to the current user
+      const entry = await storage.getJournalEntryById(entryId);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+
+      if (entry.userId !== currentUserId) {
+        return res.status(403).json({ message: "You can only view shares of your own journal entries" });
+      }
+
+      // Get shared entries
+      const sharedEntries = await storage.getSharedEntriesForEntry(entryId);
+
+      return res.json({
+        shares: sharedEntries,
+        count: sharedEntries.length
+      });
+    } catch (err) {
+      console.error("GET /api/journal/:entryId/shares:", err);
+      return res.status(500).json({ message: "Failed to get shared entries" });
     }
   });
 
@@ -603,11 +1084,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* Search users by username */
+  /* Search users by username with friendship status */
   app.get("/api/users/search", userSearchRateLimit, isAuthenticatedSupabase, async (req, res) => {
     try {
       const query = req.query.query as string;
       const limitParam = req.query.limit as string;
+      const friendsOnlyParam = req.query.friendsOnly as string;
       
       if (!query) {
         return res.status(400).json({
@@ -618,7 +1100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (query.length < 1) {
         return res.status(400).json({
-          error: "INVALID_REQUEST", 
+          error: "INVALID_REQUEST",
           message: "Search query must be at least 1 character"
         });
       }
@@ -632,17 +1114,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Search for users
-      const users = await storage.searchUsersByUsername(query, limit);
+      // Parse friendsOnly parameter
+      const friendsOnly = friendsOnlyParam === 'true';
+
+      const currentUserId = getUserId(req);
       
-      // Format response with match type detection
+      // Use enhanced search with friendship status
+      const users = await storage.searchUsersByUsernameWithFriendshipStatus(
+        currentUserId,
+        query,
+        { limit, friendsOnly }
+      );
+      
+      // Format response with match type detection and friendship status
       const results = users.map(user => {
         const matchType = user.username?.toLowerCase() === query.toLowerCase() ? 'exact' : 'prefix';
         return {
           id: user.id,
           username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
           avatar: null, // Profile images not yet implemented in schema
-          matchType
+          matchType,
+          friendshipStatus: user.friendshipStatus || null,
+          friendshipId: user.friendshipId || null
         };
       });
 

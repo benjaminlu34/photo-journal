@@ -64,6 +64,84 @@ export const userSearchRateLimit = rateLimit({
 });
 
 /**
+ * Rate limiting configuration for friend request endpoints
+ * Requirements: 10/hour per user with RFC 6585 compliance
+ */
+export const friendRequestRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 10, // 10 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `friend_request:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many friend requests. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
+ * Rate limiting configuration for friend management endpoints (accept/decline/block/unfriend)
+ * Requirements: 50/hour per user with RFC 6585 compliance
+ */
+export const friendManagementRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 50, // 50 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `friend_mgmt:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many friend management actions. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
+ * Rate limiting configuration for sharing operations
+ * Requirements: 30/hour per user with RFC 6585 compliance
+ */
+export const sharingRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 30, // 30 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `sharing:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many sharing operations. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
  * Custom database-backed rate limiting for username changes
  * Requirements: 2 per 30 days per user with RFC 6585 compliance
  * 

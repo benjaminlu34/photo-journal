@@ -1,14 +1,11 @@
 import {
   pgTable,
-  text,
   varchar,
   timestamp,
   jsonb,
   index,
-  serial,
   integer,
   boolean,
-  decimal,
   uuid,
   customType,
 } from "drizzle-orm/pg-core";
@@ -45,6 +42,7 @@ export const users = pgTable("users", {
   username: varchar("username", { length: 20 }).unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -75,6 +73,7 @@ export const contentBlocks = pgTable("content_blocks", {
   type: varchar("type", { enum: ["sticky_note", "photo", "text", "checklist", "audio", "drawing"] }).notNull(),
   content: jsonb("content").notNull(),
   position: jsonb("position").notNull(), // { x, y, width, height, rotation }
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -83,7 +82,10 @@ export const friendships = pgTable("friendships", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   friendId: varchar("friend_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  status: varchar("status", { enum: ["pending", "accepted", "blocked"] }).notNull().default("pending"),
+  initiatorId: varchar("initiator_id").references(() => users.id, { onDelete: "cascade" }),
+  status: varchar("status", { enum: ["pending", "accepted", "blocked", "declined", "unfriended"] }).notNull().default("pending"),
+  roleUserToFriend: varchar("role_user_to_friend", { enum: ["viewer", "contributor", "editor"] }).notNull().default("viewer"),
+  roleFriendToUser: varchar("role_friend_to_user", { enum: ["viewer", "contributor", "editor"] }).notNull().default("viewer"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -95,6 +97,23 @@ export const sharedEntries = pgTable("shared_entries", {
   permissions: varchar("permissions", { enum: ["view", "edit"] }).notNull().default("view"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Friendship changes audit table for tracking role and status changes
+export const friendshipChanges = pgTable("friendship_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  friendshipId: uuid("friendship_id").notNull().references(() => friendships.id, { onDelete: "cascade" }),
+  actorId: varchar("actor_id").references(() => users.id, { onDelete: "cascade" }),
+  oldStatus: varchar("old_status"),
+  newStatus: varchar("new_status"),
+  oldRoleUserToFriend: varchar("old_role_user_to_friend", { enum: ["viewer", "contributor", "editor"] }),
+  newRoleUserToFriend: varchar("new_role_user_to_friend", { enum: ["viewer", "contributor", "editor"] }),
+  oldRoleFriendToUser: varchar("old_role_friend_to_user", { enum: ["viewer", "contributor", "editor"] }),
+  newRoleFriendToUser: varchar("new_role_friend_to_user", { enum: ["viewer", "contributor", "editor"] }),
+  changedAt: timestamp("changed_at").defaultNow(),
+}, (table) => [
+  index("idx_friendship_changes_friendship").on(table.friendshipId, table.changedAt),
+  index("idx_friendship_changes_actor").on(table.actorId, table.changedAt),
+]);
 
 // YJS Snapshots table for CRDT persistence
 export const yjs_snapshots = pgTable(
@@ -143,9 +162,13 @@ export const contentBlocksRelations = relations(contentBlocks, ({ one }) => ({
     fields: [contentBlocks.entryId],
     references: [journalEntries.id],
   }),
+  createdBy: one(users, {
+    fields: [contentBlocks.createdBy],
+    references: [users.id],
+  }),
 }));
 
-export const friendshipsRelations = relations(friendships, ({ one }) => ({
+export const friendshipsRelations = relations(friendships, ({ one, many }) => ({
   user: one(users, {
     fields: [friendships.userId],
     references: [users.id],
@@ -155,6 +178,23 @@ export const friendshipsRelations = relations(friendships, ({ one }) => ({
     fields: [friendships.friendId],
     references: [users.id],
     relationName: "friendOfUser",
+  }),
+  initiator: one(users, {
+    fields: [friendships.initiatorId],
+    references: [users.id],
+    relationName: "initiatorFriendships",
+  }),
+  changes: many(friendshipChanges),
+}));
+
+export const friendshipChangesRelations = relations(friendshipChanges, ({ one }) => ({
+  friendship: one(friendships, {
+    fields: [friendshipChanges.friendshipId],
+    references: [friendships.id],
+  }),
+  actor: one(users, {
+    fields: [friendshipChanges.actorId],
+    references: [users.id],
   }),
 }));
 
@@ -198,6 +238,11 @@ export const insertSharedEntrySchema = createInsertSchema(sharedEntries).omit({
 });
 
 export const insertUsernameChangeSchema = createInsertSchema(usernameChanges).omit({
+  id: true,
+  changedAt: true,
+});
+
+export const insertFriendshipChangeSchema = createInsertSchema(friendshipChanges).omit({
   id: true,
   changedAt: true,
 });
@@ -320,6 +365,8 @@ export type SharedEntry = typeof sharedEntries.$inferSelect;
 export type InsertSharedEntry = z.infer<typeof insertSharedEntrySchema>;
 export type UsernameChange = typeof usernameChanges.$inferSelect;
 export type InsertUsernameChange = z.infer<typeof insertUsernameChangeSchema>;
+export type FriendshipChange = typeof friendshipChanges.$inferSelect;
+export type InsertFriendshipChange = z.infer<typeof insertFriendshipChangeSchema>;
 export type YjsSnapshot = typeof yjs_snapshots.$inferSelect;
 export type InsertYjsSnapshot = typeof yjs_snapshots.$inferInsert;
 
