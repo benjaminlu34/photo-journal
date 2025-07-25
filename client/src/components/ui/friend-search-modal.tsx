@@ -33,9 +33,28 @@ export function FriendSearchModal({
     }
 
     try {
-      // TODO: Implement actual friend request API call
-      // For now, simulate the request
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Get current session for authentication
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      // Send friend request to API
+      const response = await fetch(`/api/friends/${user.username}/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send friend request' }));
+        throw new Error(errorData.message || 'Failed to send friend request');
+      }
+
+      const result = await response.json();
       
       toast({
         title: "Friend request sent",

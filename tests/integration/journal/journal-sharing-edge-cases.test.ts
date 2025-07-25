@@ -8,7 +8,16 @@ import { users, journalEntries, contentBlocks, friendships, sharedEntries } from
 import { eq } from "drizzle-orm";
 import { createTestUserToken } from "../test-helpers";
 
-describe("Journal Sharing Edge Cases Integration Tests", () => {
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
+describe('Journal Sharing Edge Cases Integration Tests', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let app: any;
   let owner: { token: string; id: string; username: string };
   let friend: { token: string; id: string; username: string };

@@ -74,6 +74,11 @@ export function JournalSidebar() {
   };
 
   const getOnlineFriends = () => {
+    // Ensure friends is an array before calling slice
+    if (!Array.isArray(friends)) {
+      return [];
+    }
+    
     // Simulate online status - in real app this would come from real-time data
     return friends.slice(0, 3).map((friend) => ({
       ...friend,

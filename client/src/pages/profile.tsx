@@ -16,7 +16,9 @@ export default function ProfilePage() {
   const handleBack = () => {
     setLocation('/');
   };
-
+  const handleFriends = () => {
+    setLocation('/friends');
+  };
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--background)] p-8 flex items-center justify-center">
@@ -104,14 +106,23 @@ export default function ProfilePage() {
               >
                 Back to Journal
               </Button>
-              <Button
-                onClick={() => setIsEditModalOpen(true)}
-                variant="ghost"
-                className="neu-card bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--accent)]"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
-              </Button>
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleFriends}
+                  variant="ghost"
+                  className="neu-card text-[var(--foreground)] hover:bg-[var(--secondary)]"
+                >
+                  Manage Friends
+                </Button>
+                <Button
+                  onClick={() => setIsEditModalOpen(true)}
+                  variant="ghost"
+                  className="neu-card bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--accent)]"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </Button>
+              </div>
             </div>
           </div>
         </div>

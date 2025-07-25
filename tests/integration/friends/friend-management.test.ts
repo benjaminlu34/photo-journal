@@ -24,7 +24,13 @@ vi.mock('../../../server/middleware/rateLimit', () => ({
   usernameCheckRateLimit: (_req: any, _res: any, next: any) => next(),
   userSearchRateLimit: (_req: any, _res: any, next: any) => next(),
   usernameChangeRateLimit: (_req: any, _res: any, next: any) => next(),
-  sharingRateLimit: (_req: any, _res: any, next: any) => next()
+  sharingRateLimit: (_req: any, _res: any, next: any) => next(),
+  friendshipInputValidation: (_req: any, _res: any, next: any) => next(),
+  blockedUserSecurityCheck: (_req: any, _res: any, next: any) => next(),
+  enhancedFriendMutationsRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSearchRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSharingRateLimit: (_req: any, _res: any, next: any) => next(),
+  roleChangeAuditMiddleware: (_req: any, _res: any, next: any) => next()
 }));
 
 // Mock storage methods
@@ -43,17 +49,21 @@ vi.mock('../../../server/storage', () => {
   };
 });
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Friend Management API', () => {
   let app: express.Express;
   let server: ReturnType<typeof createServer>;
 
   beforeAll(async () => {
+    await setupTestDB();
     app = express();
     app.use(express.json());
     server = await registerRoutes(app);
   });
 
-  afterAll(() => {
+  afterAll(async () => {
+    await teardownTestDB();
     return new Promise<void>((resolve) => {
       server.close(() => resolve());
     });

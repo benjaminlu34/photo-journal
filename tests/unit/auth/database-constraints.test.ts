@@ -3,7 +3,16 @@ import { db } from '../../../server/db';
 import { users } from '../../../shared/schema/schema';
 import { eq } from 'drizzle-orm';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Database Constraints', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   const testUserId = 'test-constraint-user';
   
   afterAll(async () => {

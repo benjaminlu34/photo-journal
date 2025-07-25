@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { storage } from '../../../server/storage';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Username Routing Integration', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let testUserId: string;
   let testUsername: string;
 

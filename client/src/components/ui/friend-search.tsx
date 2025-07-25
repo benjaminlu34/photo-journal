@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useFriendSearch, type UserSearchResult } from '@/hooks/useFriendSearch';
 import { UserDisplay } from '@/components/ui/user-display';
+import { SearchResultStatus } from '@/components/friends/friendship-status-indicator';
 
 interface FriendSearchProps {
   onUserSelect?: (user: UserSearchResult) => void;
@@ -131,27 +132,27 @@ export function FriendSearch({
   
   const hasResults = filteredSearchResults.length > 0;
   const hasRecentSearches = showRecentSearches && recentSearches.length > 0;
-  const showDropdown = isOpen && (hasResults || hasRecentSearches || isLoading || error);
+  const showDropdown = isOpen && (hasResults || hasRecentSearches || isLoading || error || searchQuery);
 
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-2">
+        <Search className="h-4 w-4 text-muted-foreground" />
         <Input
           ref={inputRef}
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={handleFocus}
           placeholder={placeholder}
-          className="pl-10 pr-10 bg-background border-border text-foreground placeholder:text-muted-foreground"
+          className="flex-1 bg-background border-border text-foreground placeholder:text-muted-foreground"
         />
         {inputValue && (
           <Button
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-secondary"
+            className="h-8 w-8 p-0 hover:bg-secondary"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -160,7 +161,7 @@ export function FriendSearch({
 
       {/* Search Dropdown */}
       {showDropdown && (
-        <Card className="absolute top-full left-0 right-0 mt-1 z-[60] max-h-96 overflow-hidden shadow-lg border-border bg-background">
+        <Card className="absolute top-full left-0 right-0 mt-1 z-[60] max-h-96 overflow-hidden shadow-lg border-border bg-dropdown-solid">
           <CardContent className="p-0">
             {/* Loading State */}
             {isLoading && (
@@ -192,6 +193,7 @@ export function FriendSearch({
                     user={user}
                     onSelect={handleUserSelect}
                     onFriendRequest={handleFriendRequest}
+                    currentUserId={currentUserId}
                   />
                 ))}
               </div>
@@ -233,7 +235,7 @@ export function FriendSearch({
             )}
 
             {/* No Results */}
-            {!hasResults && !hasRecentSearches && !isLoading && !error && searchQuery && (
+            {!hasResults && !isLoading && !error && searchQuery && (
               <div className="p-4 text-center">
                 <p className="text-sm text-muted-foreground">
                   No users found for "{searchQuery}"
@@ -248,19 +250,30 @@ export function FriendSearch({
 }
 
 interface SearchResultItemProps {
-  user: UserSearchResult;
+  user: UserSearchResult & { friendship?: any };
   onSelect: (user: UserSearchResult) => void;
   onFriendRequest?: (user: UserSearchResult) => void;
+  currentUserId?: string;
 }
 
-function SearchResultItem({ user, onSelect, onFriendRequest }: SearchResultItemProps) {
+function SearchResultItem({ user, onSelect, onFriendRequest, currentUserId }: SearchResultItemProps) {
   const handleSelect = () => {
     onSelect(user);
   };
 
-  const handleFriendRequest = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFriendRequest?.(user);
+  const handleFriendAction = (action: 'add' | 'accept' | 'view') => {
+    switch (action) {
+      case 'add':
+        onFriendRequest?.(user);
+        break;
+      case 'accept':
+        // Handle accept friend request
+        onFriendRequest?.(user);
+        break;
+      case 'view':
+        onSelect(user);
+        break;
+    }
   };
 
   return (
@@ -273,26 +286,20 @@ function SearchResultItem({ user, onSelect, onFriendRequest }: SearchResultItemP
           user={{
             id: user.id,
             username: user.username,
+            avatar: user.avatar,
           }}
           size="sm"
           variant="full"
         />
-        {user.matchType === 'exact' && (
-          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-            Exact match
-          </span>
-        )}
       </div>
       
-      {onFriendRequest && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleFriendRequest}
-          className="ml-2 text-xs"
-        >
-          Add Friend
-        </Button>
+      {currentUserId && (
+        <SearchResultStatus
+          friendship={user.friendship}
+          currentUserId={currentUserId}
+          onAction={handleFriendAction}
+          className="ml-2"
+        />
       )}
     </div>
   );

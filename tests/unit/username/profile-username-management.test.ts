@@ -2,7 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { storage } from '../../../server/storage';
 import * as crypto from 'crypto';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Profile Username Management', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   const testUserIds: string[] = [];
 
   afterEach(async () => {

@@ -13,10 +13,10 @@ interface FriendSearchCompactProps {
   maxResults?: number;
 }
 
-export function FriendSearchCompact({ 
-  className, 
+export function FriendSearchCompact({
+  className,
   showTitle = true,
-  maxResults = 3 
+  maxResults = 3
 }: FriendSearchCompactProps) {
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,9 +25,28 @@ export function FriendSearchCompact({
   // Handle friend request from inline search
   const handleFriendRequest = async (user: UserSearchResult) => {
     try {
-      // TODO: Implement actual friend request API call
-      // For now, simulate the request
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Get current session for authentication
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      // Send friend request to API
+      const response = await fetch(`/api/friends/${user.username}/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send friend request' }));
+        throw new Error(errorData.message || 'Failed to send friend request');
+      }
+
+      const result = await response.json();
 
       // Add to recent requests
       setRecentFriendRequests(prev => {
@@ -41,7 +60,7 @@ export function FriendSearchCompact({
       });
     } catch (error) {
       console.error('Failed to send friend request:', error);
-      
+
       toast({
         title: "Failed to send friend request",
         description: error instanceof Error ? error.message : "Please try again",
@@ -69,7 +88,7 @@ export function FriendSearchCompact({
             </CardTitle>
           </CardHeader>
         )}
-        
+
         <CardContent className="space-y-3">
           {/* Compact Search */}
           <FriendSearch

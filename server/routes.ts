@@ -17,7 +17,13 @@ import {
   usernameChangeRateLimit,
   friendRequestRateLimit,
   friendManagementRateLimit,
-  sharingRateLimit
+  sharingRateLimit,
+  enhancedFriendMutationsRateLimit,
+  enhancedSearchRateLimit,
+  enhancedSharingRateLimit,
+  roleChangeAuditMiddleware,
+  friendshipInputValidation,
+  blockedUserSecurityCheck
 } from "./middleware/rateLimit";
 import { validateUsername, generateUsernameSuggestions } from "./utils/username";
 import {
@@ -37,6 +43,24 @@ import {
   users,
   usernameSchema,
 } from "@shared/schema/schema";
+
+import { friendshipEventManager } from "./utils/friendship-events";
+import { 
+  trackFriendRequestSent,
+  trackFriendAccepted,
+  trackFriendDeclined,
+  trackFriendBlocked,
+  trackFriendUnfriended,
+  trackFriendRoleChanged
+} from "./utils/analytics";
+import {
+  emitFriendRequestSent,
+  emitFriendAccepted,
+  emitFriendDeclined,
+  emitFriendBlocked,
+  emitFriendUnfriended,
+  emitFriendRoleChanged
+} from "./utils/friendship-events";
 
 // Date formatting utility
 function formatLocalDate(date: Date): string {
@@ -188,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateProfileSchema = z.object({
         firstName: z.string().min(0).optional(), // Allow empty strings
         lastName: z.string().min(0).optional(),  // Allow empty strings
-        profileImageUrl: z.string().optional(), // Allow profile image URL updates
+        // profileImageUrl: z.string().optional(), // Profile images not yet implemented
         username: usernameSchema.optional(), // Use shared schema with case normalization
       });
       
@@ -523,7 +547,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   /* Friend Management API Endpoints */
   
   /* Send friend request by username */
-  app.post("/api/friends/:username/request", friendRequestRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.post("/api/friends/:username/request", 
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    blockedUserSecurityCheck,
+    enhancedFriendMutationsRateLimit, 
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { username } = req.params;
@@ -564,6 +593,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentUserId
       );
       
+      // Get current user info for events
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Emit real-time event and track analytics
+      emitFriendRequestSent(
+        currentUserId,
+        targetUser.id,
+        friendship.id,
+        {
+          username: targetUser.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendRequestSent(
+        currentUserId,
+        targetUser.id,
+        {
+          senderUsername: currentUser?.username || undefined,
+          receiverUsername: targetUser.username || undefined,
+          source: 'username_search'
+        }
+      );
+      
       return res.status(201).json({
         id: friendship.id,
         status: friendship.status,
@@ -582,7 +635,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   /* Accept friend request */
-  app.patch("/api/friends/:friendshipId/accept", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/friends/:friendshipId/accept",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedFriendMutationsRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { friendshipId } = req.params;
@@ -618,6 +675,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get friend user info for response
       const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
       const friendUser = await storage.getUser(friendId);
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Calculate time to accept (if we have creation timestamp)
+      const timeToAccept = friendship.createdAt ? 
+        Date.now() - friendship.createdAt.getTime() : undefined;
+      
+      // Emit real-time event and track analytics
+      emitFriendAccepted(
+        currentUserId,
+        friendId,
+        friendshipId,
+        {
+          username: friendUser?.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendAccepted(
+        currentUserId,
+        friendId,
+        {
+          accepterUsername: currentUser?.username || undefined,
+          requesterUsername: friendUser?.username || undefined,
+          timeToAccept
+        }
+      );
       
       return res.json({
         id: updatedFriendship.id,
@@ -637,7 +720,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   /* Decline friend request */
-  app.patch("/api/friends/:friendshipId/decline", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/friends/:friendshipId/decline",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedFriendMutationsRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { friendshipId } = req.params;
@@ -670,6 +757,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentUserId
       );
       
+      // Get friend user info for events
+      const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      const friendUser = await storage.getUser(friendId);
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Calculate time to decline (if we have creation timestamp)
+      const timeToDecline = friendship.createdAt ? 
+        Date.now() - friendship.createdAt.getTime() : undefined;
+      
+      // Emit real-time event and track analytics
+      emitFriendDeclined(
+        currentUserId,
+        friendId,
+        friendshipId,
+        {
+          username: friendUser?.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendDeclined(
+        currentUserId,
+        friendId,
+        {
+          declinerUsername: currentUser?.username || undefined,
+          requesterUsername: friendUser?.username || undefined,
+          timeToDecline
+        }
+      );
+      
       return res.json({
         id: updatedFriendship.id,
         status: updatedFriendship.status,
@@ -682,7 +799,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   /* Block user */
-  app.patch("/api/friends/:friendshipId/block", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/friends/:friendshipId/block",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedFriendMutationsRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { friendshipId } = req.params;
@@ -710,6 +831,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentUserId
       );
       
+      // Get friend user info for events
+      const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      const friendUser = await storage.getUser(friendId);
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Emit real-time event and track analytics
+      emitFriendBlocked(
+        currentUserId,
+        friendId,
+        friendshipId,
+        {
+          username: friendUser?.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendBlocked(
+        currentUserId,
+        friendId,
+        {
+          blockerUsername: currentUser?.username || undefined,
+          blockedUsername: friendUser?.username || undefined,
+          previousStatus: friendship.status
+        }
+      );
+      
       return res.json({
         id: updatedFriendship.id,
         status: updatedFriendship.status,
@@ -722,7 +869,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   /* Update friend role (directional role management) */
-  app.patch("/api/friends/:friendshipId/role", isAuthenticatedSupabase, async (req, res) => {
+  app.patch("/api/friends/:friendshipId/role",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    roleChangeAuditMiddleware,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { friendshipId } = req.params;
@@ -750,6 +901,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Can only update roles for accepted friendships" });
       }
       
+      // Get old role before updating
+      const oldRole = currentUserId === friendship.userId ? 
+        friendship.roleUserToFriend : friendship.roleFriendToUser;
+      
       // Update the friendship role (directional)
       const updatedFriendship = await storage.updateFriendshipRole(
         friendshipId, 
@@ -760,6 +915,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get friend user info for response
       const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
       const friendUser = await storage.getUser(friendId);
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Emit real-time event and track analytics
+      emitFriendRoleChanged(
+        currentUserId,
+        friendId,
+        friendshipId,
+        oldRole || 'viewer', // Default to viewer if null
+        role,
+        {
+          username: friendUser?.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendRoleChanged(
+        currentUserId,
+        friendId,
+        oldRole || 'viewer', // Default to viewer if null
+        role,
+        {
+          changerUsername: currentUser?.username || undefined,
+          friendUsername: friendUser?.username || undefined,
+          context: 'individual_change'
+        }
+      );
       
       return res.json({
         id: updatedFriendship.id,
@@ -784,7 +965,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   /* Unfriend user (soft delete to 'unfriended' status) */
-  app.delete("/api/friends/:friendshipId", friendManagementRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.delete("/api/friends/:friendshipId",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedFriendMutationsRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { friendshipId } = req.params;
@@ -810,6 +995,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         friendshipId, 
         'unfriended', 
         currentUserId
+      );
+      
+      // Get friend user info for events
+      const friendId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      const friendUser = await storage.getUser(friendId);
+      const currentUser = await storage.getUser(currentUserId);
+      
+      // Calculate friendship duration (if we have creation timestamp)
+      const friendshipDuration = friendship.createdAt ? 
+        Date.now() - friendship.createdAt.getTime() : undefined;
+      
+      // Emit real-time event and track analytics
+      emitFriendUnfriended(
+        currentUserId,
+        friendId,
+        friendshipId,
+        {
+          username: friendUser?.username || undefined,
+          avatar: undefined // Profile images not yet implemented
+        }
+      );
+      
+      trackFriendUnfriended(
+        currentUserId,
+        friendId,
+        {
+          unfrienderUsername: currentUser?.username || undefined,
+          unfriendedUsername: friendUser?.username || undefined,
+          friendshipDuration
+        }
       );
       
       // Return 200 with JSON (not 204) as specified in requirements
@@ -859,8 +1074,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset,
       });
       
+      // Transform friends to include profile picture compatibility
+      const transformedFriends = friends.map(friend => ({
+        id: friend.id,
+        friendshipId: friend.friendshipId, // Include friendship ID for role management
+        username: friend.username || '',
+        firstName: friend.firstName || '',
+        lastName: friend.lastName || '',
+        avatar: undefined, // Profile pictures not yet implemented
+        status: 'accepted' as const,
+        roleUserToFriend: friend.roleUserToFriend as 'viewer' | 'contributor' | 'editor',
+        roleFriendToUser: friend.roleFriendToUser as 'viewer' | 'contributor' | 'editor',
+        createdAt: friend.createdAt ? friend.createdAt.toISOString() : new Date().toISOString(),
+        lastActivity: friend.updatedAt ? friend.updatedAt.toISOString() : new Date().toISOString(),
+      }));
+      
       return res.json({
-        friends,
+        friends: transformedFriends,
         pagination: {
           limit,
           offset,
@@ -891,14 +1121,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset,
       });
       
+      // Transform sent requests to match frontend FriendRequest interface
+      const transformedSent = sent.map(item => ({
+        id: item.id,
+        username: item.friend.username || '',
+        firstName: item.friend.firstName,
+        lastName: item.friend.lastName,
+        avatar: null, // Profile images not yet implemented
+        status: 'pending' as const,
+        direction: 'sent' as const,
+        createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
+        initiatorId: item.initiatorId || '',
+        friend: item.friend, // Include the full friend object for tests
+      }));
+      
+      // Transform received requests to match frontend FriendRequest interface
+      const transformedReceived = received.map(item => ({
+        id: item.id,
+        username: item.user.username || '',
+        firstName: item.user.firstName,
+        lastName: item.user.lastName,
+        avatar: null, // Profile images not yet implemented
+        status: 'pending' as const,
+        direction: 'received' as const,
+        createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
+        initiatorId: item.initiatorId || '',
+        user: item.user, // Include the full user object for tests
+      }));
+      
       return res.json({
-        sent,
-        received,
+        sent: transformedSent,
+        received: transformedReceived,
         pagination: {
-          limit,
-          offset,
           totalCount,
-          hasMore: offset + limit < totalCount,
         },
       });
     } catch (err) {
@@ -923,7 +1178,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Journal sharing with friends */
-  app.post("/api/journal/:entryId/share", isAuthenticatedSupabase, async (req, res) => {
+  app.post("/api/journal/:entryId/share",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedSharingRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { entryId } = req.params;
@@ -985,7 +1244,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Revoke journal sharing */
-  app.delete("/api/journal/:entryId/share/:friendUsername", isAuthenticatedSupabase, async (req, res) => {
+  app.delete("/api/journal/:entryId/share/:friendUsername",
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedSharingRateLimit,
+    async (req, res) => {
     try {
       const currentUserId = getUserId(req);
       const { entryId, friendUsername } = req.params;
@@ -1085,7 +1348,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* Search users by username with friendship status */
-  app.get("/api/users/search", userSearchRateLimit, isAuthenticatedSupabase, async (req, res) => {
+  app.get("/api/users/search", 
+    isAuthenticatedSupabase,
+    friendshipInputValidation,
+    enhancedSearchRateLimit, 
+    async (req, res) => {
     try {
       const query = req.query.query as string;
       const limitParam = req.query.limit as string;
@@ -1129,6 +1396,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Format response with match type detection and friendship status
       const results = users.map(user => {
         const matchType = user.username?.toLowerCase() === query.toLowerCase() ? 'exact' : 'prefix';
+        
+        // Create friendship object if friendship exists
+        const friendship = user.friendshipStatus ? {
+          id: user.friendshipId,
+          status: user.friendshipStatus,
+          userId: currentUserId < user.id ? currentUserId : user.id,
+          friendId: currentUserId < user.id ? user.id : currentUserId,
+          initiatorId: user.initiatorId || null,
+          roleUserToFriend: user.roleUserToFriend || 'viewer',
+          roleFriendToUser: user.roleFriendToUser || 'viewer'
+        } : null;
+        
         return {
           id: user.id,
           username: user.username,
@@ -1136,8 +1415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: user.lastName,
           avatar: null, // Profile images not yet implemented in schema
           matchType,
-          friendshipStatus: user.friendshipStatus || null,
-          friendshipId: user.friendshipId || null
+          friendship
         };
       });
 
@@ -1204,6 +1482,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   /* Create server */
   const server = createServer(app);
+  
+  // Initialize WebSocket server for friendship events
+  friendshipEventManager.initialize(server);
   
   return server;
 }

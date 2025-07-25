@@ -202,7 +202,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
                       <UsernameInput
                         value={field.value}
                         onChange={field.onChange}
-                        onValidation={(isValid, error) => {
+                        onValidation={React.useCallback((isValid, error) => {
                           setIsUsernameValid(isValid);
                           // Handle validation feedback if needed
                           if (!isValid && error) {
@@ -210,7 +210,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
                           } else {
                             form.clearErrors("username");
                           }
-                        }}
+                        }, [setIsUsernameValid, form.setError, form.clearErrors])}
                         required
                         placeholder="Choose a unique username"
                         className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm"

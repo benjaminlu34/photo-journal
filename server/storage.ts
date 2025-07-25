@@ -23,10 +23,10 @@ import {
 } from "@shared/schema/schema";
 import { db } from "./db";
 import { eq, and, desc, gte, lte, ilike, sql, or } from "drizzle-orm";
-import { 
-  buildCanonicalFriendshipIds, 
-  canSendFriendRequest, 
-  isValidStatusTransition 
+import {
+  buildCanonicalFriendshipIds,
+  canSendFriendRequest,
+  isValidStatusTransition
 } from "./utils/friendship";
 
 export interface IStorage {
@@ -36,33 +36,33 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<UpsertUser>): Promise<User>;
   updateUserWithJWTSync(id: string, updates: Partial<UpsertUser>): Promise<User>;
-  
+
   // Username operations
   checkUsernameAvailability(username: string): Promise<boolean>;
   searchUsersByUsername(query: string, limit?: number): Promise<User[]>;
   trackUsernameChange(change: { userId: string; oldUsername: string; newUsername: string }): Promise<void>;
   getUsernameChangesInPeriod(userId: string, since: Date): Promise<UsernameChange[]>;
-  
+
   // Journal operations
   getJournalEntry(userId: string, date: Date): Promise<JournalEntry | undefined>;
   getJournalEntryById(entryId: string): Promise<JournalEntry | undefined>;
   createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
   updateJournalEntry(entryId: string, updates: Partial<InsertJournalEntry>): Promise<JournalEntry>;
   getJournalEntriesInRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]>;
-  
+
   // Content block operations
   getContentBlocks(entryId: string): Promise<ContentBlock[]>;
   getContentBlock(blockId: string): Promise<ContentBlock | undefined>;
   createContentBlock(block: InsertContentBlock): Promise<ContentBlock>;
   updateContentBlock(blockId: string, updates: Partial<InsertContentBlock>): Promise<ContentBlock>;
   deleteContentBlock(blockId: string): Promise<void>;
-  
+
   // Enhanced Friend operations
   getFriends(userId: string): Promise<User[]>;
   getFriendshipRequests(userId: string): Promise<(Friendship & { user: User })[]>;
   createFriendship(friendship: InsertFriendship): Promise<Friendship>;
   updateFriendshipStatus(friendshipId: string, status: "accepted" | "blocked"): Promise<Friendship>;
-  
+
   // Enhanced friendship methods supporting all five statuses
   getFriendship(userA: string, userB: string): Promise<Friendship | undefined>;
   getFriendshipById(friendshipId: string): Promise<Friendship | undefined>;
@@ -71,7 +71,7 @@ export interface IStorage {
   updateFriendshipRole(friendshipId: string, actorId: string, newRole: string): Promise<Friendship>;
   getFriendshipsWithStatus(userId: string, status: string): Promise<(Friendship & { friend: User })[]>;
   canSendFriendRequestTo(fromUserId: string, toUserId: string): Promise<boolean>;
-  
+
   // Enhanced friend list operations with pagination and roles
   getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number }): Promise<{
     friends: (User & {
@@ -88,11 +88,11 @@ export interface IStorage {
     received: (Friendship & { user: User })[];
     totalCount: number;
   }>;
-  
+
   // Friendship audit operations
   logFriendshipChange(change: InsertFriendshipChange): Promise<FriendshipChange>;
   getFriendshipHistory(friendshipId: string): Promise<FriendshipChange[]>;
-  
+
   // Sharing operations
   getSharedEntries(userId: string): Promise<(SharedEntry & { entry: JournalEntry & { user: User } })[]>;
   shareEntry(share: InsertSharedEntry): Promise<SharedEntry>;
@@ -139,8 +139,6 @@ export class DatabaseStorage implements IStorage {
       id: supabaseUser.id,
       email: supabaseUser.email || undefined,
       username: supabaseUser.username || undefined,
-      firstName: undefined,
-      lastName: undefined,
     };
 
     return this.upsertUser(userData);
@@ -152,22 +150,22 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    
+
     if (!updatedUser) {
       throw new Error(`User with ID ${id} not found`);
     }
-    
+
     return updatedUser;
   }
 
   // Update user with username sync to JWT claims
   async updateUserWithJWTSync(id: string, updates: Partial<UpsertUser>): Promise<User> {
     const updatedUser = await this.updateUser(id, updates);
-    
+
     // If username was updated, handle JWT sync at application level
     if (updates.username) {
       console.log(`Username updated for user ${id}: ${updates.username}`);
-      
+
       // The database will send a pg_notify event via the username_notify_trigger
       // In a production environment, you would:
       // 1. Call Supabase Admin API to update auth.users metadata
@@ -177,11 +175,11 @@ export class DatabaseStorage implements IStorage {
       this.syncUsernameToSupabaseAuth(id, updates.username).catch(error => {
         console.error(`Background sync failed for user ${id}:`, error);
       });
-      
+
       // The client should refresh their session to get the updated JWT
       // The JWT claims will automatically include the new username
     }
-    
+
     return updatedUser;
   }
 
@@ -203,13 +201,13 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(eq(sql`LOWER(${users.username})`, username.toLowerCase()))
       .limit(1);
-    
+
     return !existingUser;
   }
 
   async searchUsersByUsername(query: string, limit: number = 10): Promise<User[]> {
     const searchQuery = query.toLowerCase();
-    
+
     // Use prefix matching with case-insensitive search
     const results = await db
       .select({
@@ -247,7 +245,13 @@ export class DatabaseStorage implements IStorage {
     currentUserId: string,
     query: string,
     options?: { limit?: number; friendsOnly?: boolean }
-  ): Promise<(User & { friendshipStatus?: string; friendshipId?: string })[]> {
+  ): Promise<(User & {
+    friendshipStatus?: string | null;
+    friendshipId?: string | null;
+    initiatorId?: string | null;
+    roleUserToFriend?: string | null;
+    roleFriendToUser?: string | null;
+  })[]> {
     const searchQuery = query.toLowerCase();
     const limit = options?.limit || 10;
     const friendsOnly = options?.friendsOnly || false;
@@ -264,7 +268,10 @@ export class DatabaseStorage implements IStorage {
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         friendshipStatus: sql<string | null>`friendships.status`,
-        friendshipId: sql<string | null>`friendships.id`
+        friendshipId: sql<string | null>`friendships.id`,
+        initiatorId: sql<string | null>`friendships.initiator_id`,
+        roleUserToFriend: sql<string | null>`friendships.role_user_to_friend`,
+        roleFriendToUser: sql<string | null>`friendships.role_friend_to_user`
       })
       .from(users)
       .leftJoin(
@@ -479,7 +486,7 @@ export class DatabaseStorage implements IStorage {
       .from(sharedEntries)
       .innerJoin(users, eq(users.id, sharedEntries.sharedWithId))
       .where(eq(sharedEntries.entryId, entryId));
-    
+
     return shared.map(s => ({
       ...s.sharedEntry,
       user: s.user
@@ -543,7 +550,7 @@ export class DatabaseStorage implements IStorage {
           eq(friendships.status, "accepted")
         )
       );
-    
+
     return userFriendships.map((f: { friend: User }) => f.friend);
   }
 
@@ -561,7 +568,7 @@ export class DatabaseStorage implements IStorage {
           eq(friendships.status, "pending")
         )
       );
-    
+
     return requests.map(r => ({ ...r.friendship, user: r.user }));
   }
 
@@ -585,7 +592,7 @@ export class DatabaseStorage implements IStorage {
   // Enhanced friendship methods supporting all five statuses
   async getFriendship(userA: string, userB: string): Promise<Friendship | undefined> {
     const { userId, friendId } = buildCanonicalFriendshipIds(userA, userB, userA);
-    
+
     const [friendship] = await db
       .select()
       .from(friendships)
@@ -595,7 +602,7 @@ export class DatabaseStorage implements IStorage {
           eq(friendships.friendId, friendId)
         )
       );
-    
+
     return friendship;
   }
 
@@ -604,13 +611,13 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(friendships)
       .where(eq(friendships.id, friendshipId));
-    
+
     return friendship;
   }
 
   async createFriendshipWithCanonicalOrdering(userA: string, userB: string, initiatorId: string): Promise<Friendship> {
     const { userId, friendId } = buildCanonicalFriendshipIds(userA, userB, initiatorId);
-    
+
     const friendshipData: InsertFriendship = {
       userId,
       friendId,
@@ -659,9 +666,9 @@ export class DatabaseStorage implements IStorage {
     // Update the friendship
     const [updatedFriendship] = await db
       .update(friendships)
-      .set({ 
+      .set({
         status: newStatus as any, // Cast to satisfy enum type
-        updatedAt: new Date() 
+        updatedAt: new Date()
       })
       .where(eq(friendships.id, friendshipId))
       .returning();
@@ -716,9 +723,9 @@ export class DatabaseStorage implements IStorage {
     // Update the friendship
     const [updatedFriendship] = await db
       .update(friendships)
-      .set({ 
+      .set({
         ...updateData,
-        updatedAt: new Date() 
+        updatedAt: new Date()
       })
       .where(eq(friendships.id, friendshipId))
       .returning();
@@ -778,7 +785,7 @@ export class DatabaseStorage implements IStorage {
   private shouldUseCache(key: string, cache: Map<string, { data: any; timestamp: number }>): boolean {
     const cached = cache.get(key);
     if (!cached) return false;
-    
+
     const now = Date.now();
     const age = now - cached.timestamp;
     return age < this.CACHE_TTL;
@@ -890,10 +897,10 @@ export class DatabaseStorage implements IStorage {
     }));
 
     const result = { friends, totalCount };
-    
+
     // Cache the result
     this.setCache(cacheKey, result, this.friendsCache);
-    
+
     return result;
   }
 
@@ -927,17 +934,22 @@ export class DatabaseStorage implements IStorage {
 
     const totalCount = Number(countResult?.count || 0);
 
-    // Get sent requests
+    // Get sent requests (where user is the initiator)
     const sentResults = await db
       .select({
         friendship: friendships,
         friend: users,
       })
       .from(friendships)
-      .innerJoin(users, eq(users.id, friendships.friendId))
+      .innerJoin(users,
+        or(
+          and(eq(friendships.userId, userId), eq(users.id, friendships.friendId)),
+          and(eq(friendships.friendId, userId), eq(users.id, friendships.userId))
+        )
+      )
       .where(
         and(
-          eq(friendships.userId, userId),
+          eq(friendships.initiatorId, userId),
           eq(friendships.status, 'pending')
         )
       )
@@ -945,17 +957,21 @@ export class DatabaseStorage implements IStorage {
       .limit(Math.floor(limit / 2))
       .offset(offset);
 
-    // Get received requests
+    // Get received requests (where user is not the initiator but is in the friendship)
     const receivedResults = await db
       .select({
         friendship: friendships,
         user: users,
       })
       .from(friendships)
-      .innerJoin(users, eq(users.id, friendships.userId))
+      .innerJoin(users, eq(users.id, friendships.initiatorId))
       .where(
         and(
-          eq(friendships.friendId, userId),
+          or(
+            eq(friendships.userId, userId),
+            eq(friendships.friendId, userId)
+          ),
+          sql`${friendships.initiatorId} != ${userId}`,
           eq(friendships.status, 'pending')
         )
       )
@@ -968,10 +984,10 @@ export class DatabaseStorage implements IStorage {
       received: receivedResults.map(r => ({ ...r.friendship, user: r.user })),
       totalCount,
     };
-    
+
     // Cache the result
     this.setCache(cacheKey, result, this.requestsCache);
-    
+
     return result;
   }
 
@@ -981,7 +997,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const existingFriendship = await this.getFriendship(fromUserId, toUserId);
-    
+
     if (!existingFriendship) {
       return true; // No existing friendship
     }
@@ -995,7 +1011,7 @@ export class DatabaseStorage implements IStorage {
       .insert(friendshipChanges)
       .values(change)
       .returning();
-    
+
     return newChange;
   }
 
@@ -1021,7 +1037,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(journalEntries, eq(journalEntries.id, sharedEntries.entryId))
       .innerJoin(users, eq(users.id, journalEntries.userId))
       .where(eq(sharedEntries.sharedWithId, userId));
-    
+
     return shared.map(s => ({
       ...s.sharedEntry,
       entry: { ...s.entry, user: s.user }

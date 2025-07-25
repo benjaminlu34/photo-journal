@@ -5,7 +5,16 @@ import { db } from '../../../server/db';
 import { users, friendships } from '../../../shared/schema/schema';
 import { eq, sql } from 'drizzle-orm';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Enhanced User Search with Friendship Status', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let currentUser: any;
   let usersToSearch: any[] = [];
 

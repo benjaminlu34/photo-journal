@@ -7,7 +7,16 @@ import { validateYjsOperation, simulateYjsOperationRejection } from '../../../se
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Permission Integration Tests', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let app: Express;
   let server: any;
   let actualEntryId: string;

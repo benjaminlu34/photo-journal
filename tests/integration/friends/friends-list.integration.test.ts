@@ -30,7 +30,13 @@ vi.mock('../../../server/middleware/rateLimit', () => ({
   friendRequestRateLimit: (_req: any, _res: any, next: any) => next(),
   friendManagementRateLimit: (_req: any, _res: any, next: any) => next(),
   sharingRateLimit: (_req: any, _res: any, next: any) => next(),
-  usernameCheckRateLimit: (_req: any, _res: any, next: any) => next()
+  usernameCheckRateLimit: (_req: any, _res: any, next: any) => next(),
+  friendshipInputValidation: (_req: any, _res: any, next: any) => next(),
+  blockedUserSecurityCheck: (_req: any, _res: any, next: any) => next(),
+  enhancedFriendMutationsRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSearchRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSharingRateLimit: (_req: any, _res: any, next: any) => next(),
+  roleChangeAuditMiddleware: (_req: any, _res: any, next: any) => next()
 }));
 
 // Create test app with proper auth setup
@@ -44,6 +50,8 @@ const createTestApp = async () => {
   return { app, server };
 };
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Friends List API Integration Tests', () => {
   let user1: any;
   let user2: any;
@@ -54,6 +62,7 @@ describe('Friends List API Integration Tests', () => {
   let timestamp: string;
 
   beforeAll(async () => {
+    await setupTestDB();
     // Use a consistent timestamp for this test run
     timestamp = Date.now().toString().slice(-4);
     
@@ -100,6 +109,7 @@ describe('Friends List API Integration Tests', () => {
   });
 
   afterAll(async () => {
+    await teardownTestDB();
     // Clean up test data
     await db.delete(friendships);
     await db.delete(users);
@@ -262,7 +272,7 @@ describe('Friends List API Integration Tests', () => {
         user4.id,
         user1.id
       );
-      await storage.updateFriendshipStatusWithAudit(friendship.id, 'accepted', user4.id);
+      const updatedFriendship = await storage.updateFriendshipStatusWithAudit(friendship.id, 'accepted', user4.id);
 
       const response = await request(app)
         .get('/api/friends/requests')

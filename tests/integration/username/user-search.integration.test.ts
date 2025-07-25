@@ -40,12 +40,28 @@ vi.mock('../../../server/middleware/rateLimit', () => ({
   usernameChangeRateLimit: (_req: any, _res: any, next: any) => next(),
   friendRequestRateLimit: (_req: any, _res: any, next: any) => next(),
   friendManagementRateLimit: (_req: any, _res: any, next: any) => next(),
-  sharingRateLimit: (_req: any, _res: any, next: any) => next()
+  sharingRateLimit: (_req: any, _res: any, next: any) => next(),
+  friendshipInputValidation: (_req: any, _res: any, next: any) => next(),
+  blockedUserSecurityCheck: (_req: any, _res: any, next: any) => next(),
+  enhancedFriendMutationsRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSearchRateLimit: (_req: any, _res: any, next: any) => next(),
+  enhancedSharingRateLimit: (_req: any, _res: any, next: any) => next(),
+  roleChangeAuditMiddleware: (_req: any, _res: any, next: any) => next()
 }));
+
+import { setupTestDB, teardownTestDB } from '../../test-utils';
 
 describe('GET /api/users/search Integration Tests', () => {
   let app: express.Express;
   let server: any;
+
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up test data
@@ -58,7 +74,7 @@ describe('GET /api/users/search Integration Tests', () => {
     await storage.upsertUser({
       id: `t1-${timestamp}`,
       email: `t1-${timestamp}@example.com`,
-      username: `tu1-${timestamp}`,
+      username: `tu1_${timestamp}`,
       firstName: 'Test',
       lastName: 'User1',
     });
@@ -66,7 +82,7 @@ describe('GET /api/users/search Integration Tests', () => {
     await storage.upsertUser({
       id: `t2-${timestamp}`,
       email: `t2-${timestamp}@example.com`,
-      username: `tu2-${timestamp}`,
+      username: `tu2_${timestamp}`,
       firstName: 'Test',
       lastName: 'User2',
     });
@@ -74,7 +90,7 @@ describe('GET /api/users/search Integration Tests', () => {
     await storage.upsertUser({
       id: `t3-${timestamp}`,
       email: `t3-${timestamp}@example.com`,
-      username: `bu-${timestamp}`,
+      username: `bu_${timestamp}`,
       firstName: 'Blocked',
       lastName: 'User',
     });
@@ -188,7 +204,7 @@ describe('GET /api/users/search Integration Tests', () => {
       await storage.upsertUser({
         id: user3Id,
         email: `${user3Id}@example.com`,
-        username: `bu-1234`,
+        username: `bu_1234`,
         firstName: 'Blocked',
         lastName: 'User',
       });
@@ -318,12 +334,12 @@ describe('GET /api/users/search Integration Tests', () => {
       });
 
       const response = await request(app)
-        .get('/api/users/search?query=exact-match-test')
+        .get('/api/users/search?query=exactmatchtest')
         .set('Authorization', 'Bearer t1-1234')
         .expect(200);
 
       const exactMatch = response.body.users.find(
-        (user: any) => user.username === 'exact-match-test'
+        (user: any) => user.username === 'exactmatchtest'
       );
       expect(exactMatch).toBeDefined();
       expect(exactMatch.matchType).toBe('exact');

@@ -9,7 +9,16 @@ vi.mock('../../../server/utils/supabase-sync', () => ({
   syncUsernameToAuth: vi.fn().mockResolvedValue(true),
 }));
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('JWT Sync Functionality', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let testUserId: string;
 
   beforeEach(async () => {

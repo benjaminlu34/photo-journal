@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { getUserDisplayName, getShortDisplayName, getUserInitials, type UserDisplayData } from '@/lib/usernameUtils';
+import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
 
 export interface UserDisplayProps {
   user: UserDisplayData;
@@ -51,31 +52,24 @@ export function UserDisplay({
 
   if (variant === 'initials-only') {
     return (
-      <div
-        className={cn(
-          'inline-flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white font-semibold shadow-sm',
-          sizes.avatar,
-          avatarClassName
-        )}
-        title={displayName}
-      >
-        {initials}
-      </div>
+      <ProfilePicture
+        userId={user.id}
+        size={size}
+        className={cn(avatarClassName)}
+        fallbackText={initials}
+      />
     );
   }
 
   return (
     <div className={cn('inline-flex items-center', sizes.container, className)} style={style}>
       {showAvatar && (
-        <div
-          className={cn(
-            'inline-flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white font-semibold shadow-sm flex-shrink-0',
-            sizes.avatar,
-            avatarClassName
-          )}
-        >
-          {initials}
-        </div>
+        <ProfilePicture
+          userId={user.id}
+          size={size}
+          className={cn(avatarClassName)}
+          fallbackText={initials}
+        />
       )}
       <span
         className={cn(

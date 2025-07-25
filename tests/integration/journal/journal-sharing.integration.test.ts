@@ -8,7 +8,16 @@ import { users, journalEntries, contentBlocks, friendships, sharedEntries } from
 import { eq } from "drizzle-orm";
 import { createTestUserToken } from "../test-helpers";
 
-describe("Journal Sharing Integration Tests", () => {
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
+describe('Journal Sharing Integration Tests', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let app: any;
   let user1: { token: string; id: string; username: string };
   let user2: { token: string; id: string; username: string };
@@ -33,9 +42,9 @@ describe("Journal Sharing Integration Tests", () => {
     // Create test users
     const timestamp = Date.now().toString().slice(-4);
     
-    user1 = await createTestUser(`u1-${timestamp}`, `u1-${timestamp}@example.com`, `a-${timestamp}`);
-    user2 = await createTestUser(`u2-${timestamp}`, `u2-${timestamp}@example.com`, `b-${timestamp}`);
-    user3 = await createTestUser(`u3-${timestamp}`, `u3-${timestamp}@example.com`, `c-${timestamp}`);
+    user1 = await createTestUser(`u1-${timestamp}`, `u1-${timestamp}@example.com`, `a_${timestamp}`);
+    user2 = await createTestUser(`u2-${timestamp}`, `u2-${timestamp}@example.com`, `b_${timestamp}`);
+    user3 = await createTestUser(`u3-${timestamp}`, `u3-${timestamp}@example.com`, `c_${timestamp}`);
 
     // Create journal entry for user1
     entry = await storage.createJournalEntry({

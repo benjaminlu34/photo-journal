@@ -4,7 +4,16 @@ import { randomUUID } from 'crypto';
 import { db } from '../../../server/db';
 import { users, friendships } from '../../../shared/schema/schema';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Friend List Storage Methods', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   let user1: any;
   let user2: any;
   let user3: any;
@@ -20,7 +29,7 @@ describe('Friend List Storage Methods', () => {
     user1 = await storage.upsertUser({
       id: `11111111-1111-1111-${timestamp}-111111111111`,
       email: `u1-${timestamp}@test.com`,
-      username: `u1-${timestamp}`,
+      username: `u1_${timestamp}`,
       firstName: 'Test',
       lastName: 'User1',
     });
@@ -28,7 +37,7 @@ describe('Friend List Storage Methods', () => {
     user2 = await storage.upsertUser({
       id: `22222222-2222-2222-${timestamp}-222222222222`,
       email: `u2-${timestamp}@test.com`,
-      username: `u2-${timestamp}`,
+      username: `u2_${timestamp}`,
       firstName: 'Test',
       lastName: 'User2',
     });
@@ -36,7 +45,7 @@ describe('Friend List Storage Methods', () => {
     user3 = await storage.upsertUser({
       id: `33333333-3333-3333-${timestamp}-333333333333`,
       email: `u3-${timestamp}@test.com`,
-      username: `u3-${timestamp}`,
+      username: `u3_${timestamp}`,
       firstName: 'Test',
       lastName: 'User3',
     });
@@ -157,7 +166,7 @@ describe('Friend List Storage Methods', () => {
         const user = await storage.upsertUser({
           id: randomUUID(),
           email: `f${i}-${Date.now().toString().slice(-5)}@test.com`,
-          username: `f${i}-${Date.now().toString().slice(-5)}`,
+          username: `f${i}_${Date.now().toString().slice(-5)}`,
         });
         
         const friendship = await storage.createFriendshipWithCanonicalOrdering(
@@ -280,8 +289,8 @@ describe('Friend List Storage Methods', () => {
       for (let i = 0; i < 4; i++) {
         const user = await storage.upsertUser({
           id: randomUUID(),
-          email: `s${i}-${Date.now().toString().slice(-5)}@test.com`,
-          username: `s${i}-${Date.now().toString().slice(-5)}`,
+          email: `s${i}_${Date.now().toString().slice(-5)}@test.com`,
+          username: `s${i}_${Date.now().toString().slice(-5)}`,
         });
         
         await storage.createFriendshipWithCanonicalOrdering(

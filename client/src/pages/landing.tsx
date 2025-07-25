@@ -16,7 +16,6 @@ export default function Landing() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Auto-redirect if already logged in
   useEffect(() => {
     if (user) {
       setLocation('/');
@@ -46,7 +45,6 @@ export default function Landing() {
       });
     } catch (error: any) {
       let errorMessage = "Sign up failed. Please try again";
-      // Handle specific Supabase auth errors
       if (error.message?.includes("User already registered") ||
           error.message?.includes("already exists") ||
           error.message?.includes("duplicate")) {
@@ -71,8 +69,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="bg-white border-b border-purple-100">
+=      <div className="bg-white border-b border-purple-100">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -90,7 +87,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Hero Section with Auth */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div>
@@ -101,7 +97,6 @@ export default function Landing() {
               Create a collaborative journal with photos, notes, and more. Share your memories with loved ones.
             </p>
             
-            {/* Features List */}
             <div className="space-y-4 mb-8">
               <div className="flex items-start">
                 <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-4">
@@ -135,7 +130,6 @@ export default function Landing() {
             </div>
           </div>
           
-          {/* Auth Card */}
           <div>
             <Card className="bg-white border border-purple-100 shadow-xl">
               <CardContent className="p-6">
@@ -239,11 +233,9 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Mock Interface Preview */}
       <div className="relative max-w-7xl mx-auto px-6 py-12">
         <div className="bg-white rounded-3xl p-8 max-w-5xl mx-auto border border-purple-100 shadow-xl">
           <div className="aspect-video bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl relative overflow-hidden">
-            {/* Mock content blocks */}
             <div className="absolute top-8 left-8 w-48 h-32 bg-gradient-to-br from-yellow-200 to-yellow-300 rounded-2xl transform rotate-2 p-4 shadow-lg">
               <div className="text-sm text-yellow-800 font-medium">
                 goodmornings :)

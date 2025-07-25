@@ -91,9 +91,18 @@ export function useFriendSearch() {
         return { users: [] };
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Not authenticated');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      // Debug logging
+      console.log('Session check:', { 
+        hasSession: !!session, 
+        sessionError, 
+        accessToken: session?.access_token ? 'present' : 'missing',
+        tokenLength: session?.access_token?.length 
+      });
+      
+      if (!session || !session.access_token) {
+        throw new Error('Not authenticated - no valid session');
       }
 
       const response = await fetch(
@@ -106,9 +115,36 @@ export function useFriendSearch() {
         }
       );
 
+      // Debug logging for response
+      console.log('Search API response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         if (response.status === 429) {
           throw new Error('Too many search requests. Please try again later.');
+        }
+        if (response.status === 401) {
+          // Try to refresh the session and retry once
+          const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshedSession?.access_token && !refreshError) {
+            console.log('Session refreshed, retrying request');
+            const retryResponse = await fetch(
+              `/api/users/search?query=${encodeURIComponent(searchQuery.trim())}&limit=10`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${refreshedSession.access_token}`,
+                  'Accept': 'application/json',
+                },
+              }
+            );
+            if (retryResponse.ok) {
+              return retryResponse.json();
+            }
+          }
+          throw new Error('Authentication failed - please sign in again');
         }
         const errorData = await response.json().catch(() => ({ message: 'Search failed' }));
         throw new Error(errorData.message || 'Failed to search users');

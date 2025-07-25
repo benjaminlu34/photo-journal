@@ -14,6 +14,7 @@ const Landing = lazy(() => import("@/pages/landing"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Welcome = lazy(() => import("@/pages/welcome"));
 const Profile = lazy(() => import("@/pages/profile"));
+const Friends = lazy(() => import("@/pages/friends"));
 
 function AppContent() {
   const { data: user, isLoading, error, refetch } = useUser();
@@ -81,6 +82,7 @@ function AppContent() {
           <Switch>
             <Route path="/welcome" component={Welcome} />
             <Route path="/profile" component={Profile} />
+            <Route path="/friends" component={user ? Friends : Landing} />
             <Route path="/@:username/:date">
               <UsernameRouteValidator>
                 {user ? <Home /> : <Landing />}

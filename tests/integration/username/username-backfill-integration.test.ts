@@ -10,7 +10,16 @@ import {
   backfillUsernames
 } from '../../../scripts/backfill-usernames';
 
+import { setupTestDB, teardownTestDB } from '../../test-utils';
+
 describe('Username Back-fill Integration Tests', () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
   const testUserIds: string[] = [];
 
   beforeAll(async () => {

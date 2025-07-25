@@ -1,17 +1,48 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import {
-  sanitizeEmail,
-  generateUniqueUsername
-} from '../../../scripts/backfill-usernames';
+import { users, usernameChanges } from '@shared/schema/schema'; // Import schema
+import { eq } from 'drizzle-orm';
 
 // Mock nanoid
 vi.mock('nanoid', () => ({
   nanoid: vi.fn(() => 'abc123')
 }));
 
+// Mock the db import with factory function
+vi.mock('../../../server/db', () => {
+  const mockDb = {
+    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) })),
+    insert: vi.fn(() => ({ values: vi.fn(() => ({ onConflictDoNothing: vi.fn() })) })),
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+    transaction: vi.fn((callback) => callback(mockDb)), // Mock transaction to execute callback directly
+    delete: vi.fn(() => ({ where: vi.fn() }))
+  };
+  
+  return {
+    db: mockDb
+  };
+});
+
+// Import after mocking
+import {
+  sanitizeEmail,
+  generateUniqueUsername,
+  usernameExists, // Import the actual function
+  updateUserUsername // Import the actual function
+} from '../../../scripts/backfill-usernames';
+
+// Import the mocked db to access it in tests
+import { db } from '../../../server/db';
+const mockDb = vi.mocked(db);
+
 describe('Username Back-fill Migration Script', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mocks for db interactions
+    mockDb.select.mockClear();
+    mockDb.insert.mockClear();
+    mockDb.update.mockClear();
+    mockDb.transaction.mockClear();
+    mockDb.delete.mockClear();
   });
 
   afterEach(() => {
@@ -68,15 +99,8 @@ describe('Username Back-fill Migration Script', () => {
 
   describe('generateUniqueUsername', () => {
     it('should return base username when available', async () => {
-      // Mock the actual database check
-      const mockExists = vi.fn().mockResolvedValue(false);
-      vi.doMock('../../../scripts/backfill-usernames', async () => {
-        const actual = await vi.importActual('../../../scripts/backfill-usernames');
-        return {
-          ...actual,
-          usernameExists: mockExists
-        };
-      });
+      // Mock usernameExists to return false (username is available)
+      vi.spyOn(mockDb, 'select').mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) } as any);
 
       const result = await generateUniqueUsername('john.doe@example.com');
       expect(result.username).toBe('john_doe');
@@ -85,14 +109,8 @@ describe('Username Back-fill Migration Script', () => {
     });
 
     it('should handle reserved usernames', async () => {
-      const mockExists = vi.fn().mockResolvedValue(false);
-      vi.doMock('../../../scripts/backfill-usernames', async () => {
-        const actual = await vi.importActual('../../../scripts/backfill-usernames');
-        return {
-          ...actual,
-          usernameExists: mockExists
-        };
-      });
+      // Mock usernameExists to return false (username is available)
+      vi.spyOn(mockDb, 'select').mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) } as any);
 
       const result = await generateUniqueUsername('admin@example.com');
       expect(result.username).toBe('admin_abc123');
@@ -101,31 +119,62 @@ describe('Username Back-fill Migration Script', () => {
     });
 
     it('should handle username conflicts with suffix generation', async () => {
-      // Mock the usernameExists function to simulate conflicts
-      const mockExists = vi.fn()
-        .mockResolvedValueOnce(true)  // First call: base username exists
-        .mockResolvedValueOnce(false); // Second call: suffixed username available
+      // Mock usernameExists to simulate conflicts
+      vi.spyOn(mockDb, 'select')
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 1 }])) })) } as any) // First call: base username exists
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) } as any); // Second call: suffixed username available
 
-      const originalUsernameExists = (await import('../../../scripts/backfill-usernames')).usernameExists;
-      
-      // Test the sanitizeEmail part separately
-      const { sanitizeEmail } = await import('../../../scripts/backfill-usernames');
-      const sanitized = sanitizeEmail('john.doe@example.com');
-      expect(sanitized).toBe('john_doe');
+      const result = await generateUniqueUsername('john.doe@example.com');
+      expect(result.username).toBe('john_doe_abc123');
+      expect(result.hadConflict).toBe(true);
+      expect(result.conflictResolution).toContain('Added unique suffix');
     });
 
     it('should handle invalid email sanitization with fallback', async () => {
-      // Test the sanitizeEmail part
-      const { sanitizeEmail } = await import('../../../scripts/backfill-usernames');
-      const sanitized = sanitizeEmail('_@example.com');
-      expect(sanitized).toBe('');
+      // Mock usernameExists to return false (username is available)
+      vi.spyOn(mockDb, 'select').mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) } as any);
+
+      const result = await generateUniqueUsername('_@example.com');
+      expect(result.username).toBe('user_abc123');
+      expect(result.hadConflict).toBe(true);
+      expect(result.conflictResolution).toContain('Email sanitization resulted in invalid username');
     });
 
     it('should handle very short sanitized usernames', async () => {
-      // Test the sanitizeEmail part
-      const { sanitizeEmail } = await import('../../../scripts/backfill-usernames');
-      const sanitized = sanitizeEmail('ab@example.com');
-      expect(sanitized).toBe('ab');
+      // Mock usernameExists to return false (username is available)
+      vi.spyOn(mockDb, 'select').mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ([{ count: 0 }])) })) } as any);
+
+      const result = await generateUniqueUsername('ab@example.com');
+      expect(result.username).toBe('user_abc123');
+      expect(result.hadConflict).toBe(true);
+      expect(result.conflictResolution).toContain('Email sanitization resulted in invalid username');
+    });
+  });
+
+  describe('updateUserUsername', () => {
+    it('should update user and log username change', async () => {
+      const userId = 'test-user-id';
+      const newUsername = 'new_username';
+      const oldUsername = 'old_username';
+
+      // Mock db.update to return a successful update
+      mockDb.update.mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn() })) });
+      // Mock db.insert for usernameChanges
+      mockDb.insert.mockReturnValueOnce({ values: vi.fn(() => ({ onConflictDoNothing: vi.fn() })) });
+
+      await updateUserUsername(userId, newUsername);
+
+      expect(mockDb.update).toHaveBeenCalledWith(users, {
+        username: newUsername,
+        updatedAt: expect.any(Date),
+      });
+      expect(mockDb.insert).toHaveBeenCalledWith(usernameChanges, {
+        userId: userId,
+        oldUsername: '',
+        newUsername: newUsername,
+        changedAt: expect.any(Date),
+      });
+      expect(mockDb.transaction).toHaveBeenCalled();
     });
   });
 
