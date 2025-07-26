@@ -23,7 +23,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({ content = { type: 'image' }, onCh
     try {
       // For now, create a blob URL (in real app would upload to server)
       const imageUrl = URL.createObjectURL(file);
-      const sanitizedAlt = security.sanitizeHtml(file.name.replace(/\.[^/.]+$/, ""));
+      const sanitizedAlt = file.name.replace(/\.[^/.]+$/, "").replace(/<[^>]*>/g, '');
       onChange?.({
         type: 'image',
         imageUrl,
