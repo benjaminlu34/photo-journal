@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { redisManager } from "./utils/redis";
 
 const g = global as { pj_server?: import("http").Server };
 if (g.pj_server?.listening) g.pj_server.close();
@@ -109,6 +110,22 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize Redis connection for rate limiting
+  if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
+    try {
+      const redisConnected = await redisManager.connect();
+      if (redisConnected) {
+        log('✅ Redis connected for rate limiting');
+      } else {
+        log('⚠️  Redis not available, using memory-based rate limiting fallback');
+      }
+    } catch (error) {
+      log('⚠️  Redis connection failed, using memory-based rate limiting fallback:', error);
+    }
+  } else {
+    log('⚠️  Redis not configured, using memory-based rate limiting fallback');
+  }
+
   const server = await registerRoutes(app);
 
   // Handle legacy auth redirects - only for specific legacy endpoints

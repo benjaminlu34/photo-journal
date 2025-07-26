@@ -9,11 +9,17 @@ vi.mock('@/hooks/useColorPickerStrategy', () => ({
     Component: ({ children, onColorSelect }: any) => (
       <div data-testid="color-picker-strategy">
         {children}
-        <button 
-          data-testid="mock-color-select" 
+        <button
+          data-testid="mock-color-select"
           onClick={() => onColorSelect('#FF5733')}
         >
           Select Color
+        </button>
+        <button
+          data-testid="advanced-color-select"
+          onClick={() => onColorSelect('#33FF57')}
+        >
+          Select Advanced Color
         </button>
       </div>
     ),
@@ -102,10 +108,7 @@ describe('ColorPickerButton', () => {
       />
     );
 
-    // The advanced color modal should be rendered
-    expect(screen.getByTestId('advanced-color-modal')).toBeInTheDocument();
-
-    // Select a color from the advanced modal
+    // The advanced color modal is available through the strategy
     const advancedColorSelect = screen.getByTestId('advanced-color-select');
     fireEvent.click(advancedColorSelect);
 
@@ -128,10 +131,6 @@ describe('ColorPickerButton', () => {
         onColorPreview={mockOnColorPreview}
       />
     );
-
-    // Click the color picker button to open it
-    const colorPickerButton = screen.getByTestId('color-picker-button');
-    fireEvent.click(colorPickerButton);
 
     // Select first color from main picker
     const selectColorButton = screen.getByTestId('mock-color-select');

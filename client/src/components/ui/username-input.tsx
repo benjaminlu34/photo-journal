@@ -173,12 +173,12 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
   return (
     <div className="space-y-2">
       <Label className="text-foreground">{label}</Label>
-      <div className="relative">
+      <div className="flex items-center gap-2">
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            "bg-secondary border-border text-foreground placeholder:text-muted-foreground pr-10",
+            "flex-1 bg-secondary border-border text-foreground placeholder:text-muted-foreground",
             validation.isValid && "border-green-500",
             validation.error && value.trim() && "border-red-500",
             className
@@ -188,7 +188,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
           maxLength={20}
           required={required}
         />
-        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+        <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
           {getValidationIcon()}
         </div>
       </div>

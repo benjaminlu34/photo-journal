@@ -40,7 +40,7 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
       return; // Don't initialize until we have a valid spaceId
     }
     
-    console.log('[CRDTProvider] Initializing with spaceId:', spaceId);
+    // Initialize CRDT with spaceId
     init(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
   }, [spaceId, init, user]);
 

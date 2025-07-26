@@ -7,11 +7,13 @@ import { StickyBoard } from "@/components/board/StickyBoard/StickyBoard";
 import { CollaborationCursor, FloatingCollaborationCursors } from "@/components/collaboration/collaboration-cursor";
 import { useJournal } from "@/contexts/journal-context";
 import { useCRDT } from "@/contexts/crdt-context";
+import { useUser } from "@/hooks/useUser";
 import type { Position } from "@/types/journal";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 
 export function JournalWorkspace() {
-  const { currentEntry, viewMode } = useJournal();
+  const { currentEntry, viewMode, isLoading, currentUserRole } = useJournal();
+  const { data: user } = useUser();
 
   // Return appropriate view based on viewMode
   if (viewMode === "weekly-calendar") {
@@ -29,6 +31,19 @@ export function JournalWorkspace() {
   // Daily view (default) - optimized workspace
   const workspaceRef = useRef<HTMLDivElement>(null);
 
+  // Show loading state while journal entry is being loaded
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center relative overflow-auto min-h-screen">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your journal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Only show "Begin Your Story" when we know for sure there's no entry
   if (!currentEntry) {
     return (
       <div className="flex-1 flex items-center justify-center relative overflow-auto min-h-screen">
@@ -59,7 +74,7 @@ export function JournalWorkspace() {
       </div>
 
       {/* New StickyBoard Component */}
-      <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
+      <StickyBoard spaceId={`workspace-${currentEntry.id}`} currentUserRole={currentUserRole} currentUserId={user?.id} />
 
       {/* Floating collaboration cursors */}
       <FloatingCollaborationCursors />

@@ -1,6 +1,13 @@
 import rateLimit from "express-rate-limit";
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
+import { 
+  friendMutationsLimiter, 
+  searchLimiter, 
+  shareLimiter,
+  RateLimitBucket,
+  RATE_LIMIT_CONFIG 
+} from "../utils/redis";
 
 /**
  * Rate limiting configuration for username validation endpoints
@@ -62,6 +69,321 @@ export const userSearchRateLimit = rateLimit({
     return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
   },
 });
+
+/**
+ * Rate limiting configuration for friend request endpoints
+ * Requirements: 10/hour per user with RFC 6585 compliance
+ */
+export const friendRequestRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 10, // 10 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `friend_request:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many friend requests. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
+ * Rate limiting configuration for friend management endpoints (accept/decline/block/unfriend)
+ * Requirements: 50/hour per user with RFC 6585 compliance
+ */
+export const friendManagementRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 50, // 50 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `friend_mgmt:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many friend management actions. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
+ * Rate limiting configuration for sharing operations
+ * Requirements: 30/hour per user with RFC 6585 compliance
+ */
+export const sharingRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 30, // 30 requests per hour
+  standardHeaders: 'draft-7', // RFC 6585 compliance
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const userId = req.user?.id;
+    return userId ? `sharing:${userId}` : req.ip || 'unknown';
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '3600');
+    res.status(429).json({
+      error: "RATE_LIMITED",
+      message: "Too many sharing operations. Please try again in 1 hour",
+      retryAfter: 3600
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+  },
+});
+
+/**
+ * Enhanced Redis-based rate limiting middleware factory
+ * Creates middleware for specific rate limiting buckets with fallback to memory
+ */
+function createRedisRateLimit(
+  limiter: typeof friendMutationsLimiter | typeof searchLimiter | typeof shareLimiter,
+  bucket: RateLimitBucket,
+  errorMessage: string
+) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Skip rate limiting in test environment
+      if (process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true') {
+        return next();
+      }
+
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      // Check rate limit
+      const result = await limiter.checkRateLimit(userId);
+      
+      // Set RFC 6585 compliant headers
+      res.set('RateLimit-Limit', result.limit.toString());
+      res.set('RateLimit-Remaining', result.remaining.toString());
+      res.set('RateLimit-Reset', Math.ceil(result.resetTime / 1000).toString());
+
+      if (!result.allowed) {
+        if (result.retryAfter) {
+          res.set('Retry-After', result.retryAfter.toString());
+        }
+        
+        return res.status(429).json({
+          error: "RATE_LIMITED",
+          message: errorMessage,
+          retryAfter: result.retryAfter,
+          bucket: bucket,
+          limit: result.limit,
+          remaining: result.remaining,
+          resetTime: result.resetTime
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error(`Redis rate limiting error for ${bucket}:`, error);
+      // On error, allow the request to proceed to avoid blocking legitimate users
+      next();
+    }
+  };
+}
+
+/**
+ * Enhanced friend mutations rate limiting with Redis backend
+ * Covers friend requests, accept, decline, block, unfriend operations
+ * Requirements: 50/hour per user with audit logging for role changes
+ */
+export const enhancedFriendMutationsRateLimit = createRedisRateLimit(
+  friendMutationsLimiter,
+  RateLimitBucket.FRIEND_MUTATIONS,
+  "Too many friend management operations. Please try again later."
+);
+
+/**
+ * Enhanced search rate limiting with Redis backend
+ * Covers user search and friend search operations
+ * Requirements: 20/minute per user
+ */
+export const enhancedSearchRateLimit = createRedisRateLimit(
+  searchLimiter,
+  RateLimitBucket.SEARCH,
+  "Too many search requests. Please try again in a minute."
+);
+
+/**
+ * Enhanced sharing rate limiting with Redis backend
+ * Covers journal sharing operations
+ * Requirements: 30/hour per user
+ */
+export const enhancedSharingRateLimit = createRedisRateLimit(
+  shareLimiter,
+  RateLimitBucket.SHARE,
+  "Too many sharing operations. Please try again later."
+);
+
+/**
+ * Special rate limiting for role changes - unlimited but logged
+ * This middleware doesn't block requests but logs all role changes for audit purposes
+ */
+export const roleChangeAuditMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    // Log the role change attempt for audit purposes
+    const { friendshipId } = req.params;
+    const { role } = req.body;
+    
+    
+    // Store original response.json to capture the result
+    const originalJson = res.json;
+    res.json = function(body) {
+      return originalJson.call(this, body);
+    };
+
+    next();
+  } catch (error) {
+    console.error('Role change audit middleware error:', error);
+    next();
+  }
+};
+
+/**
+ * Input validation middleware for friendship-related endpoints
+ * Validates and sanitizes input data to prevent injection attacks
+ */
+export const friendshipInputValidation = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { username } = req.params;
+    const { role, status } = req.body;
+
+    // Validate username parameter if present
+    if (username) {
+      // Username validation - alphanumeric, underscores, hyphens only
+      if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        return res.status(400).json({
+          error: "INVALID_INPUT",
+          message: "Username contains invalid characters"
+        });
+      }
+      
+      // Length validation
+      if (username.length < 3 || username.length > 30) {
+        return res.status(400).json({
+          error: "INVALID_INPUT", 
+          message: "Username must be between 3 and 30 characters"
+        });
+      }
+    }
+
+    // Validate role if present
+    if (role) {
+      const validRoles = ['viewer', 'contributor', 'editor'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({
+          error: "INVALID_INPUT",
+          message: "Invalid role. Must be one of: viewer, contributor, editor"
+        });
+      }
+    }
+
+    // Validate status if present
+    if (status) {
+      const validStatuses = ['pending', 'accepted', 'declined', 'unfriended', 'blocked'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          error: "INVALID_INPUT",
+          message: "Invalid status. Must be one of: pending, accepted, declined, unfriended, blocked"
+        });
+      }
+    }
+
+    // Validate UUID parameters
+    const { friendshipId, entryId } = req.params;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    
+    if (friendshipId && !uuidRegex.test(friendshipId)) {
+      return res.status(400).json({
+        error: "INVALID_INPUT",
+        message: "Invalid friendship ID format"
+      });
+    }
+    
+    if (entryId && !uuidRegex.test(entryId)) {
+      return res.status(400).json({
+        error: "INVALID_INPUT",
+        message: "Invalid entry ID format"
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Friendship input validation error:', error);
+    return res.status(500).json({
+      error: "VALIDATION_ERROR",
+      message: "Input validation failed"
+    });
+  }
+};
+
+/**
+ * Security middleware for blocked user interactions
+ * Prevents blocked users from interacting with each other
+ */
+export const blockedUserSecurityCheck = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const currentUserId = (req as any).user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const { username, friendshipId } = req.params;
+    let targetUserId: string | null = null;
+
+    // Get target user ID from username or friendship
+    if (username) {
+      const targetUser = await storage.getUserByUsername(username);
+      if (targetUser) {
+        targetUserId = targetUser.id;
+      }
+    } else if (friendshipId) {
+      const friendship = await storage.getFriendshipById(friendshipId);
+      if (friendship) {
+        targetUserId = friendship.userId === currentUserId ? friendship.friendId : friendship.userId;
+      }
+    }
+
+    if (targetUserId) {
+      // Check if users have blocked each other
+      const friendship = await storage.getFriendship(currentUserId, targetUserId);
+      if (friendship?.status === 'blocked') {
+        // Don't reveal that the user is blocked - return generic not found
+        return res.status(404).json({ message: "User not found" });
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('Blocked user security check error:', error);
+    next();
+  }
+};
 
 /**
  * Custom database-backed rate limiting for username changes

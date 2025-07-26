@@ -9,6 +9,7 @@ import { useUser } from '@/hooks/useUser';
 import { isValidUsernameForUrl } from '@/lib/navigationUtils';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Home, ArrowLeft } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface UsernameRouteValidatorProps {
   children: React.ReactNode;
@@ -65,9 +66,14 @@ export function UsernameRouteValidator({ children }: UsernameRouteValidatorProps
       if (!urlUsername) return { exists: true, username: '', canAccess: true };
 
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
         // Check if user exists by trying to access their journal
         const response = await fetch(`/api/journal/user/${urlUsername}/${urlDate || new Date().toISOString().split('T')[0]}`, {
-          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
         });
 
         if (response.status === 404) {

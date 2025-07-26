@@ -7,10 +7,12 @@ import { JournalWorkspace } from "@/components/journal/workspace/workspace";
 import { CollaborationPanel } from "@/components/journal/collaboration-panel/collaboration-panel";
 import { ViewToggle } from "@/components/journal/view-toggle/view-toggle";
 import { FriendSearch } from "@/components/ui/friend-search";
+import { FriendshipNotifications } from "@/components/friends/friendship-notifications";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/useUser";
 import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import { CalendarPlus } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
@@ -21,9 +23,7 @@ function HomeContent() {
   const { currentDate, currentEntry } = useJournal();
 
 
-  // Handle friend request from header search
   const handleFriendRequest = async (searchUser: UserSearchResult) => {
-    // Prevent users from adding themselves as friends
     if (user && searchUser.id === user.id) {
       toast({
         title: "Cannot add yourself",
@@ -34,9 +34,25 @@ function HomeContent() {
     }
 
     try {
-      // TODO: Implement actual friend request API call
-      // For now, simulate the request
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`/api/friends/${searchUser.username}/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send friend request' }));
+        throw new Error(errorData.message || 'Failed to send friend request');
+      }
+
+      const result = await response.json();
 
       toast({
         title: "Friend request sent",
@@ -81,17 +97,14 @@ function HomeContent() {
   }
 
   if (!user) {
-    return null; // Will redirect to login
+    return null; 
   }
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
       <JournalSidebar />
 
-      {/* Main Content */}
       <div className="neu-card flex-1 flex flex-col">
-        {/* Header */}
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
@@ -117,12 +130,10 @@ function HomeContent() {
                 currentUserId={user?.id}
               />
             </div>
-
-            {/* View Toggle */}
             <ViewToggle />
 
-            {/* User Actions */}
             <div className="flex items-center space-x-4">
+              <FriendshipNotifications className="neu-nav-pill" />
               <Button
                 variant="ghost"
                 className="neu-nav-pill font-semibold active text-gray-700 hover:text-[rgb(139,92,246)]"
@@ -153,15 +164,12 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* Workspace & Collaboration Panel */}
-        {currentEntry ? (
-          <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
-            <div className="flex flex-1">
-              <JournalWorkspace />
-              <CollaborationPanel />
-            </div>
-          </CRDTProvider>
-        ) : null}
+        <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
+          <div className="flex flex-1">
+            <JournalWorkspace />
+            <CollaborationPanel />
+          </div>
+        </CRDTProvider>
       </div>
 
 

@@ -27,6 +27,18 @@ export interface JournalEntryData {
   contentBlocks: ContentBlockData[];
   createdAt: string;
   updatedAt: string;
+  owner?: {
+    id: string;
+    username: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+  permissions?: {
+    canEdit: boolean;
+    canCreate: boolean;
+    canDelete: boolean;
+    effectiveRole: 'owner' | 'editor' | 'contributor' | 'viewer';
+  };
 }
 
 export interface Friend {
