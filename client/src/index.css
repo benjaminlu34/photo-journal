@@ -385,6 +385,10 @@
   .bg-dropdown-solid {
     background-color: white !important;
   }
+/* Ensure toast notifications have solid white background */
+  [data-radix-toast-root] {
+    background-color: white !important;
+  }
 
   /* Animation utilities */
   .fade-in {
@@ -470,4 +474,12 @@
     background-image: radial-gradient(circle, rgba(140,113,255,0.15) 1px, transparent 1px);
     background-size: 20px 20px;
   }
+}
+/* Force white background for toast notifications */
+[data-radix-toast-viewport] [data-state],
+[role="status"][data-state],
+.ToastViewport [data-state] {
+  background-color: white !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

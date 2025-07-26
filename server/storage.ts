@@ -801,11 +801,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   private invalidateUserCache(userId: string): void {
-    // Invalidate both friends and requests cache for this user
-    this.friendsCache.delete(`friends:${userId}`);
-    this.friendsCache.delete(`friends:${userId}:0:50`);
-    this.requestsCache.delete(`requests:${userId}`);
-    this.requestsCache.delete(`requests:${userId}:0:50`);
+    // Invalidate all friends cache entries for this user
+    for (const key of this.friendsCache.keys()) {
+      if (key.startsWith(`friends:${userId}`)) {
+        this.friendsCache.delete(key);
+      }
+    }
+    // Invalidate all requests cache entries for this user
+    for (const key of this.requestsCache.keys()) {
+      if (key.startsWith(`requests:${userId}`)) {
+        this.requestsCache.delete(key);
+      }
+    }
   }
 
   async getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number }): Promise<{
@@ -815,6 +822,7 @@ export class DatabaseStorage implements IStorage {
       roleFriendToUser: string;
       status: string;
       createdAt: Date;
+      currentUserRole: string;
     })[];
     totalCount: number;
   }> {
@@ -855,6 +863,8 @@ export class DatabaseStorage implements IStorage {
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         friendshipId: friendships.id,
+        friendshipUserId: friendships.userId,
+        friendshipFriendId: friendships.friendId,
         roleUserToFriend: friendships.roleUserToFriend,
         roleFriendToUser: friendships.roleFriendToUser,
         status: friendships.status,
@@ -881,20 +891,36 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset);
 
-    const friends = results.map(user => ({
-      id: user.id,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      isAdmin: user.isAdmin ?? false,
-      createdAt: user.createdAt ?? new Date(),
-      updatedAt: user.updatedAt ?? new Date(),
-      friendshipId: user.friendshipId,
-      roleUserToFriend: user.roleUserToFriend as string,
-      roleFriendToUser: user.roleFriendToUser as string,
-      status: user.status as string,
-    }));
+    const friends = results.map(user => {
+      // Determine which role applies to the current user
+      let currentUserRole: string;
+      
+      if (user.friendshipUserId === userId) {
+        // Current user is the "user" in the friendship relationship
+        // The role they have is roleUserToFriend (how they treat their friend)
+        currentUserRole = user.roleUserToFriend as string;
+      } else {
+        // Current user is the "friend" in the friendship relationship
+        // The role they have is roleFriendToUser (how their friend treats them)
+        currentUserRole = user.roleFriendToUser as string;
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        isAdmin: user.isAdmin ?? false,
+        createdAt: user.createdAt ?? new Date(),
+        updatedAt: user.updatedAt ?? new Date(),
+        friendshipId: user.friendshipId,
+        roleUserToFriend: user.roleUserToFriend as string,
+        roleFriendToUser: user.roleFriendToUser as string,
+        status: user.status as string,
+        currentUserRole,
+      };
+    });
 
     const result = { friends, totalCount };
 

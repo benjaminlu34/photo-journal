@@ -44,7 +44,7 @@ interface RoleManagementModalProps {
     friend: Friend | null;
     isOpen: boolean;
     onClose: () => void;
-    onRoleUpdated?: (friendId: string, newRoles: { toFriend: string; toUser: string }) => void;
+    // onRoleUpdated is no longer needed as query invalidation handles UI refresh
 }
 
 const ROLES = [
@@ -86,7 +86,6 @@ export function RoleManagementModal({
     friend,
     isOpen,
     onClose,
-    onRoleUpdated
 }: RoleManagementModalProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -128,9 +127,29 @@ export function RoleManagementModal({
 
             return response.json();
         },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['friends'] });
-            onRoleUpdated?.(friend!.id, { toFriend: roleToFriend, toUser: roleToUser });
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['friends'] }); // Invalidate to ensure fresh data on next fetch
+
+            // Optimistically update the cache for the specific friend's role
+            queryClient.setQueryData(['friends'], (oldData: any) => {
+                if (!oldData) return oldData;
+
+                const updatedFriends = oldData.friends.map((friend: any) => {
+                    if (friend.friendshipId === variables.friendshipId) {
+                        return {
+                            ...friend,
+                            roleUserToFriend: variables.roleUserToFriend,
+                            roleFriendToUser: variables.roleFriendToUser,
+                        };
+                    }
+                    return friend;
+                });
+
+                return {
+                    ...oldData,
+                    friends: updatedFriends,
+                };
+            });
 
             toast({
                 title: "Roles updated successfully",

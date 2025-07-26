@@ -17,6 +17,7 @@ import { JournalSharingModal } from './journal-sharing-modal';
 import { FriendshipNotifications } from './friendship-notifications';
 import { useUser } from '@/hooks/useUser';
 import { useToast } from '@/hooks/use-toast';
+import { useUsernameNavigation } from '@/hooks/useUsernameNavigation';
 
 interface Friend {
   id: string;
@@ -50,14 +51,15 @@ interface FriendsPageProps {
   onEntryShared?: (entryId: string) => void;
 }
 
-export function FriendsPage({ 
-  className, 
+export function FriendsPage({
+  className,
   initialTab = 'friends',
   selectedEntry,
   onEntryShared
 }: FriendsPageProps) {
   const { data: user } = useUser();
   const { toast } = useToast();
+  const { navigateToUserBoard } = useUsernameNavigation();
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -67,8 +69,8 @@ export function FriendsPage({
 
   const handleFriendSelect = (friend: Friend) => {
     setSelectedFriend(friend);
-    // Could open a friend profile modal or navigate to their profile
-    console.log('Selected friend:', friend);
+    // Navigate to friend's journal profile
+    navigateToUserBoard(friend.username, new Date());
   };
 
   const handleRoleManagement = (friend: Friend) => {
@@ -76,19 +78,19 @@ export function FriendsPage({
     setIsRoleModalOpen(true);
   };
 
-  const handleRoleUpdated = (friendId: string, newRoles: { toFriend: string; toUser: string }) => {
-    toast({
-      title: "Roles updated",
-      description: "Friend permissions have been updated successfully",
-    });
-    
-    // Update local state if needed
-    setSelectedFriend(prev => prev ? {
-      ...prev,
-      roleUserToFriend: newRoles.toFriend as any,
-      roleFriendToUser: newRoles.toUser as any
-    } : null);
-  };
+  // handleRoleUpdated is no longer needed as RoleManagementModal directly updates via mutation
+  // and query invalidation handles UI refresh.
+  // const handleRoleUpdated = (friendId: string, newRoles: { toFriend: string; toUser: string }) => {
+  //   toast({
+  //     title: "Roles updated",
+  //     description: "Friend permissions have been updated successfully",
+  //   });
+  //   setSelectedFriend(prev => prev ? {
+  //     ...prev,
+  //     roleUserToFriend: newRoles.toFriend as any,
+  //     roleFriendToUser: newRoles.toUser as any
+  //   } : null);
+  // };
 
   const handleRequestHandled = (requestId: string, action: 'accepted' | 'declined') => {
     if (action === 'accepted') {
@@ -149,7 +151,7 @@ export function FriendsPage({
         </div>
 
         {/* Main Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'friends' | 'requests')} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 lg:w-96">
             <TabsTrigger value="friends" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
@@ -167,10 +169,7 @@ export function FriendsPage({
               <div className="lg:col-span-2">
                 <FriendList
                   onFriendSelect={handleFriendSelect}
-                  onRoleChange={(friendId, newRole) => {
-                    // Find the friend and open role management
-                    // This would typically be handled by the FriendList component internally
-                  }}
+                  onRoleChange={handleRoleManagement} // Pass handleRoleManagement directly
                   showRoleManagement={true}
                 />
               </div>
@@ -297,11 +296,10 @@ export function FriendsPage({
           setIsRoleModalOpen(false);
           setSelectedFriend(null);
         }}
-        onRoleUpdated={handleRoleUpdated}
       />
 
       <JournalSharingModal
-        entry={selectedEntry}
+        entry={selectedEntry || null}
         isOpen={isSharingModalOpen}
         onClose={() => setIsSharingModalOpen(false)}
         onSharingUpdated={handleSharingUpdated}

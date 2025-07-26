@@ -109,7 +109,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   };
 
   // Fetch current journal entry - use username-based API if in username route
-  const apiEndpoint = urlUsername 
+  const apiEndpoint = urlUsername
     ? `/api/journal/user/${urlUsername}/${dateString}`
     : `/api/journal/${dateString}`;
   
@@ -121,6 +121,10 @@ export function JournalProvider({ children }: JournalProviderProps) {
     queryKey: [apiEndpoint],
     enabled: !!dateString,
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // Fetch friends

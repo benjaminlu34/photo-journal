@@ -397,12 +397,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the journal entry
       let entry = await storage.getJournalEntry(targetUser.id, parsedDate);
       if (!entry) {
-        // Only create entry if current user is the owner
-        if (currentUserId === targetUser.id) {
-          entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
-        } else {
-          return res.status(404).json({ message: "Journal entry not found" });
-        }
+        // If no entry exists, create a default empty entry for display purposes
+        // This prevents a 404 if a friend hasn't created an entry for that date
+        entry = {
+          id: uuidv4(), // Generate a new ID for a temporary entry
+          userId: targetUser.id,
+          date: parsedDate,
+          title: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
       }
       
       const blocks = await storage.getContentBlocks(entry.id);
@@ -1085,6 +1089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'accepted' as const,
         roleUserToFriend: friend.roleUserToFriend as 'viewer' | 'contributor' | 'editor',
         roleFriendToUser: friend.roleFriendToUser as 'viewer' | 'contributor' | 'editor',
+        currentUserRole: friend.currentUserRole as 'viewer' | 'contributor' | 'editor',
         createdAt: friend.createdAt ? friend.createdAt.toISOString() : new Date().toISOString(),
         lastActivity: friend.updatedAt ? friend.updatedAt.toISOString() : new Date().toISOString(),
       }));

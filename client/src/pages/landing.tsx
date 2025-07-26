@@ -143,13 +143,13 @@ export default function Landing() {
                     <form onSubmit={handleSignIn} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
                           <Input 
                             id="email" 
                             type="email" 
                             placeholder="your@email.com"
-                            className="pl-10" 
+                            className="flex-1" 
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
@@ -159,13 +159,13 @@ export default function Landing() {
                       
                       <div className="space-y-2">
                         <Label htmlFor="password">Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-gray-400 flex-shrink-0" />
                           <Input 
                             id="password" 
                             type="password" 
                             placeholder="••••••••"
-                            className="pl-10" 
+                            className="flex-1" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
@@ -187,13 +187,13 @@ export default function Landing() {
                     <form onSubmit={handleSignUp} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="signup-email">Email</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
                           <Input 
                             id="signup-email" 
                             type="email" 
                             placeholder="your@email.com"
-                            className="pl-10" 
+                            className="flex-1" 
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
@@ -203,13 +203,13 @@ export default function Landing() {
                       
                       <div className="space-y-2">
                         <Label htmlFor="signup-password">Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-gray-400 flex-shrink-0" />
                           <Input 
                             id="signup-password" 
                             type="password" 
                             placeholder="••••••••"
-                            className="pl-10" 
+                            className="flex-1" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required

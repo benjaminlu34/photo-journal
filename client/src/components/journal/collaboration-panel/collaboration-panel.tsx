@@ -253,14 +253,14 @@ export function CollaborationPanel() {
         </div>
 
         {/* Search */}
-        <div className="mt-6 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+        <div className="mt-6 flex items-center gap-2">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <Input
             type="text"
             placeholder="Search your content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 neu-inset text-gray-800 placeholder:text-gray-500 border-0"
+            className="neu-inset text-gray-800 placeholder:text-gray-500 border-0 flex-1"
           />
         </div>
       </div>

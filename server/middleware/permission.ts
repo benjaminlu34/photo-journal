@@ -6,13 +6,14 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { v4 as uuidv4 } from "uuid"; // Import uuidv4
 import { storage } from '../storage';
-import { 
-  resolveEffectivePermission, 
-  canEditContentBlock, 
+import {
+  resolveEffectivePermission,
+  canEditContentBlock,
   canDeleteContentBlock,
   PermissionContext,
-  PermissionResult 
+  PermissionResult
 } from '../utils/permission-resolver';
 
 // Extend Express Request to include permission context
@@ -37,7 +38,8 @@ export async function resolveJournalPermissions(
   try {
     const currentUserId = req.user?.id;
     if (!currentUserId) {
-      return res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ message: 'Authentication required' });
+      return;
     }
 
     // Extract entry information from route parameters
@@ -51,7 +53,8 @@ export async function resolveJournalPermissions(
       // Direct entry ID access
       const entry = await storage.getJournalEntryById(entryId);
       if (!entry) {
-        return res.status(404).json({ message: 'Journal entry not found' });
+        res.status(404).json({ message: 'Journal entry not found' });
+        return;
       }
       entryOwnerId = entry.userId;
       actualEntryId = entry.id;
@@ -59,32 +62,33 @@ export async function resolveJournalPermissions(
       // Username-based access
       const targetUser = await storage.getUserByUsername(username);
       if (!targetUser) {
-        return res.status(404).json({ message: 'User not found' });
+        res.status(404).json({ message: 'User not found' });
+        return;
       }
       entryOwnerId = targetUser.id;
       
       // For username-based access, we might need to create the entry
       const date = new Date(req.params.date);
       if (Number.isNaN(date.getTime())) {
-        return res.status(400).json({ message: 'Invalid date format' });
+        res.status(400).json({ message: 'Invalid date format' });
+        return;
       }
       
       let entry = await storage.getJournalEntry(entryOwnerId, date);
       if (!entry) {
-        // Only create entry if user is the owner or has contributor+ permissions
-        if (currentUserId === entryOwnerId) {
-          entry = await storage.createJournalEntry({ 
-            userId: entryOwnerId, 
-            date, 
-            title: null 
-          });
-        } else {
-          return res.status(404).json({ message: 'Journal entry not found' });
-        }
+        // If no entry exists for a non-owner, don't return 404.
+        // Instead, let it proceed with a null entry, and permission resolver
+        // will determine access based on friendship/sharing.
+        // For the purpose of providing an entryId to the permission context,
+        // we can generate a temporary one or use a known placeholder.
+        // The frontend Home component will handle creating a new entry if needed.
+        actualEntryId = 'new-entry-' + uuidv4(); // Generate a temporary ID
+      } else {
+        actualEntryId = entry.id;
       }
-      actualEntryId = entry.id;
     } else {
-      return res.status(400).json({ message: 'Entry ID or username required' });
+      res.status(400).json({ message: 'Entry ID or username required' });
+      return;
     }
 
     // Get friendship if users are different
@@ -119,7 +123,8 @@ export async function resolveJournalPermissions(
     next();
   } catch (error) {
     console.error('Permission resolution error:', error);
-    return res.status(500).json({ message: 'Failed to resolve permissions' });
+    res.status(500).json({ message: 'Failed to resolve permissions' });
+    return;
   }
 }
 
@@ -135,14 +140,16 @@ export function requireViewPermission(
   const permissionResult = req.permissionResult;
   
   if (!permissionResult) {
-    return res.status(500).json({ message: 'Permission context not resolved' });
+    res.status(500).json({ message: 'Permission context not resolved' });
+    return;
   }
 
   if (!permissionResult.hasAccess || !permissionResult.canView) {
-    return res.status(403).json({ 
+    res.status(403).json({
       message: 'Access denied: Insufficient permissions to view this entry',
-      reason: permissionResult.reason 
+      reason: permissionResult.reason
     });
+    return;
   }
 
   next();
@@ -160,14 +167,16 @@ export function requireEditPermission(
   const permissionResult = req.permissionResult;
   
   if (!permissionResult) {
-    return res.status(500).json({ message: 'Permission context not resolved' });
+    res.status(500).json({ message: 'Permission context not resolved' });
+    return;
   }
 
   if (!permissionResult.hasAccess || !permissionResult.canEdit) {
-    return res.status(403).json({ 
+    res.status(403).json({
       message: 'Access denied: Insufficient permissions to edit this entry',
-      reason: permissionResult.reason 
+      reason: permissionResult.reason
     });
+    return;
   }
 
   next();
@@ -185,14 +194,16 @@ export function requireCreatePermission(
   const permissionResult = req.permissionResult;
   
   if (!permissionResult) {
-    return res.status(500).json({ message: 'Permission context not resolved' });
+    res.status(500).json({ message: 'Permission context not resolved' });
+    return;
   }
 
   if (!permissionResult.hasAccess || !permissionResult.canCreate) {
-    return res.status(403).json({ 
+    res.status(403).json({
       message: 'Access denied: Insufficient permissions to create content in this entry',
-      reason: permissionResult.reason 
+      reason: permissionResult.reason
     });
+    return;
   }
 
   next();
@@ -213,20 +224,23 @@ export async function requireContentBlockEditPermission(
     const blockId = req.params.blockId;
     
     if (!permissionResult || !currentUserId) {
-      return res.status(500).json({ message: 'Permission context not resolved' });
+      res.status(500).json({ message: 'Permission context not resolved' });
+      return;
     }
 
     if (!permissionResult.hasAccess) {
-      return res.status(403).json({ 
+      res.status(403).json({
         message: 'Access denied: No access to this entry',
-        reason: permissionResult.reason 
+        reason: permissionResult.reason
       });
+      return;
     }
 
     // Get the content block to check ownership
     const contentBlock = await storage.getContentBlock(blockId);
     if (!contentBlock) {
-      return res.status(404).json({ message: 'Content block not found' });
+      res.status(404).json({ message: 'Content block not found' });
+      return;
     }
 
     // Check if user can edit this specific content block
@@ -237,18 +251,20 @@ export async function requireContentBlockEditPermission(
     );
 
     if (!canEdit) {
-      return res.status(403).json({ 
+      res.status(403).json({
         message: 'Access denied: Insufficient permissions to edit this content block',
-        reason: permissionResult.effectiveRole === 'contributor' 
+        reason: permissionResult.effectiveRole === 'contributor'
           ? 'Contributors can only edit content blocks they created'
           : permissionResult.reason
       });
+      return;
     }
 
     next();
   } catch (error) {
     console.error('Content block permission check error:', error);
-    return res.status(500).json({ message: 'Failed to check content block permissions' });
+    res.status(500).json({ message: 'Failed to check content block permissions' });
+    return;
   }
 }
 
@@ -267,20 +283,23 @@ export async function requireContentBlockDeletePermission(
     const blockId = req.params.blockId;
     
     if (!permissionResult || !currentUserId) {
-      return res.status(500).json({ message: 'Permission context not resolved' });
+      res.status(500).json({ message: 'Permission context not resolved' });
+      return;
     }
 
     if (!permissionResult.hasAccess) {
-      return res.status(403).json({ 
+      res.status(403).json({
         message: 'Access denied: No access to this entry',
-        reason: permissionResult.reason 
+        reason: permissionResult.reason
       });
+      return;
     }
 
     // Get the content block to check ownership
     const contentBlock = await storage.getContentBlock(blockId);
     if (!contentBlock) {
-      return res.status(404).json({ message: 'Content block not found' });
+      res.status(404).json({ message: 'Content block not found' });
+      return;
     }
 
     // Check if user can delete this specific content block
@@ -291,18 +310,20 @@ export async function requireContentBlockDeletePermission(
     );
 
     if (!canDelete) {
-      return res.status(403).json({ 
+      res.status(403).json({
         message: 'Access denied: Insufficient permissions to delete this content block',
-        reason: permissionResult.effectiveRole === 'contributor' 
+        reason: permissionResult.effectiveRole === 'contributor'
           ? 'Contributors can only delete content blocks they created'
           : permissionResult.reason
       });
+      return;
     }
 
     next();
   } catch (error) {
     console.error('Content block permission check error:', error);
-    return res.status(500).json({ message: 'Failed to check content block permissions' });
+    res.status(500).json({ message: 'Failed to check content block permissions' });
+    return;
   }
 }
 

@@ -164,14 +164,12 @@ function HomeContent() {
           </div>
         </div>
 
-        {currentEntry ? (
-          <CRDTProvider spaceId={`workspace-${currentEntry.id}`}>
-            <div className="flex flex-1">
-              <JournalWorkspace />
-              <CollaborationPanel />
-            </div>
-          </CRDTProvider>
-        ) : null}
+        <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
+          <div className="flex flex-1">
+            <JournalWorkspace />
+            <CollaborationPanel />
+          </div>
+        </CRDTProvider>
       </div>
 
 

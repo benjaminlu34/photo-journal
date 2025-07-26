@@ -49,6 +49,7 @@ interface Friend {
   status: 'accepted';
   roleUserToFriend: 'viewer' | 'contributor' | 'editor';
   roleFriendToUser: 'viewer' | 'contributor' | 'editor';
+  currentUserRole: 'viewer' | 'contributor' | 'editor';
   createdAt: string;
   lastActivity?: string;
 }
@@ -66,7 +67,7 @@ interface FriendListResponse {
 interface FriendListProps {
   className?: string;
   onFriendSelect?: (friend: Friend) => void;
-  onRoleChange?: (friendId: string, newRole: string) => void;
+  onRoleChange?: (friendId: string, newRole: string) => void; // Changed back to pass friendId
   showRoleManagement?: boolean;
 }
 
@@ -138,7 +139,7 @@ export function FriendList({
   const updateRoleMutation = useMutation({
     mutationFn: async ({ friendshipId, role, direction }: {
       friendshipId: string;
-      role: string;
+      role: 'viewer' | 'contributor' | 'editor'; // Specify role types
       direction: 'to_friend' | 'to_user'
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -162,11 +163,12 @@ export function FriendList({
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['friends'] });
-      onRoleChange?.(variables.friendshipId, variables.role);
-
+      // The onRoleChange prop is now used to trigger the modal, not update a role directly
+      // The actual role update is handled by the query invalidation and re-fetch
+      console.log('success data: ', data);
       toast({
         title: "Role updated",
-        description: `Friend's role has been updated to ${ROLE_LABELS[variables.role as keyof typeof ROLE_LABELS]}`,
+        description: `Friend's role has been updated to ${ROLE_LABELS[variables.role]}`, // Use direct type
       });
     },
     onError: (error) => {
@@ -221,13 +223,12 @@ export function FriendList({
       `${friend.firstName} ${friend.lastName}`.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole = roleFilter === 'all' ||
-      friend.roleUserToFriend === roleFilter ||
-      friend.roleFriendToUser === roleFilter;
+      friend.currentUserRole === roleFilter;
 
     return matchesSearch && matchesRole;
   });
 
-  const handleRoleUpdate = (friendshipId: string, newRole: string, direction: 'to_friend' | 'to_user') => {
+  const handleRoleUpdate = (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => {
     updateRoleMutation.mutate({ friendshipId, role: newRole, direction });
   };
 
@@ -326,7 +327,7 @@ export function FriendList({
           <div className="space-y-3">
             {filteredFriends.map((friend) => (
               <FriendItem
-                key={friend.id}
+                key={`${friend.id}-${friend.currentUserRole}`}
                 friend={friend}
                 onSelect={onFriendSelect}
                 onRoleUpdate={handleRoleUpdate}
@@ -361,7 +362,7 @@ export function FriendList({
 interface FriendItemProps {
   friend: Friend;
   onSelect?: (friend: Friend) => void;
-  onRoleUpdate: (friendshipId: string, newRole: string, direction: 'to_friend' | 'to_user') => void;
+  onRoleUpdate: (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => void; // Changed back to pass friendshipId
   onUnfriend: (friendshipId: string) => void;
   showRoleManagement: boolean;
   isUpdatingRole: boolean;
@@ -375,21 +376,27 @@ function FriendItem({
   showRoleManagement,
   isUpdatingRole
 }: FriendItemProps) {
+  
+
   const displayName = friend.firstName && friend.lastName
     ? `${friend.firstName} ${friend.lastName}`
     : friend.username;
 
-  const RoleIcon = ROLE_ICONS[friend.roleUserToFriend];
+  // Use the role that applies to the current user
+  const currentUserRole = friend.currentUserRole;
+  const RoleIcon = ROLE_ICONS[currentUserRole];
 
   const [dropdownOpen, setDropdownOpen] = useState(false); // Add state for dropdown
 
   const handleItemClick = (e: React.MouseEvent) => {
     // Only open dropdown if not clicking the MoreVertical button itself
-    if (e.target instanceof HTMLElement && e.target.closest('.more-vertical-button')) {
+    if (e.target instanceof HTMLElement && (e.target as HTMLElement).closest('.more-vertical-button')) {
       return;
     }
-    setDropdownOpen(prev => !prev); // Toggle dropdown state
-    onSelect?.(friend); // Keep original select behavior
+    // Only trigger onSelect if not clicking a dropdown menu item
+    if (e.target instanceof HTMLElement && !(e.target as HTMLElement).closest('[role="menuitem"]')) {
+      onSelect?.(friend); // Keep original select behavior
+    }
   };
 
   return (
@@ -419,7 +426,7 @@ function FriendItem({
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="neu" className="text-xs">
               <RoleIcon className="h-3 w-3 mr-1" />
-              {ROLE_LABELS[friend.roleUserToFriend]}
+              {ROLE_LABELS[currentUserRole]}
             </Badge>
 
             {friend.lastActivity && (
@@ -432,7 +439,7 @@ function FriendItem({
       </div>
 
       {showRoleManagement && (
-        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen} key={`${friend.id}-${friend.currentUserRole}`}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -447,7 +454,10 @@ function FriendItem({
             <DropdownMenuLabel>Manage Friend</DropdownMenuLabel>
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem onClick={() => onSelect?.(friend)}>
+            <DropdownMenuItem onClick={() => {
+              onSelect?.(friend);
+              setDropdownOpen(false); // Close dropdown after selection
+            }}>
               <MessageCircle className="h-4 w-4 mr-2" />
               View Profile
             </DropdownMenuItem>
@@ -458,15 +468,18 @@ function FriendItem({
             {(['viewer', 'contributor', 'editor'] as const).map((role) => (
               <DropdownMenuItem
                 key={role}
-                onClick={() => onRoleUpdate(friend.friendshipId, role, 'to_friend')}
-                disabled={isUpdatingRole || friend.roleUserToFriend === role}
+                onClick={() => {
+                  onRoleUpdate(friend.friendshipId, role, 'to_user');
+                  setDropdownOpen(false); // Close dropdown after selection
+                }}
+                disabled={isUpdatingRole || currentUserRole === role}
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center">
                     {React.createElement(ROLE_ICONS[role], { className: "h-4 w-4 mr-2" })}
                     {ROLE_LABELS[role]}
                   </div>
-                  {friend.roleUserToFriend === role && (
+                  {currentUserRole === role && (
                     <Badge variant="secondary" className="text-xs">Current</Badge>
                   )}
                 </div>
@@ -475,7 +488,10 @@ function FriendItem({
 
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => onUnfriend(friend.friendshipId)}
+              onClick={() => {
+                onUnfriend(friend.friendshipId);
+                setDropdownOpen(false); // Close dropdown after selection
+              }}
               className="text-destructive focus:text-destructive"
             >
               <UserX className="h-4 w-4 mr-2" />

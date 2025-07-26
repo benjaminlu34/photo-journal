@@ -137,26 +137,28 @@ export function FriendSearch({
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       {/* Search Input */}
-      <div className="flex items-center gap-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={inputRef}
-          value={inputValue}
-          onChange={(e) => handleInputChange(e.target.value)}
-          onFocus={handleFocus}
-          placeholder={placeholder}
-          className="flex-1 bg-background border-border text-foreground placeholder:text-muted-foreground"
-        />
-        {inputValue && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClear}
-            className="h-8 w-8 p-0 hover:bg-secondary"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+      <div className="flex items-center gap-2 w-full">
+        <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <div className="relative flex-1">
+          <Input
+            ref={inputRef}
+            value={inputValue}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onFocus={handleFocus}
+            placeholder={placeholder}
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10"
+          />
+          {inputValue && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-secondary"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search Dropdown */}
