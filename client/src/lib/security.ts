@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify';
 import { z } from 'zod';
-import type { NoteData, NotePosition, NoteContent, ChecklistItem, DrawingStroke } from '@/types/notes';
+import type { NoteData, NotePosition, NoteContent, ChecklistItem, ChecklistSettings, DrawingStroke } from '@/types/notes';
 
 // Position validation schema
 const positionSchema = z.object({
@@ -21,11 +21,22 @@ const checklistItemSchema = z.object({
   id: z.string(),
   text: z.string().max(500),
   completed: z.boolean(),
+  order: z.number().int().min(0),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+const checklistSettingsSchema = z.object({
+  allowReordering: z.boolean(),
+  showCompletedItems: z.boolean(),
+  sortBy: z.enum(['order', 'created', 'alphabetical']),
 });
 
 const checklistContentSchema = z.object({
   type: z.literal('checklist'),
   items: z.array(checklistItemSchema).max(100), // Max 100 items
+  settings: checklistSettingsSchema.optional(),
+  backgroundColor: z.string().optional(),
 });
 
 const imageContentSchema = z.object({

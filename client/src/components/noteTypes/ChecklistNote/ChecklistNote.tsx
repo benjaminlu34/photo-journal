@@ -1,30 +1,33 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { security } from "@/lib/security";
 import { Check, Plus, X } from "lucide-react";
-import type { NoteContent } from "@/types/notes";
+import type { ChecklistNoteProps, ChecklistNoteContent, ChecklistItem } from "@/types/checklist";
+import {
+  migrateChecklistItem,
+  createChecklistItem,
+  updateChecklistItem,
+  sortChecklistItems,
+  getDefaultChecklistSettings
+} from "@/lib/checklist-utils";
 
-type ChecklistNoteContent = Extract<NoteContent, { type: 'checklist' }>;
-
-interface ChecklistNoteProps {
-  content: ChecklistNoteContent;
-  onChange?: (content: ChecklistNoteContent) => void;
-}
-
-const uid = () => crypto.randomUUID();
-
-const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checklist', items: [] }, onChange }) => {
+const ChecklistNote: React.FC<ChecklistNoteProps> = ({
+  content = { type: 'checklist', items: [], settings: getDefaultChecklistSettings() },
+  onChange
+}) => {
   const [newItemText, setNewItemText] = useState("");
-  const [localItems, setLocalItems] = useState(content.items || []);
+  const [localItems, setLocalItems] = useState<ChecklistItem[]>(() =>
+    (content.items || []).map(migrateChecklistItem)
+  );
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync local state when content prop changes (from server)
   useEffect(() => {
-    setLocalItems(content.items || []);
+    const migratedItems = (content.items || []).map(migrateChecklistItem);
+    setLocalItems(migratedItems);
   }, [content.items]);
 
   // Debounced save function
-  const debouncedSave = useCallback((items: typeof content.items) => {
+  const debouncedSave = useCallback((items: ChecklistItem[]) => {
     // Clear any existing timeout
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
@@ -32,12 +35,12 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
 
     // Set new timeout for saving
     debounceTimeoutRef.current = setTimeout(() => {
-      // Sanitize checklist item text to prevent XSS
-      const sanitizedItems = items.map(item => ({
-        ...item,
-        text: security.sanitizeHtml(item.text)
-      }));
-      onChange?.({ ...content, items: sanitizedItems });
+      const updatedContent: ChecklistNoteContent = {
+        ...content,
+        items,
+        settings: content.settings || getDefaultChecklistSettings(),
+      };
+      onChange?.(updatedContent);
     }, 500); // 500ms debounce
   }, [onChange, content]);
 
@@ -53,7 +56,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
   const handleToggleItem = useCallback(
     (itemId: string) => {
       const updatedItems = localItems.map((item) =>
-        item.id === itemId ? { ...item, completed: !item.completed } : item,
+        item.id === itemId ? updateChecklistItem(item, { completed: !item.completed }) : item,
       );
       setLocalItems(updatedItems);
       debouncedSave(updatedItems);
@@ -64,7 +67,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
   const handleItemTextChange = useCallback(
     (itemId: string, text: string) => {
       const updatedItems = localItems.map((item) =>
-        item.id === itemId ? { ...item, text } : item,
+        item.id === itemId ? updateChecklistItem(item, { text }) : item,
       );
       setLocalItems(updatedItems);
       debouncedSave(updatedItems);
@@ -83,11 +86,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
 
   const handleAddItem = useCallback(() => {
     if (newItemText.trim()) {
-      const newItem = {
-        id: uid(),
-        text: newItemText.trim(),
-        completed: false,
-      };
+      const newItem = createChecklistItem(newItemText, localItems.length);
       const updatedItems = [...localItems, newItem];
       setLocalItems(updatedItems);
       debouncedSave(updatedItems);
@@ -129,8 +128,8 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
               onChange={(e) => handleItemTextChange(item.id, e.target.value)}
               className={cn(
                 "flex-1 border-none outline-none bg-transparent text-sm",
-                "text-gray-800 placeholder:text-gray-500",
-                item.completed && "line-through text-gray-600",
+                "placeholder:text-current/50",
+                item.completed && "line-through opacity-60",
               )}
               placeholder="Enter task..."
             />
@@ -166,7 +165,7 @@ const ChecklistNote: React.FC<ChecklistNoteProps> = ({ content = { type: 'checkl
           onKeyDown={handleKeyDown}
           className={cn(
             "flex-1 border-none outline-none bg-transparent text-sm",
-            "text-gray-800 placeholder:text-gray-500",
+            "placeholder:text-current/50",
           )}
           placeholder="Add new item..."
         />
