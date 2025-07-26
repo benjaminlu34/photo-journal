@@ -85,7 +85,10 @@ export function createBoardSDK({
       }
     },
     deleteNote(id: string) {
-      notesMap.delete(id);
+      const note = notesMap.get(id);
+      if (note) {
+        notesMap.delete(id);
+      }
     },
     presence: awareness,
     undo() {
@@ -106,4 +109,4 @@ export function createBoardSDK({
       doc.destroy();
     },
   };
-} 
+}

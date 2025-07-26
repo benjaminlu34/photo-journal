@@ -7,11 +7,13 @@ import { StickyBoard } from "@/components/board/StickyBoard/StickyBoard";
 import { CollaborationCursor, FloatingCollaborationCursors } from "@/components/collaboration/collaboration-cursor";
 import { useJournal } from "@/contexts/journal-context";
 import { useCRDT } from "@/contexts/crdt-context";
+import { useUser } from "@/hooks/useUser";
 import type { Position } from "@/types/journal";
 import { Plus, Loader2 } from "lucide-react";
 
 export function JournalWorkspace() {
-  const { currentEntry, viewMode, isLoading } = useJournal();
+  const { currentEntry, viewMode, isLoading, currentUserRole } = useJournal();
+  const { data: user } = useUser();
 
   // Return appropriate view based on viewMode
   if (viewMode === "weekly-calendar") {
@@ -72,7 +74,7 @@ export function JournalWorkspace() {
       </div>
 
       {/* New StickyBoard Component */}
-      <StickyBoard spaceId={`workspace-${currentEntry.id}`} />
+      <StickyBoard spaceId={`workspace-${currentEntry.id}`} currentUserRole={currentUserRole} currentUserId={user?.id} />
 
       {/* Floating collaboration cursors */}
       <FloatingCollaborationCursors />

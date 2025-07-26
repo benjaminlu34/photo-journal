@@ -50,7 +50,6 @@ export function isAuthenticatedSupabase(
     console.log('Auth middleware: Successfully authenticated user', { 
       userId: decoded.sub, 
       email: decoded.email,
-      note: 'Username will be fetched from database when needed'
     });
 
     next();

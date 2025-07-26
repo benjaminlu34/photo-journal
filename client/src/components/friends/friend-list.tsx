@@ -165,8 +165,7 @@ export function FriendList({
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['friends'] });
       // The onRoleChange prop is now used to trigger the modal, not update a role directly
-      // The actual role update is handled by the query invalidation and re-fetch
-      console.log('success data: ', data);
+      
       toast({
         title: "Role updated",
         description: `Friend's role has been updated to ${ROLE_LABELS[variables.role]}`, // Use direct type

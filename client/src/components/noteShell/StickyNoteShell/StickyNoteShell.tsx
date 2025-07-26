@@ -16,6 +16,7 @@ import { ResizeHandle } from '../ResizeHandle/ResizeHandle';
 import { NoteHeader } from '../NoteHeader/NoteHeader';
 import { FloatingNoteAttribution } from '@/components/ui/note-attribution';
 import { safeColor, getOptimalTextColor } from '@/utils/colorUtils/colorUtils';
+import { useJournal } from '@/contexts/journal-context';
 
 // Throttle utility for color updates
 function throttle<T extends (...args: any[]) => void>(func: T, delay: number): T {
@@ -52,6 +53,8 @@ interface StickyNoteShellProps {
   deleteNote: (id: string) => void;
   children: React.ReactNode;
   previewColor?: string | null; // For live color preview
+  currentUserRole?: 'owner' | 'editor' | 'contributor' | 'viewer';
+  currentUserId?: string;
 }
 
 export const StickyNoteShell = React.memo(
@@ -60,12 +63,39 @@ export const StickyNoteShell = React.memo(
     updateNote,
     deleteNote,
     previewColor,
+    currentUserRole = 'owner',
+    currentUserId,
   }: StickyNoteShellProps) {
     const { id, position, type, content } = note;
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [localPreviewColor, setLocalPreviewColor] = useState<string | null>(null);
     const isMobile = useMobile();
+    
+    // Permission enforcement based on role
+    // Updated permission matrix:
+    // - owner: full access to all notes (move, resize, edit, delete) - can delete any note on their board
+    // - editor: full access to all notes (move, resize, edit, delete) - can delete any note
+    // - contributor: can only move and edit notes THEY created, cannot delete
+    // - viewer: read-only access to all notes
+    
+    // Ownership check - handle legacy notes where createdBy is undefined
+    // For legacy notes with undefined createdBy, treat as owner-editable
+    const isNoteOwner = note.createdBy?.id === currentUserId || note.createdBy?.id === undefined;
+    
+    const canMove = currentUserRole === 'owner' ||
+                   currentUserRole === 'editor' ||
+                   (currentUserRole === 'contributor' && isNoteOwner);
+    
+    const canResize = currentUserRole === 'owner' || currentUserRole === 'editor';
+    
+    const canEdit = currentUserRole === 'owner' ||
+                   currentUserRole === 'editor' ||
+                   (currentUserRole === 'contributor' && isNoteOwner);
+    
+    const canDelete = currentUserRole === 'owner' || currentUserRole === 'editor';
+    
+    // Permission calculation complete
 
     const noteRef = useRef<HTMLDivElement>(null);
     const dragStartRef = useRef<DragPosition>({ x: 0, y: 0 });
@@ -111,6 +141,11 @@ export const StickyNoteShell = React.memo(
 
     const handleDragPointerDown = useCallback(
       (e: React.PointerEvent) => {
+        // Check permissions before allowing drag
+        if (!canMove) {
+          return;
+        }
+
         // Only allow drag to start from the drag-handle (6-dot grip)
         if (
           !(e.target as HTMLElement).closest('.drag-handle')
@@ -141,13 +176,19 @@ export const StickyNoteShell = React.memo(
         setIsDragging(true);
         touchIdentifierRef.current = e.pointerId;
       },
-      [position],
+      [position, canMove],
     );
 
     const handleResizePointerDown = useCallback(
       (e: React.MouseEvent, handle: string) => {
         e.preventDefault();
         e.stopPropagation();
+        
+        // Check permissions before allowing resize
+        if (!canResize) {
+          return;
+        }
+        
         setIsResizing(true);
 
         const startSize = {
@@ -220,7 +261,7 @@ export const StickyNoteShell = React.memo(
         window.addEventListener('mousemove', doResize);
         window.addEventListener('mouseup', stopResize);
       },
-      [position, debouncedUpdate],
+      [position, debouncedUpdate, canResize],
     );
 
     const handlePointerMove = useCallback(
@@ -407,6 +448,7 @@ export const StickyNoteShell = React.memo(
             : 'shadow-md cursor-grab',
           isResizing ? 'select-none' : '',
           isMobile ? 'touch-none' : '',
+          !canMove ? 'cursor-not-allowed' : '',
         )}
         style={{
           transform: `translate(${position.x}px, ${position.y}px)`,
@@ -429,17 +471,21 @@ export const StickyNoteShell = React.memo(
           msUserSelect: 'none',
           userSelect: 'none',
         }}
-        onPointerDown={handleDragPointerDown}
+        onPointerDown={canMove ? handleDragPointerDown : undefined}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
       >
          <NoteHeader
-          onDelete={() => deleteNote(id)}
+          onDelete={() => {
+            if (canDelete) {
+              deleteNote(id);
+            }
+          }}
           isMobile={isMobile}
           currentColor={content.type === 'sticky_note' ? content.backgroundColor : undefined}
-          onColorChange={content.type === 'sticky_note' ? throttledColorChange : undefined}
-          onColorPreview={content.type === 'sticky_note' ? handleColorPreview : undefined}
+          onColorChange={content.type === 'sticky_note' && canEdit ? throttledColorChange : undefined}
+          onColorPreview={content.type === 'sticky_note' && canEdit ? handleColorPreview : undefined}
         />
 
         {/* Note attribution showing creator username */}
@@ -448,22 +494,29 @@ export const StickyNoteShell = React.memo(
           createdAt={note.createdAt}
         />
 
-        <div className="note-content h-full pt-10 overflow-hidden">  {/* Increased pt-10 from pt-8 to account for header height */}
-          {(() => {
-            const NoteComponent = noteRegistry[type];
-            if (!NoteComponent) return null;
-            return (
-              <NoteComponent
-                content={content}
-                onChange={(newContent: any) =>
-                  updateNote(id, { content: newContent })
-                }
-              />
-            );
-          })()}
-        </div>
+        <div className={cn(
+          "note-content h-full pt-10 overflow-hidden",
+          !canEdit && "pointer-events-none opacity-75"
+        )} title={!canEdit ? "Read-only: You don't have permission to edit this note" : undefined}>
+         {(() => {
+           const NoteComponent = noteRegistry[type];
+           if (!NoteComponent) return null;
+           return (
+             <NoteComponent
+               content={content}
+               onChange={(newContent: any) => {
+                 if (!canEdit) {
+                   return;
+                 }
+                 updateNote(id, { content: newContent });
+               }}
+               readOnly={!canEdit}
+             />
+           );
+         })()}
+       </div>
 
-        {!isDragging && !isMobile && (
+        {!isDragging && !isMobile && canResize && (
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             {([
               'top-left',

@@ -28,6 +28,7 @@ interface ContentTypeButtonProps {
   icon: any;
   label: string;
   color: string;
+  currentUserRole?: 'owner' | 'editor' | 'contributor' | 'viewer';
 }
 
 function ContentTypeButton({
@@ -35,6 +36,7 @@ function ContentTypeButton({
   icon: Icon,
   label,
   color,
+  currentUserRole,
 }: ContentTypeButtonProps) {
   const { create } = useBoardStore((s) => s.actions);
 
@@ -59,6 +61,11 @@ function ContentTypeButton({
   };
 
   const handleClick = () => {
+    // Check permissions
+    if (currentUserRole === 'viewer' || currentUserRole === undefined) {
+      return;
+    }
+
     const position = {
       x: Math.random() * 400 + 100,
       y: Math.random() * 300 + 100,
@@ -67,7 +74,6 @@ function ContentTypeButton({
       rotation: Math.random() * 6 - 3,
     };
     const noteType = getNoteType(type);
-    console.log('[CollabPanel] handleClick', { type, noteType, position });
     try {
       const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       let content: any;
@@ -102,9 +108,8 @@ function ContentTypeButton({
         updatedAt: new Date().toISOString(),
       };
       create(newNote);
-      console.log('[CollabPanel] create returned', id);
     } catch (err) {
-      console.error('[CollabPanel] create error', err);
+      console.error('Failed to create note:', err);
     }
   };
 
@@ -121,7 +126,7 @@ function ContentTypeButton({
 
 export function CollaborationPanel() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { currentEntry } = useJournal();
+  const { currentEntry, currentUserRole } = useJournal();
   const { data: currentUser } = useUser();
   const { sdk } = useBoardStore();
   const [activeCollaborators, setActiveCollaborators] = useState<Array<{
@@ -328,7 +333,11 @@ export function CollaborationPanel() {
         </p>
         <div className="space-y-3">
           {contentTypes.map((contentType) => (
-            <ContentTypeButton key={contentType.type} {...contentType} />
+            <ContentTypeButton
+              key={contentType.type}
+              {...contentType}
+              currentUserRole={currentUserRole}
+            />
           ))}
         </div>
       </div>

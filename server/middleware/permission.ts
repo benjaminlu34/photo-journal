@@ -37,75 +37,60 @@ export async function resolveJournalPermissions(
 ): Promise<void> {
   try {
     const currentUserId = req.user?.id;
-    console.log('[DEBUG] Starting permission resolution. Current User ID:', currentUserId);
 
     if (!currentUserId) {
-      console.log('[DEBUG] No current user ID. Aborting with 401.');
       res.status(401).json({ message: 'Authentication required' });
       return;
     }
 
     const entryId = req.params.entryId;
     const username = req.params.username;
-    console.log(`[DEBUG] Route params: username=${username}, entryId=${entryId}, date=${req.params.date}`);
     
     let entryOwnerId: string;
     let actualEntryId: string;
 
     if (entryId) {
-      console.log(`[DEBUG] Accessing by entryId: ${entryId}`);
       const entry = await storage.getJournalEntryById(entryId);
       if (!entry) {
-        console.log('[DEBUG] Journal entry not found by ID. Aborting with 404.');
         res.status(404).json({ message: 'Journal entry not found' });
         return;
       }
       entryOwnerId = entry.userId;
       actualEntryId = entry.id;
     } else if (username) {
-      console.log(`[DEBUG] Accessing by username: ${username}`);
       const targetUser = await storage.getUserByUsername(username);
       if (!targetUser) {
-        console.log('[DEBUG] Target user not found by username. Aborting with 404.');
         res.status(404).json({ message: 'User not found' });
         return;
       }
       entryOwnerId = targetUser.id;
-      console.log(`[DEBUG] Found target user. Owner ID: ${entryOwnerId}`);
       
       const date = new Date(req.params.date);
       if (Number.isNaN(date.getTime())) {
-        console.log('[DEBUG] Invalid date format. Aborting with 400.');
         res.status(400).json({ message: 'Invalid date format' });
         return;
       }
       
       const entry = await storage.getJournalEntry(entryOwnerId, date);
       if (!entry) {
-        console.log('[DEBUG] No journal entry found for this date. Creating temporary entry for permission check.');
         actualEntryId = `new-entry-${uuidv4()}`;
       } else {
-        console.log(`[DEBUG] Found existing journal entry. Entry ID: ${entry.id}`);
         actualEntryId = entry.id;
       }
     } else {
-      console.log('[DEBUG] No entryId or username provided. Aborting with 400.');
       res.status(400).json({ message: 'Entry ID or username required' });
       return;
     }
 
     let friendship;
     if (currentUserId !== entryOwnerId) {
-      console.log('[DEBUG] Current user is not owner. Checking for friendship.');
       friendship = await storage.getFriendship(currentUserId, entryOwnerId);
-      console.log('[DEBUG] Friendship status:', friendship ? friendship.status : 'No friendship found.');
     }
 
     let sharedEntry;
     if (currentUserId !== entryOwnerId) {
       const sharedEntries = await storage.getSharedEntries(currentUserId);
       sharedEntry = sharedEntries.find(se => se.entryId === actualEntryId);
-      console.log('[DEBUG] Explicit share record:', sharedEntry ? 'Found' : 'Not found.');
     }
 
     const permissionContext: PermissionContext = {
@@ -115,10 +100,8 @@ export async function resolveJournalPermissions(
       friendship,
       sharedEntry,
     };
-    console.log('[DEBUG] Permission context built:', JSON.stringify(permissionContext, null, 2));
 
     const permissionResult = resolveEffectivePermission(permissionContext);
-    console.log('[DEBUG] Permission result:', JSON.stringify(permissionResult, null, 2));
 
     req.permissionContext = permissionContext;
     req.permissionResult = permissionResult;
@@ -141,16 +124,13 @@ export function requireViewPermission(
   next: NextFunction
 ): void {
   const permissionResult = req.permissionResult;
-  console.log('[DEBUG] Checking view permission.');
   
   if (!permissionResult) {
-    console.log('[DEBUG] View check failed: Permission context not resolved. Aborting with 500.');
     res.status(500).json({ message: 'Permission context not resolved' });
     return;
   }
 
   if (!permissionResult.hasAccess || !permissionResult.canView) {
-    console.log(`[DEBUG] View check failed: Access denied. Reason: ${permissionResult.reason}. Aborting with 403.`);
     res.status(403).json({
       message: 'Access denied: Insufficient permissions to view this entry',
       reason: permissionResult.reason
@@ -158,7 +138,6 @@ export function requireViewPermission(
     return;
   }
 
-  console.log('[DEBUG] View permission granted. Proceeding.');
   next();
 }
 

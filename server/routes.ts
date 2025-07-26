@@ -251,7 +251,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Regular profile update without username change
         const updatedUser = await storage.updateUser(userId, updates);
-        console.log('user updated!', updatedUser);
         return res.json(updatedUser);
       }
     } catch (err) {

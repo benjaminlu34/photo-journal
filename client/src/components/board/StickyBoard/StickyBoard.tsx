@@ -13,10 +13,14 @@ import type { User }     from '@shared/schema/schema';
 
 interface StickyBoardProps {
   spaceId?: string;        // kept for future routing / debugging
+  currentUserRole?: 'owner' | 'editor' | 'contributor' | 'viewer';
+  currentUserId?: string;
 }
 
 export const StickyBoard: React.FC<StickyBoardProps> = ({
   spaceId = 'default-board',
+  currentUserRole = 'owner',
+  currentUserId,
 }) => {
   /* ────────────────────────────  state  ──────────────────────────── */
 
@@ -39,6 +43,11 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
 
   const handleCreateNote = useCallback(
     (type: NoteData['type']) => {
+      // Check permissions before allowing note creation
+      if (currentUserRole === 'viewer' || currentUserRole === undefined) {
+        return;
+      }
+
       const id = `note-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
       // minimal default content per type
@@ -63,7 +72,7 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
         updatedAt: new Date().toISOString(),
       });
     },
-    [create],
+    [create, currentUserRole, user?.id],
   );
 
   /* ─────────────────────────── derived UI ────────────────────────── */
@@ -79,21 +88,23 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
 
         return (
           <NoteErrorBoundary key={note.id} noteId={note.id} onDelete={remove}>
-            <StickyNoteShell
-              note={note}
-              updateNote={update}
-              deleteNote={remove}
-            >
-              {/* each note owns its own editor / viewer: */}
-              <NoteComponent
-                content={note.content as any}
-                onChange={(c: any) => update(note.id, { content: c })}
-              />
-            </StickyNoteShell>
-          </NoteErrorBoundary>
+           <StickyNoteShell
+             note={note}
+             updateNote={update}
+             deleteNote={remove}
+             currentUserRole={currentUserRole}
+             currentUserId={user?.id}
+           >
+             {/* each note owns its own editor / viewer: */}
+             <NoteComponent
+               content={note.content as any}
+               onChange={(c: any) => update(note.id, { content: c })}
+             />
+           </StickyNoteShell>
+         </NoteErrorBoundary>
         );
       }),
-    [notes, update, remove],
+    [notes, update, remove, currentUserRole, currentUserId],
   );
 
   /* ─────────────────────────── render ────────────────────────────── */

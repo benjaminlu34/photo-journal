@@ -64,7 +64,6 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
   const connect = useCallback(() => {
     if (!user?.id) {
-      console.log('Cannot connect to friendship events: user not authenticated');
       return;
     }
 

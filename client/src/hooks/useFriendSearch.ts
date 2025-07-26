@@ -93,13 +93,7 @@ export function useFriendSearch() {
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      // Debug logging
-      console.log('Session check:', { 
-        hasSession: !!session, 
-        sessionError, 
-        accessToken: session?.access_token ? 'present' : 'missing',
-        tokenLength: session?.access_token?.length 
-      });
+
       
       if (!session || !session.access_token) {
         throw new Error('Not authenticated - no valid session');
@@ -115,12 +109,7 @@ export function useFriendSearch() {
         }
       );
 
-      // Debug logging for response
-      console.log('Search API response:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
+
 
       if (!response.ok) {
         if (response.status === 429) {

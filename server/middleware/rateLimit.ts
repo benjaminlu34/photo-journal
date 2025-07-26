@@ -250,17 +250,10 @@ export const roleChangeAuditMiddleware = async (req: Request, res: Response, nex
     const { friendshipId } = req.params;
     const { role } = req.body;
     
-    console.log(`[AUDIT] Role change attempt - User: ${userId}, Friendship: ${friendshipId}, New Role: ${role}, Timestamp: ${new Date().toISOString()}`);
     
     // Store original response.json to capture the result
     const originalJson = res.json;
     res.json = function(body) {
-      // Log successful role changes
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        console.log(`[AUDIT] Role change successful - User: ${userId}, Friendship: ${friendshipId}, New Role: ${role}, Timestamp: ${new Date().toISOString()}`);
-      } else {
-        console.log(`[AUDIT] Role change failed - User: ${userId}, Friendship: ${friendshipId}, Status: ${res.statusCode}, Timestamp: ${new Date().toISOString()}`);
-      }
       return originalJson.call(this, body);
     };
 

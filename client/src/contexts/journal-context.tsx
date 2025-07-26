@@ -43,6 +43,7 @@ interface JournalContextType {
   currentEntry: JournalEntryData | null;
   friends: Friend[];
   gridSnap: boolean;
+  currentUserRole: 'owner' | 'editor' | 'contributor' | 'viewer';
 
   // Legacy content block actions
   setCurrentDate: (date: Date) => void;
@@ -311,6 +312,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     currentEntry: currentEntry || null,
     friends,
     gridSnap,
+    currentUserRole: currentEntry?.permissions?.effectiveRole || (urlUsername ? 'viewer' : 'owner'),
     setCurrentDate,
     setViewMode,
     createContentBlock,
