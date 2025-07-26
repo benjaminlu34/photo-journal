@@ -396,9 +396,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the journal entry
       let entry = await storage.getJournalEntry(targetUser.id, parsedDate);
-      if (!entry) {
-        // If no entry exists, create a default empty entry for display purposes
-        // This prevents a 404 if a friend hasn't created an entry for that date
+
+      // If the user is viewing their own journal, create the entry if it doesn't exist
+      if (!entry && targetUser.id === currentUserId) {
+        entry = await storage.createJournalEntry({ userId: targetUser.id, date: parsedDate, title: null });
+      } else if (!entry) {
+        // If viewing a friend's journal and no entry exists, create a temporary one
         entry = {
           id: uuidv4(), // Generate a new ID for a temporary entry
           userId: targetUser.id,

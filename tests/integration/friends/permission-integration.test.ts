@@ -113,6 +113,30 @@ describe('Permission Integration Tests', () => {
         expect([401, 403]).toContain(response.status);
       }
     });
+    
+    it('should grant journal access with viewer friendship role without explicit sharing', async () => {
+      // Ensure friendship with viewer role exists
+      await storage.createFriendshipWithCanonicalOrdering(user1Id, user2Id, user1Id);
+      await storage.updateFriendshipStatusWithAudit(
+        (await storage.getFriendship(user1Id, user2Id))!.id,
+        'accepted',
+        user2Id
+      );
+    
+      // Set role to viewer
+      const friendship = await storage.getFriendship(user1Id, user2Id);
+      await storage.updateFriendshipRole(friendship!.id, user1Id, 'viewer');
+    
+      // Access the journal entry
+      const response = await request(app)
+        .get(`/api/journal/user/permuser1/2024-01-01`)
+        .set('Authorization', `Bearer ${user2Id}`);
+    
+      // With the fix, this should now be 200 OK
+      expect(response.status).toBe(200);
+      expect(response.body.owner.username).toBe('permuser1');
+      expect(response.body.permission.effectiveRole).toBe('viewer');
+    });
   });
 
   describe('WebSocket Permission Integration', () => {

@@ -80,21 +80,22 @@ export function resolveEffectivePermission(context: PermissionContext): Permissi
 
   // Get global role from friendship
   const globalRole = getUserRoleInFriendship(friendship, userId) as GlobalRole;
-  const globalRank = ROLE_RANKS[globalRole];
 
-  // Get entry-specific permission if exists
-  let entryRank = globalRank; // Default to global role
+  // If entry is explicitly shared, take the MIN of global and entry-specific roles
   if (sharedEntry && sharedEntry.sharedWithId === userId) {
-    entryRank = ROLE_RANKS[sharedEntry.permissions];
+    const globalRank = ROLE_RANKS[globalRole];
+    const entryRank = ROLE_RANKS[sharedEntry.permissions];
+    const effectiveRank = Math.min(globalRank, entryRank);
+    const effectiveRole = mapRankToRole(effectiveRank);
+    
+    return buildPermissionResult(
+      effectiveRole,
+      `Global role: ${globalRole}, Entry permission: ${sharedEntry.permissions}, Effective: ${effectiveRole}`
+    );
   }
 
-  // Apply intersection rule: MIN(globalRank, entryRank)
-  // Global role is the hard ceiling
-  const effectiveRank = Math.min(globalRank, entryRank);
-  const effectiveRole = mapRankToRole(effectiveRank);
-
-  return buildPermissionResult(effectiveRole, 
-    `Global role: ${globalRole}, Entry permission: ${mapRankToRole(entryRank)}, Effective: ${effectiveRole}`);
+  // If not explicitly shared, but is a friend, the global role is the effective role
+  return buildPermissionResult(globalRole, `Access granted through friendship role: ${globalRole}`);
 }
 
 /**

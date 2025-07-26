@@ -186,33 +186,3 @@ pnpm start
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details. (If not made yet sorry lazy)
-
-debug 
-
-Diagnostic Analysis: Friends Page "View Friends Profile" 404 Error
-I've completed a comprehensive analysis of the 404 error when accessing a friend's journal via username-based URLs. Here's the diagnosis:
-
-Root Cause Identified
-The 404 error is NOT a routing issue but a permission resolution failure. The system is denying access because the permission resolution logic requires explicit entry sharing even when a friendship with viewer permissions exists.
-
-Key Findings
-URL Generation is Correct: The system correctly generates /@wucibyqy/2025-07-25 format URLs
-Routing is Properly Configured: Username-based routes are set up correctly in App.tsx
-Username Lookup Works: Uses case-insensitive search with LOWER(username) in storage.ts
-Permission System Issue: The resolveJournalPermissions middleware in server/middleware/permission.ts is the source of access denial
-Specific Problem
-In the permission resolution system, even with an accepted friendship and "viewer" role, the system requires explicit entry sharing records. This creates a situation where:
-
-URL routing works correctly
-Username validation succeeds
-Friendship exists and has correct status
-But permission check fails, returning 403 which gets converted to 404 by the UsernameRouteValidator
-Next Steps to Fix
-Test the API endpoint directly: Run curl -X GET "http://localhost:5000/api/journal/user/wucibyqy/2025-07-25" with proper auth headers
-Check friendship status: Verify the friendship exists in friendships table with status='accepted'
-Validate permissions: Ensure the viewer role is properly set in roleUserToFriend or roleFriendToUser columns
-Review permission resolution: The fix likely requires modifying the permission resolution logic to grant viewer access based on friendship alone, without requiring explicit entry sharing
-The navigation and URL structure are working correctly - the issue is in the authorization layer, not the routing layer.
-
-
-

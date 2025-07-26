@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUsernameNavigation } from "@/hooks/useUsernameNavigation";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type {
   ViewMode,
@@ -85,6 +86,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const [gridSnap, setGridSnap] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { navigateToUserBoard, navigateToMyBoard } = useUsernameNavigation();
 
   // Parse date from URL or use today's date (timezone-safe)
   const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
@@ -92,19 +94,10 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Function to update the current date (updates URL)
   const setCurrentDate = (newDate: Date) => {
-    const newDateString = formatLocalDate(newDate);
-    const today = formatLocalDate(new Date());
-    
-    // If it's today's date, go to root, otherwise use date in URL
-    if (newDateString === today) {
-      setLocation("/");
+    if (urlUsername) {
+      navigateToUserBoard(urlUsername, newDate);
     } else {
-      // Check if we're in a username-based route
-      if (urlUsername) {
-        setLocation(`/@${urlUsername}/${newDateString}`);
-      } else {
-        setLocation(`/journal/${newDateString}`);
-      }
+      navigateToMyBoard(newDate);
     }
   };
 

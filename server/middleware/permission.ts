@@ -37,74 +37,77 @@ export async function resolveJournalPermissions(
 ): Promise<void> {
   try {
     const currentUserId = req.user?.id;
+    console.log('[DEBUG] Starting permission resolution. Current User ID:', currentUserId);
+
     if (!currentUserId) {
+      console.log('[DEBUG] No current user ID. Aborting with 401.');
       res.status(401).json({ message: 'Authentication required' });
       return;
     }
 
-    // Extract entry information from route parameters
     const entryId = req.params.entryId;
     const username = req.params.username;
+    console.log(`[DEBUG] Route params: username=${username}, entryId=${entryId}, date=${req.params.date}`);
     
     let entryOwnerId: string;
     let actualEntryId: string;
 
     if (entryId) {
-      // Direct entry ID access
+      console.log(`[DEBUG] Accessing by entryId: ${entryId}`);
       const entry = await storage.getJournalEntryById(entryId);
       if (!entry) {
+        console.log('[DEBUG] Journal entry not found by ID. Aborting with 404.');
         res.status(404).json({ message: 'Journal entry not found' });
         return;
       }
       entryOwnerId = entry.userId;
       actualEntryId = entry.id;
     } else if (username) {
-      // Username-based access
+      console.log(`[DEBUG] Accessing by username: ${username}`);
       const targetUser = await storage.getUserByUsername(username);
       if (!targetUser) {
+        console.log('[DEBUG] Target user not found by username. Aborting with 404.');
         res.status(404).json({ message: 'User not found' });
         return;
       }
       entryOwnerId = targetUser.id;
+      console.log(`[DEBUG] Found target user. Owner ID: ${entryOwnerId}`);
       
-      // For username-based access, we might need to create the entry
       const date = new Date(req.params.date);
       if (Number.isNaN(date.getTime())) {
+        console.log('[DEBUG] Invalid date format. Aborting with 400.');
         res.status(400).json({ message: 'Invalid date format' });
         return;
       }
       
-      let entry = await storage.getJournalEntry(entryOwnerId, date);
+      const entry = await storage.getJournalEntry(entryOwnerId, date);
       if (!entry) {
-        // If no entry exists for a non-owner, don't return 404.
-        // Instead, let it proceed with a null entry, and permission resolver
-        // will determine access based on friendship/sharing.
-        // For the purpose of providing an entryId to the permission context,
-        // we can generate a temporary one or use a known placeholder.
-        // The frontend Home component will handle creating a new entry if needed.
-        actualEntryId = 'new-entry-' + uuidv4(); // Generate a temporary ID
+        console.log('[DEBUG] No journal entry found for this date. Creating temporary entry for permission check.');
+        actualEntryId = `new-entry-${uuidv4()}`;
       } else {
+        console.log(`[DEBUG] Found existing journal entry. Entry ID: ${entry.id}`);
         actualEntryId = entry.id;
       }
     } else {
+      console.log('[DEBUG] No entryId or username provided. Aborting with 400.');
       res.status(400).json({ message: 'Entry ID or username required' });
       return;
     }
 
-    // Get friendship if users are different
     let friendship;
     if (currentUserId !== entryOwnerId) {
+      console.log('[DEBUG] Current user is not owner. Checking for friendship.');
       friendship = await storage.getFriendship(currentUserId, entryOwnerId);
+      console.log('[DEBUG] Friendship status:', friendship ? friendship.status : 'No friendship found.');
     }
 
-    // Get shared entry if exists
     let sharedEntry;
     if (currentUserId !== entryOwnerId) {
       const sharedEntries = await storage.getSharedEntries(currentUserId);
       sharedEntry = sharedEntries.find(se => se.entryId === actualEntryId);
+      console.log('[DEBUG] Explicit share record:', sharedEntry ? 'Found' : 'Not found.');
     }
 
-    // Build permission context
     const permissionContext: PermissionContext = {
       userId: currentUserId,
       entryOwnerId,
@@ -112,11 +115,11 @@ export async function resolveJournalPermissions(
       friendship,
       sharedEntry,
     };
+    console.log('[DEBUG] Permission context built:', JSON.stringify(permissionContext, null, 2));
 
-    // Resolve effective permissions
     const permissionResult = resolveEffectivePermission(permissionContext);
+    console.log('[DEBUG] Permission result:', JSON.stringify(permissionResult, null, 2));
 
-    // Attach to request for use in route handlers
     req.permissionContext = permissionContext;
     req.permissionResult = permissionResult;
 
@@ -138,13 +141,16 @@ export function requireViewPermission(
   next: NextFunction
 ): void {
   const permissionResult = req.permissionResult;
+  console.log('[DEBUG] Checking view permission.');
   
   if (!permissionResult) {
+    console.log('[DEBUG] View check failed: Permission context not resolved. Aborting with 500.');
     res.status(500).json({ message: 'Permission context not resolved' });
     return;
   }
 
   if (!permissionResult.hasAccess || !permissionResult.canView) {
+    console.log(`[DEBUG] View check failed: Access denied. Reason: ${permissionResult.reason}. Aborting with 403.`);
     res.status(403).json({
       message: 'Access denied: Insufficient permissions to view this entry',
       reason: permissionResult.reason
@@ -152,6 +158,7 @@ export function requireViewPermission(
     return;
   }
 
+  console.log('[DEBUG] View permission granted. Proceeding.');
   next();
 }
 

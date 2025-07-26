@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useUsernameNavigation } from '@/hooks/useUsernameNavigation';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -376,6 +377,7 @@ function FriendItem({
   showRoleManagement,
   isUpdatingRole
 }: FriendItemProps) {
+  const { navigateToUserBoard } = useUsernameNavigation();
   
 
   const displayName = friend.firstName && friend.lastName
@@ -395,7 +397,7 @@ function FriendItem({
     }
     // Only trigger onSelect if not clicking a dropdown menu item
     if (e.target instanceof HTMLElement && !(e.target as HTMLElement).closest('[role="menuitem"]')) {
-      onSelect?.(friend); // Keep original select behavior
+      navigateToUserBoard(friend.username, new Date());
     }
   };
 
@@ -455,7 +457,7 @@ function FriendItem({
             <DropdownMenuSeparator />
 
             <DropdownMenuItem onClick={() => {
-              onSelect?.(friend);
+              navigateToUserBoard(friend.username, new Date());
               setDropdownOpen(false); // Close dropdown after selection
             }}>
               <MessageCircle className="h-4 w-4 mr-2" />

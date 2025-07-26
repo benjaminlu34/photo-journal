@@ -83,7 +83,7 @@ function AppContent() {
             <Route path="/welcome" component={Welcome} />
             <Route path="/profile" component={Profile} />
             <Route path="/friends" component={user ? Friends : Landing} />
-            <Route path="/@:username/:date">
+            <Route path="/u/:username/:date?">
               <UsernameRouteValidator>
                 {user ? <Home /> : <Landing />}
               </UsernameRouteValidator>

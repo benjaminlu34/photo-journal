@@ -26,10 +26,6 @@ export default function Friends() {
               Back to Journal
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-[var(--foreground)]">Friends</h1>
-              <p className="text-[var(--muted-foreground)]">
-                Manage your friends and share your journal entries
-              </p>
             </div>
           </div>
         </div>

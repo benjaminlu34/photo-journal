@@ -29,20 +29,20 @@ export function generateBoardUrl(options: NavigationOptions): string {
   // Generate username-based URL
   if (date) {
     const dateString = formatLocalDate(date);
-    return `/@${username}/${dateString}`;
+    return `/u/${username}/${dateString}`;
   }
   
   // Default to today's date for the user
   const today = formatLocalDate(new Date());
-  return `/@${username}/${today}`;
+  return `/u/${username}/${today}`;
 }
 
 /**
  * Parse a username-based URL to extract username and date
  */
 export function parseBoardUrl(url: string): { username?: string; date?: Date } {
-  // Match /@username/date pattern
-  const usernameMatch = url.match(/^\/@([^\/]+)\/(.+)$/);
+  // Match /u/username/date pattern
+  const usernameMatch = url.match(/^\/u\/([^\/]+)\/(.+)$/);
   if (usernameMatch) {
     const [, username, dateString] = usernameMatch;
     const date = parseLocalDate(dateString);
@@ -82,7 +82,7 @@ function formatLocalDate(date: Date): string {
  * Check if a URL is a username-based board URL
  */
 export function isUsernameBoardUrl(url: string): boolean {
-  return /^\/@[^\/]+\/\d{4}-\d{2}-\d{2}$/.test(url);
+  return /^\/u\/[^\/]+\/\d{4}-\d{2}-\d{2}$/.test(url);
 }
 
 /**
