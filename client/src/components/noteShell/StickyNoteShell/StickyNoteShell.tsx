@@ -388,36 +388,25 @@ export const StickyNoteShell = React.memo(
     // Throttled color change handler to prevent flooding Yjs with rapid updates
     const throttledColorChange = useMemo(() => {
       return throttle((color: string) => {
-        if (content.type === 'sticky_note') {
-          updateNote(id, {
-            content: {
-              ...content,
-              backgroundColor: color,
-            }
-          });
-        }
+        // Enable color picker for all note types
+        updateNote(id, {
+          content: {
+            ...content,
+            backgroundColor: color,
+          }
+        });
       }, 50); // 50ms throttle as specified in requirements
     }, [id, updateNote, content]);
 
     // Memoized color calculations for performance
     const colorStyles = useMemo(() => {
-      // Only apply colors to sticky notes
-      if (content.type !== 'sticky_note') {
-        return {
-          backgroundColor: undefined,
-          backgroundImage: undefined,
-          color: undefined,
-          hasCustomColor: false,
-        };
-      }
-
-      // Get the effective background color - prioritize local preview, then external preview, then actual color
-      const actualBackgroundColor = content.type === 'sticky_note' ? content.backgroundColor : undefined;
+      // Apply colors to all note types
+      const actualBackgroundColor = content.backgroundColor;
       const effectiveColor = localPreviewColor || previewColor || actualBackgroundColor;
       
       // Use safeColor utility with default fallback
       const safeBackgroundColor = safeColor(effectiveColor, '#F4F7FF');
-      const hasCustomColor = Boolean(effectiveColor);
+      const hasCustomColor = Boolean(effectiveColor || localPreviewColor || previewColor);
       
       // Calculate optimal text color for accessibility
       const optimalTextColor = getOptimalTextColor(safeBackgroundColor);
@@ -431,7 +420,7 @@ export const StickyNoteShell = React.memo(
         color: optimalTextColor || undefined,
         hasCustomColor,
       };
-    }, [content.type, content.type === 'sticky_note' ? content.backgroundColor : undefined, localPreviewColor, previewColor]);
+    }, [content.backgroundColor, localPreviewColor, previewColor]);
     
     return (
       <div
@@ -483,9 +472,9 @@ export const StickyNoteShell = React.memo(
             }
           }}
           isMobile={isMobile}
-          currentColor={content.type === 'sticky_note' ? content.backgroundColor : undefined}
-          onColorChange={content.type === 'sticky_note' && canEdit ? throttledColorChange : undefined}
-          onColorPreview={content.type === 'sticky_note' && canEdit ? handleColorPreview : undefined}
+          currentColor={content.backgroundColor}
+          onColorChange={canEdit ? throttledColorChange : undefined}
+          onColorPreview={canEdit ? handleColorPreview : undefined}
         />
 
         {/* Note attribution showing creator username */}

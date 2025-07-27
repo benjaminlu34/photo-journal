@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { security } from "@/lib/security";
 import type { NoteContent } from "@/types/notes";
 
-type TextNoteContent = Extract<NoteContent, { type: 'text' | 'sticky_note' }>;
+type TextNoteContent = Extract<NoteContent, { type: 'text' }>;
 
 interface TextNoteProps {
   content: TextNoteContent;
@@ -11,7 +11,11 @@ interface TextNoteProps {
   placeholder?: string;
 }
 
-const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" }, onChange, placeholder = "Type your note here..." }) => {
+const TextNote: React.FC<TextNoteProps> = ({
+  content = { type: 'text', text: "", backgroundColor: "#F4F7FF" },
+  onChange,
+  placeholder = "Type your note here..."
+}) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -32,8 +36,9 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" 
 
     // Set new timeout for saving
     debounceTimeoutRef.current = setTimeout(() => {
-      // Sanitize text to prevent XSS
-      const sanitizedText = security.sanitizeHtml(text);
+      // For plain text content, use basic XSS protection without HTML entity encoding
+      // Simply strip any HTML tags and return plain text
+      const sanitizedText = text.replace(/<[^>]*>/g, '');
       onChange?.({ ...content, text: sanitizedText });
     }, 500); // 500ms debounce
   }, [onChange, content]);
@@ -86,11 +91,11 @@ const TextNote: React.FC<TextNoteProps> = ({ content = { type: 'text', text: "" 
         onKeyDown={handleKeyDown}
         className={cn(
           'w-full h-full min-h-[60px] resize-none border-none outline-none',
-          'bg-transparent text-gray-800 placeholder:text-gray-400',
+          'bg-transparent placeholder:text-current/50',
           'text-base leading-relaxed font-medium'
         )}
         placeholder={placeholder}
-        style={{ 
+        style={{
           resize: 'none',
           overflow: 'hidden'
         }}
