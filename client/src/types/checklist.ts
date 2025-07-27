@@ -14,6 +14,9 @@ export interface ChecklistItemProps {
   onStartEdit: (id: string) => void;
   onEndEdit: () => void;
   onMove: (dragIndex: number, dropIndex: number) => void;
+  onDragStart?: (id: string) => void;
+  onDragEnd?: () => void;
+  backgroundColor?: string;
 }
 
 export interface ChecklistNoteProps {
@@ -28,6 +31,7 @@ export interface ChecklistNoteContent {
   items: ChecklistItem[];
   settings?: ChecklistSettings;
   backgroundColor?: string;
+  title?: string;
 }
 
 export interface ChecklistNoteState {

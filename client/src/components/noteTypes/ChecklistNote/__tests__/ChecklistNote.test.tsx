@@ -36,8 +36,8 @@ describe('ChecklistNote', () => {
     const onChange = vi.fn();
     render(<ChecklistNote content={mockContent} onChange={onChange} />);
 
-    expect(screen.getByDisplayValue('Test item 1')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Test item 2')).toBeInTheDocument();
+    expect(screen.getByText('Test item 1')).toBeInTheDocument();
+    expect(screen.getByText('Test item 2')).toBeInTheDocument();
   });
 
   it('handles adding new items with proper timestamps and order', async () => {
@@ -86,7 +86,7 @@ describe('ChecklistNote', () => {
     const onChange = vi.fn();
     render(<ChecklistNote content={legacyContent} onChange={onChange} />);
 
-    expect(screen.getByDisplayValue('Legacy item')).toBeInTheDocument();
+    expect(screen.getByText('Legacy item')).toBeInTheDocument();
   });
 
   it('supports backgroundColor in content', async () => {
@@ -113,7 +113,7 @@ describe('ChecklistNote', () => {
     const onChange = vi.fn();
     render(<ChecklistNote content={coloredContent} onChange={onChange} />);
 
-    expect(screen.getByDisplayValue('Colored item')).toBeInTheDocument();
+    expect(screen.getByText('Colored item')).toBeInTheDocument();
 
     // Test that onChange preserves backgroundColor
     const input = screen.getByPlaceholderText('Add new item...');
@@ -138,7 +138,7 @@ describe('ChecklistNote', () => {
 
     // Find the first checkbox (unchecked item)
     const checkbox = screen.getAllByRole('button').find(button =>
-      button.classList.contains('bg-white') && button.classList.contains('border-gray-300')
+      button.getAttribute('aria-label')?.includes('Toggle completion for task 1')
     );
 
     fireEvent.click(checkbox!);

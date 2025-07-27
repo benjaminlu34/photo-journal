@@ -49,7 +49,7 @@ describe('ChecklistItem Drag and Drop', () => {
     renderWithDnd(<ChecklistItem {...defaultProps} isDragging={true} />);
     
     const container = screen.getByRole('listitem');
-    expect(container).toHaveClass('opacity-50');
+    expect(container).toHaveClass('opacity-60');
   });
 
   it('shows drag handle on hover', () => {

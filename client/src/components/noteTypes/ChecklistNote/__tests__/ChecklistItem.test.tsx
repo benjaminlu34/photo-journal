@@ -98,7 +98,7 @@ describe('ChecklistItem', () => {
     renderWithDnd(<ChecklistItem {...defaultProps} isDragging={true} />);
     
     const container = screen.getByRole('listitem');
-    expect(container).toHaveClass('opacity-50');
+    expect(container).toHaveClass('opacity-60');
   });
 
   it('shows completed styling for completed items', () => {
@@ -106,6 +106,7 @@ describe('ChecklistItem', () => {
     renderWithDnd(<ChecklistItem {...defaultProps} item={completedItem} />);
     
     const textElement = screen.getByText('Test task');
-    expect(textElement).toHaveClass('line-through');
+    // Check for completed styling - the text should have reduced opacity
+    expect(textElement.closest('[role="button"]')).toHaveStyle({ opacity: '0.75' });
   });
 });

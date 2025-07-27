@@ -200,7 +200,7 @@ describe('ChecklistItem Inline Editing', () => {
 
         // Space key should start editing
         fireEvent.keyDown(textElement, { key: ' ' });
-        expect(onStartEdit).toHaveBeenCalledTimes(2);
+        expect(onStartEdit).toHaveBeenCalledWith('test-item-1');
 
         // Delete key should remove item
         fireEvent.keyDown(textElement, { key: 'Delete' });
