@@ -73,6 +73,7 @@ export const contentBlocks = pgTable("content_blocks", {
   type: varchar("type", { enum: ["sticky_note", "photo", "text", "checklist", "audio", "drawing"] }).notNull(),
   content: jsonb("content").notNull(),
   position: jsonb("position").notNull(), // { x, y, width, height, rotation }
+  storagePath: varchar("storage_path").unique(), // Path to persistent storage for image content
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -295,6 +296,7 @@ export const photoContentSchema = z.object({
   type: z.literal('photo'),
   url: z.string(),
   caption: z.string().optional(),
+  storagePath: z.string().optional(), // Path to persistent storage
 });
 
 export const textContentSchema = z.object({
