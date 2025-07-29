@@ -8,6 +8,7 @@ import { CollaborationPanel } from "@/components/journal/collaboration-panel/col
 import { ViewToggle } from "@/components/journal/view-toggle/view-toggle";
 import { FriendSearch } from "@/components/ui/friend-search";
 import { FriendshipNotifications } from "@/components/friends/friendship-notifications";
+import { FriendshipImageHandler } from "@/components/friendship/FriendshipImageHandler";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/useUser";
 import { useAuthMigration } from "@/hooks/useAuthMigration";
@@ -165,6 +166,8 @@ function HomeContent() {
         </div>
 
         <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
+          {/* Handle friendship events and refresh image URLs when permissions change */}
+          <FriendshipImageHandler />
           <div className="flex flex-1">
             <JournalWorkspace />
             <CollaborationPanel />

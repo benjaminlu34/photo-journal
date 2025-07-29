@@ -5,6 +5,9 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 // Types
 import type { NoteData } from '@/types/notes';
 
+// Storage service for handling persistent images
+import { PhotoStorageService } from '@/services/storage.service/photo-storage.service';
+
 export type BoardSDK = ReturnType<typeof createBoardSDK>;
 
 // Singleton registry for BoardSDK instances
@@ -61,12 +64,53 @@ export function createBoardSDK({
     changeListeners.forEach(cb => cb(notes));
   });
 
+  // Helper function to generate signed URLs for image notes
+  const generateSignedUrlForImage = async (storagePath: string): Promise<string | undefined> => {
+    if (!storagePath) return undefined;
+    
+    try {
+      const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.signedUrl;
+      } else {
+        console.error('Failed to generate signed URL:', response.statusText);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error generating signed URL:', error);
+      return undefined;
+    }
+  };
+
+  // Helper function to process image content with signed URLs
+  const processImageContent = async (content: any): Promise<any> => {
+    if (content.type === 'image' && content.storagePath && !content.imageUrl) {
+      // Generate signed URL for persistent images
+      const signedUrl = await generateSignedUrlForImage(content.storagePath);
+      if (signedUrl) {
+        return {
+          ...content,
+          imageUrl: signedUrl,
+        };
+      }
+    }
+    return content;
+  };
+
   // API
   return {
     getNotes(): NoteData[] {
       return Array.from(notesMap.values());
     },
-    createNote(note: NoteData) {
+    async createNote(note: NoteData) {
       // Add creator information to the note
       const noteWithCreator = {
         ...note,
@@ -76,12 +120,25 @@ export function createBoardSDK({
           firstName: userName,
         }
       };
+
+      // Process image content to include signed URLs if needed
+      if (noteWithCreator.content.type === 'image') {
+        noteWithCreator.content = await processImageContent(noteWithCreator.content);
+      }
+
       notesMap.set(note.id, noteWithCreator);
     },
-    updateNote(id: string, updates: Partial<NoteData>) {
+    async updateNote(id: string, updates: Partial<NoteData>) {
       const note = notesMap.get(id);
       if (note) {
-        notesMap.set(id, { ...note, ...updates, updatedAt: new Date().toISOString() });
+        const updatedNote = { ...note, ...updates, updatedAt: new Date().toISOString() };
+        
+        // Process image content to include signed URLs if needed
+        if (updatedNote.content.type === 'image' && updates.content) {
+          updatedNote.content = await processImageContent(updatedNote.content);
+        }
+
+        notesMap.set(id, updatedNote);
       }
     },
     deleteNote(id: string) {
@@ -97,6 +154,68 @@ export function createBoardSDK({
     redo() {
       undoManager.redo();
     },
+    // Refresh signed URLs for all image notes (useful for friend access)
+    async refreshImageUrls() {
+      const notes = Array.from(notesMap.values());
+      const imageNotes = notes.filter(note => note.content.type === 'image' && (note.content as any).storagePath);
+      
+      for (const note of imageNotes) {
+        const imageContent = note.content as any;
+        if (imageContent.storagePath) {
+          const signedUrl = await generateSignedUrlForImage(imageContent.storagePath);
+          if (signedUrl) {
+            const updatedContent = {
+              ...imageContent,
+              imageUrl: signedUrl,
+            };
+            notesMap.set(note.id, { ...note, content: updatedContent });
+          } else {
+            // If signed URL generation fails (e.g., due to permission revocation),
+            // remove the image URL to prevent showing broken images
+            const updatedContent = {
+              ...imageContent,
+              imageUrl: undefined,
+            };
+            notesMap.set(note.id, { ...note, content: updatedContent });
+          }
+        }
+      }
+    },
+
+    // Get notes with fresh signed URLs for friend access
+    async getNotesWithFreshUrls(): Promise<NoteData[]> {
+      const notes = Array.from(notesMap.values());
+      const processedNotes = await Promise.all(
+        notes.map(async (note) => {
+          if (note.content.type === 'image') {
+            const processedContent = await processImageContent(note.content);
+            return { ...note, content: processedContent };
+          }
+          return note;
+        })
+      );
+      return processedNotes;
+    },
+
+    // Update note with storage metadata (called after successful upload)
+    updateNoteWithStorageMetadata(id: string, storagePath: string, signedUrl: string) {
+      const note = notesMap.get(id);
+      if (note && note.content.type === 'image') {
+        const updatedContent = {
+          ...note.content,
+          storagePath,
+          imageUrl: signedUrl,
+          // Remove temporary upload ID if present
+          uploadId: undefined,
+        };
+        notesMap.set(id, { 
+          ...note, 
+          content: updatedContent,
+          updatedAt: new Date().toISOString() 
+        });
+      }
+    },
+
     onChange(cb: (notes: NoteData[]) => void) {
       changeListeners.push(cb);
       return () => {
