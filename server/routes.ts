@@ -26,6 +26,7 @@ import {
   blockedUserSecurityCheck
 } from "./middleware/rateLimit";
 import { validateUsername, generateUsernameSuggestions } from "./utils/username";
+import { validatePhotoOwnership, parsePhotoPath, validatePhotoAccess, cleanupPhotoReferences, generateSignedUrlWithServiceRole } from "./utils/photo-storage";
 import {
   resolveJournalPermissions,
   requireViewPermission,
@@ -337,6 +338,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error("POST /api/upload:", err);
         return res.status(500).json({ message: "Failed to upload file" });
+      }
+    }
+  );
+
+  /* Photo upload endpoint for journal images */
+  app.post("/api/photos/upload",
+    uploadRateLimit,
+    isAuthenticatedSupabase,
+    upload.single("photo"),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ message: "No photo uploaded" });
+        }
+
+        const userId = getUserId(req);
+        const { journalDate, noteId } = req.body;
+        
+        // Validate required fields
+        if (!journalDate) {
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({ message: "Journal date is required" });
+        }
+        
+        // Validate date format
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(journalDate)) {
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
+        }
+
+        // Enhanced file validation
+        const validationError = validateFileUpload(req, req.file);
+        if (validationError) {
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({ message: validationError });
+        }
+
+        // Generate deterministic storage path
+        const { generatePhotoPath, formatJournalDate } = await import('./utils/photo-storage');
+        const pathInfo = generatePhotoPath({
+          userId,
+          journalDate,
+          noteId,
+          originalFilename: req.file.originalname
+        });
+
+        // For now, return local file URL (will be replaced with Supabase Storage)
+        const protocol = req.protocol;
+        const host = req.get("host");
+        const tempFileUrl = `${protocol}://${host}/uploads/${userId}/${path.basename(req.file.path)}`;
+        
+        // TODO: Upload to Supabase Storage using pathInfo.storagePath
+        // TODO: Generate signed URL for the uploaded file
+        
+        return res.status(201).json({
+          url: tempFileUrl, // Temporary - will be signed URL
+          storagePath: pathInfo.storagePath,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          fileName: pathInfo.fileName
+        });
+      } catch (err) {
+        console.error("POST /api/photos/upload:", err);
+        if (req.file) {
+          fs.unlinkSync(req.file.path); // Clean up on error
+        }
+        return res.status(500).json({ message: "Failed to upload photo" });
+      }
+    }
+  );
+
+  /* Generate signed URL for photo access */
+  app.get("/api/photos/:path(*)/signed-url",
+    isAuthenticatedSupabase,
+    async (req, res) => {
+      try {
+        const currentUserId = getUserId(req);
+        const storagePath = req.params.path;
+        
+        // Parse and validate storage path
+        const pathInfo = parsePhotoPath(storagePath);
+        if (!pathInfo) {
+          return res.status(400).json({ message: "Invalid storage path format" });
+        }
+        
+        // Check if user owns the photo or has permission through friendship
+        const hasAccess = await validatePhotoAccess(currentUserId, pathInfo.userId, storagePath);
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Access denied to this photo" });
+        }
+        
+        // Get TTL from environment or use default (7 days)
+        const ttlSeconds = parseInt(process.env.SIGNED_URL_TTL_SECONDS || '604800'); // 7 days
+        
+        // Generate signed URL from Supabase Storage using service role key
+        const signedUrl = await generateSignedUrlWithServiceRole(storagePath, ttlSeconds);
+        
+        if (!signedUrl) {
+          // Fallback to local URL if Supabase is not configured
+          const protocol = req.protocol;
+          const host = req.get("host");
+          const tempUrl = `${protocol}://${host}/uploads/${storagePath}`;
+          
+          return res.json({
+            signedUrl: tempUrl,
+            expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+            storagePath
+          });
+        }
+        
+        return res.json({
+          signedUrl,
+          expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+          storagePath
+        });
+      } catch (err) {
+        console.error("GET /api/photos/:path/signed-url:", err);
+        return res.status(500).json({ message: "Failed to generate signed URL" });
+      }
+    }
+  );
+
+  /* Delete photo from storage */
+  app.delete("/api/photos/:path(*)",
+    isAuthenticatedSupabase,
+    async (req, res) => {
+      try {
+        const currentUserId = getUserId(req);
+        const storagePath = req.params.path;
+        
+        // Parse and validate storage path
+        const pathInfo = parsePhotoPath(storagePath);
+        if (!pathInfo) {
+          return res.status(400).json({ message: "Invalid storage path format" });
+        }
+        
+        // Validate ownership - only owner can delete photos
+        if (!validatePhotoOwnership(storagePath, currentUserId)) {
+          return res.status(403).json({ message: "Access denied. You can only delete your own photos." });
+        }
+        
+        // TODO: Delete from Supabase Storage
+        // For now, try to delete from local storage if it exists
+        const localFilePath = path.join(uploadDir, storagePath);
+        if (fs.existsSync(localFilePath)) {
+          fs.unlinkSync(localFilePath);
+        }
+        
+        // Clean up database references
+        await cleanupPhotoReferences(storagePath);
+        
+        return res.status(204).end();
+      } catch (err) {
+        console.error("DELETE /api/photos/:path:", err);
+        return res.status(500).json({ message: "Failed to delete photo" });
       }
     }
   );

@@ -94,6 +94,7 @@ function AppContent() {
           </Switch>
         </Suspense>
       </ErrorBoundary>
+
       <Toaster />
     </>
   );

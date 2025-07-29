@@ -1,7 +1,10 @@
 /**
  * PhotoCache service for offline image storage using IndexedDB
  * Implements cache-first loading with expiration and cleanup
+ * Enhanced with graceful degradation and comprehensive error handling
  */
+
+import { StorageError, StorageErrorFactory, StorageErrorType } from './storage-errors';
 
 export interface PhotoCacheEntry {
   storagePath: string;
@@ -32,6 +35,8 @@ export class PhotoCacheService {
   private readonly storeName = 'photos';
   private readonly maxCacheSize = 50 * 1024 * 1024; // 50MB cache limit
   private readonly defaultTTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+  private isAvailable = true; // Track cache availability
+  private initializationError: Error | null = null;
 
   static getInstance(): PhotoCacheService {
     if (!PhotoCacheService.instance) {
@@ -41,49 +46,116 @@ export class PhotoCacheService {
   }
 
   /**
-   * Initialize IndexedDB connection
+   * Initialize IndexedDB connection with comprehensive error handling
    */
   async initialize(): Promise<void> {
     if (this.db) {
       return; // Already initialized
     }
 
+    // Check if IndexedDB is available
+    if (!window.indexedDB) {
+      this.isAvailable = false;
+      this.initializationError = new Error('IndexedDB is not supported in this browser');
+      console.warn('Photo cache unavailable: IndexedDB not supported');
+      return;
+    }
+
+    try {
+      await this.initializeDatabase();
+      this.isAvailable = true;
+      this.initializationError = null;
+      console.log('Photo cache initialized successfully');
+    } catch (error) {
+      this.isAvailable = false;
+      this.initializationError = error instanceof Error ? error : new Error('Cache initialization failed');
+      console.error('Photo cache initialization failed:', error);
+      
+      // Don't throw - allow app to continue without cache
+      console.warn('Continuing without photo cache - images will load from storage each time');
+    }
+  }
+
+  /**
+   * Initialize database with proper error handling
+   */
+  private initializeDatabase(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, this.dbVersion);
+      let request: IDBOpenDBRequest;
+      
+      try {
+        request = indexedDB.open(this.dbName, this.dbVersion);
+      } catch (error) {
+        reject(new Error(`Failed to open IndexedDB: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return;
+      }
 
       request.onerror = () => {
-        console.error('Failed to open IndexedDB:', request.error);
-        reject(new Error('Failed to initialize photo cache'));
+        const error = request.error;
+        console.error('IndexedDB open error:', error);
+        
+        // Provide more specific error messages
+        if (error?.name === 'QuotaExceededError') {
+          reject(StorageErrorFactory.createQuotaError('cache'));
+        } else if (error?.name === 'VersionError') {
+          reject(new Error('IndexedDB version conflict. Try refreshing the page.'));
+        } else {
+          reject(new Error(`Failed to open IndexedDB: ${error?.message || 'Unknown error'}`));
+        }
       };
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('Photo cache initialized successfully');
+        
+        // Set up error handler for the database
+        this.db.onerror = (event) => {
+          console.error('IndexedDB error:', event);
+        };
+
+        // Handle unexpected database closure
+        this.db.onclose = () => {
+          console.warn('IndexedDB connection closed unexpectedly');
+          this.db = null;
+          this.isAvailable = false;
+        };
+
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Create object store if it doesn't exist
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          const store = db.createObjectStore(this.storeName, { keyPath: 'storagePath' });
+        try {
+          const db = (event.target as IDBOpenDBRequest).result;
           
-          // Create indexes for efficient querying
-          store.createIndex('noteId', 'noteId', { unique: false });
-          store.createIndex('journalDate', 'journalDate', { unique: false });
-          store.createIndex('userId', 'userId', { unique: false });
-          store.createIndex('expiresAt', 'expiresAt', { unique: false });
-          store.createIndex('cachedAt', 'cachedAt', { unique: false });
-          
-          console.log('Photo cache object store created');
+          // Create object store if it doesn't exist
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            const store = db.createObjectStore(this.storeName, { keyPath: 'storagePath' });
+            
+            // Create indexes for efficient querying
+            store.createIndex('noteId', 'noteId', { unique: false });
+            store.createIndex('journalDate', 'journalDate', { unique: false });
+            store.createIndex('userId', 'userId', { unique: false });
+            store.createIndex('expiresAt', 'expiresAt', { unique: false });
+            store.createIndex('cachedAt', 'cachedAt', { unique: false });
+            
+            console.log('Photo cache object store created');
+          }
+        } catch (error) {
+          console.error('Error during database upgrade:', error);
+          reject(new Error(`Database upgrade failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
         }
       };
+
+      // Add timeout to prevent hanging
+      setTimeout(() => {
+        if (request.readyState === 'pending') {
+          reject(new Error('IndexedDB initialization timeout'));
+        }
+      }, 10000); // 10 second timeout
     });
   }
 
   /**
-   * Cache a photo blob with metadata
+   * Cache a photo blob with metadata and comprehensive error handling
    */
   async cachePhoto(
     storagePath: string,
@@ -96,80 +168,152 @@ export class PhotoCacheService {
       ttl?: number;
     }
   ): Promise<void> {
-    await this.ensureInitialized();
+    // Graceful degradation - if cache is unavailable, don't fail
+    if (!this.isAvailable) {
+      console.warn('Photo cache unavailable, skipping cache operation');
+      return;
+    }
 
-    const now = new Date();
-    const ttl = metadata.ttl || this.defaultTTL;
-    
-    const entry: PhotoCacheEntry = {
-      storagePath,
-      blob,
-      signedUrl,
-      expiresAt: new Date(now.getTime() + ttl),
-      noteId: metadata.noteId,
-      journalDate: metadata.journalDate,
-      userId: metadata.userId,
-      cachedAt: now,
-      size: blob.size,
-      mimeType: blob.type,
-    };
+    try {
+      await this.ensureInitialized();
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
+      // Check if we have space before caching
+      const stats = await this.getStats();
+      if (stats.totalSize + blob.size > this.maxCacheSize) {
+        console.log('Cache size limit reached, cleaning up before caching new photo');
+        await this.cleanup();
+      }
+
+      const now = new Date();
+      const ttl = metadata.ttl || this.defaultTTL;
       
-      const request = store.put(entry);
-      
-      request.onsuccess = () => {
-        console.log(`Photo cached: ${storagePath} (${blob.size} bytes)`);
-        resolve();
+      const entry: PhotoCacheEntry = {
+        storagePath,
+        blob,
+        signedUrl,
+        expiresAt: new Date(now.getTime() + ttl),
+        noteId: metadata.noteId,
+        journalDate: metadata.journalDate,
+        userId: metadata.userId,
+        cachedAt: now,
+        size: blob.size,
+        mimeType: blob.type,
       };
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        
+        transaction.onerror = () => {
+          const error = transaction.error;
+          console.error('Cache transaction failed:', error);
+          
+          if (error?.name === 'QuotaExceededError') {
+            reject(StorageErrorFactory.createQuotaError('cache'));
+          } else {
+            reject(new Error(`Cache transaction failed: ${error?.message || 'Unknown error'}`));
+          }
+        };
+
+        const request = store.put(entry);
+        
+        request.onsuccess = () => {
+          console.log(`Photo cached: ${storagePath} (${blob.size} bytes)`);
+          resolve();
+        };
+        
+        request.onerror = () => {
+          const error = request.error;
+          console.error('Failed to cache photo:', error);
+          
+          if (error?.name === 'QuotaExceededError') {
+            reject(StorageErrorFactory.createQuotaError('cache'));
+          } else {
+            reject(new Error(`Failed to cache photo: ${error?.message || 'Unknown error'}`));
+          }
+        };
+      });
+    } catch (error) {
+      // Graceful degradation - log error but don't fail the operation
+      console.warn('Photo caching failed, continuing without cache:', error);
       
-      request.onerror = () => {
-        console.error('Failed to cache photo:', request.error);
-        reject(new Error('Failed to cache photo'));
-      };
-    });
+      // If it's a quota error, try cleanup and inform user
+      if (error instanceof StorageError && error.type === StorageErrorType.CACHE_FULL) {
+        try {
+          await this.cleanup();
+          console.log('Cache cleaned up due to quota exceeded');
+        } catch (cleanupError) {
+          console.error('Cache cleanup failed:', cleanupError);
+        }
+      }
+      
+      // Don't throw - allow operation to continue without caching
+    }
   }
 
   /**
-   * Retrieve cached photo (cache-first approach)
+   * Retrieve cached photo with graceful degradation
    */
   async getCachedPhoto(storagePath: string): Promise<PhotoCacheEntry | null> {
-    await this.ensureInitialized();
+    // Graceful degradation - if cache is unavailable, return null
+    if (!this.isAvailable) {
+      return null;
+    }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      
-      const request = store.get(storagePath);
-      
-      request.onsuccess = () => {
-        const entry = request.result as PhotoCacheEntry | undefined;
+    try {
+      await this.ensureInitialized();
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
         
-        if (!entry) {
-          resolve(null);
-          return;
-        }
+        transaction.onerror = () => {
+          console.error('Cache read transaction failed:', transaction.error);
+          resolve(null); // Graceful degradation
+        };
 
-        // Check if entry has expired
-        if (new Date() > entry.expiresAt) {
-          console.log(`Cached photo expired: ${storagePath}`);
-          // Remove expired entry asynchronously
-          this.removeCachedPhoto(storagePath).catch(console.error);
-          resolve(null);
-          return;
-        }
+        const request = store.get(storagePath);
+        
+        request.onsuccess = () => {
+          const entry = request.result as PhotoCacheEntry | undefined;
+          
+          if (!entry) {
+            resolve(null);
+            return;
+          }
 
-        console.log(`Photo retrieved from cache: ${storagePath}`);
-        resolve(entry);
-      };
-      
-      request.onerror = () => {
-        console.error('Failed to retrieve cached photo:', request.error);
-        reject(new Error('Failed to retrieve cached photo'));
-      };
-    });
+          // Check if entry has expired
+          if (new Date() > entry.expiresAt) {
+            console.log(`Cached photo expired: ${storagePath}`);
+            // Remove expired entry asynchronously (don't wait)
+            this.removeCachedPhoto(storagePath).catch(error => {
+              console.warn('Failed to remove expired cache entry:', error);
+            });
+            resolve(null);
+            return;
+          }
+
+          console.log(`Photo retrieved from cache: ${storagePath}`);
+          resolve(entry);
+        };
+        
+        request.onerror = () => {
+          console.error('Failed to retrieve cached photo:', request.error);
+          resolve(null); // Graceful degradation instead of rejecting
+        };
+
+        // Add timeout to prevent hanging
+        setTimeout(() => {
+          if (request.readyState === 'pending') {
+            console.warn('Cache read timeout, falling back to storage');
+            resolve(null);
+          }
+        }, 5000); // 5 second timeout
+      });
+    } catch (error) {
+      console.warn('Cache retrieval failed, falling back to storage:', error);
+      return null; // Graceful degradation
+    }
   }
 
   /**
@@ -356,8 +500,115 @@ export class PhotoCacheService {
    * Ensure the database is initialized before operations
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.db) {
+    if (!this.db && this.isAvailable) {
       await this.initialize();
+    }
+    
+    if (!this.isAvailable) {
+      throw new Error('Photo cache is not available');
+    }
+  }
+
+  /**
+   * Check if cache is available
+   */
+  isAvailable(): boolean {
+    return this.isAvailable;
+  }
+
+  /**
+   * Get initialization error if any
+   */
+  getInitializationError(): Error | null {
+    return this.initializationError;
+  }
+
+  /**
+   * Get cache health status
+   */
+  getHealthStatus(): {
+    available: boolean;
+    error?: Error;
+    stats?: PhotoCacheStats;
+  } {
+    if (!this.isAvailable) {
+      return {
+        available: false,
+        error: this.initializationError || new Error('Cache unavailable'),
+      };
+    }
+
+    return {
+      available: true,
+    };
+  }
+
+  /**
+   * Attempt to recover cache functionality
+   */
+  async attemptRecovery(): Promise<boolean> {
+    if (this.isAvailable) {
+      return true; // Already available
+    }
+
+    console.log('Attempting to recover photo cache...');
+    
+    try {
+      // Close existing connection if any
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+
+      // Reset state
+      this.isAvailable = true;
+      this.initializationError = null;
+
+      // Try to reinitialize
+      await this.initialize();
+      
+      if (this.isAvailable) {
+        console.log('Photo cache recovery successful');
+        return true;
+      }
+    } catch (error) {
+      console.error('Photo cache recovery failed:', error);
+      this.isAvailable = false;
+      this.initializationError = error instanceof Error ? error : new Error('Recovery failed');
+    }
+
+    return false;
+  }
+
+  /**
+   * Gracefully handle cache operations with fallback
+   */
+  async safeOperation<T>(
+    operation: () => Promise<T>,
+    fallback: T,
+    operationName: string
+  ): Promise<T> {
+    if (!this.isAvailable) {
+      console.warn(`Cache ${operationName} skipped - cache unavailable`);
+      return fallback;
+    }
+
+    try {
+      return await operation();
+    } catch (error) {
+      console.warn(`Cache ${operationName} failed, using fallback:`, error);
+      
+      // If it's a quota error, try cleanup
+      if (error instanceof StorageError && error.type === StorageErrorType.CACHE_FULL) {
+        try {
+          await this.cleanup();
+          console.log('Cache cleaned up after quota error');
+        } catch (cleanupError) {
+          console.error('Cache cleanup failed:', cleanupError);
+        }
+      }
+      
+      return fallback;
     }
   }
 }

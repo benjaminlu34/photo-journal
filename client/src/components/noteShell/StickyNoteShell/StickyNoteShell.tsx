@@ -500,6 +500,7 @@ export const StickyNoteShell = React.memo(
                  updateNote(id, { content: newContent });
                }}
                readOnly={!canEdit}
+               noteId={id}
              />
            );
          })()}

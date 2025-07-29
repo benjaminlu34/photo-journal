@@ -10,6 +10,7 @@ import type { User } from '@shared/schema/schema';
 interface CRDTContextValue {
   isConnected: boolean;
   spaceId: string | undefined;
+  refreshImageUrls: () => Promise<void>;
 }
 
 const CRDTContext = createContext<CRDTContextValue | null>(null);
@@ -67,10 +68,23 @@ export const CRDTProvider: React.FC<CRDTProviderProps> = ({
     };
   }, [spaceId, user]);
 
+  // Function to refresh image URLs (useful when permissions change)
+  const refreshImageUrls = React.useCallback(async () => {
+    if (!spaceId) return;
+    
+    try {
+      const sdk = getBoardSdk(spaceId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
+      await sdk.refreshImageUrls();
+    } catch (error) {
+      console.error('Failed to refresh image URLs:', error);
+    }
+  }, [spaceId, user]);
+
   const value = React.useMemo<CRDTContextValue>(() => ({
     isConnected,
     spaceId,
-  }), [isConnected, spaceId]);
+    refreshImageUrls,
+  }), [isConnected, spaceId, refreshImageUrls]);
 
   return (
     <CRDTContext.Provider value={value}>

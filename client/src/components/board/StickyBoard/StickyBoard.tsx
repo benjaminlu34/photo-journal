@@ -42,7 +42,7 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
   }, []);
 
   const handleCreateNote = useCallback(
-    (type: NoteData['type']) => {
+    async (type: NoteData['type']) => {
       // Check permissions before allowing note creation
       if (currentUserRole === 'viewer' || currentUserRole === undefined) {
         return;
@@ -63,14 +63,18 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
         }
       })();
 
-      create({
-        id,
-        type,
-        position : { x: 100, y: 100, width: 200, height: 150, rotation: 0 },
-        content,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      try {
+        await create({
+          id,
+          type,
+          position : { x: 100, y: 100, width: 200, height: 150, rotation: 0 },
+          content,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to create note:', error);
+      }
     },
     [create, currentUserRole, user?.id],
   );
@@ -99,6 +103,7 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
              <NoteComponent
                content={note.content as any}
                onChange={(c: any) => update(note.id, { content: c })}
+               noteId={note.id}
              />
            </StickyNoteShell>
          </NoteErrorBoundary>

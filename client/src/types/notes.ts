@@ -31,7 +31,7 @@ export type NoteContent =
   | { type: 'text'; text: string; backgroundColor?: string }
   | { type: 'sticky_note'; text: string; backgroundColor?: string }
   | { type: 'checklist'; items: ChecklistItem[]; settings?: ChecklistSettings; backgroundColor?: string; title?: string }
-  | { type: 'image'; imageUrl?: string; alt?: string; backgroundColor?: string }
+  | { type: 'image'; imageUrl?: string; alt?: string; backgroundColor?: string; storagePath?: string; uploadId?: string }
   | { type: 'voice'; audioUrl?: string; duration?: number; backgroundColor?: string }
   | { type: 'drawing'; strokes: DrawingStroke[]; backgroundColor?: string };
 
