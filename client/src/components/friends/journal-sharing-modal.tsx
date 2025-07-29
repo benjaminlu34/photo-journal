@@ -23,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { Badge } from '@/components/ui/badge';
 import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
 import { Card, CardContent } from '@/components/ui/card';
@@ -210,7 +210,7 @@ export function JournalSharingModal({
   // Initialize state when modal opens
   React.useEffect(() => {
     if (isOpen && sharingData) {
-      const currentlyShared = new Set(sharingData.sharedEntries.map((s: SharedEntry) => s.friend.id));
+      const currentlyShared: Set<string> = new Set(sharingData.sharedEntries.map((s: SharedEntry) => s.friend.id));
       const permissions: Record<string, 'view' | 'edit'> = {};
       
       sharingData.sharedEntries.forEach((s: SharedEntry) => {
@@ -260,37 +260,37 @@ export function JournalSharingModal({
     if (!entry) return;
 
     try {
-      const currentlySharedIds = new Set(sharedEntries.map((s: SharedEntry) => s.friend.id));
+      const currentlySharedIds: Set<string> = new Set(sharedEntries.map((s: SharedEntry) => s.friend.id));
       const newSelectedIds = selectedFriends;
 
       // Friends to add
-      const toAdd = Array.from(newSelectedIds).filter(id => !currentlySharedIds.has(id));
+      const toAdd = Array.from(newSelectedIds).filter((id: string) => !currentlySharedIds.has(id));
       
       // Friends to remove
-      const toRemove = Array.from(currentlySharedIds).filter(id => !newSelectedIds.has(id));
+      const toRemove = Array.from(currentlySharedIds).filter((id: string) => !newSelectedIds.has(id));
 
       // Friends to update permissions
-      const toUpdate = Array.from(newSelectedIds).filter(id => {
+      const toUpdate = Array.from(newSelectedIds).filter((id: string) => {
         const currentShare = sharedEntries.find((s: SharedEntry) => s.friend.id === id);
         return currentShare && currentShare.permissions !== friendPermissions[id];
       });
 
       // Execute all changes
       const promises = [
-        ...toAdd.map(friendId => 
+        ...toAdd.map((friendId: string) =>
           shareEntryMutation.mutateAsync({
             entryId: entry.id,
             friendId,
             permissions: friendPermissions[friendId]
           })
         ),
-        ...toRemove.map(friendId =>
+        ...toRemove.map((friendId: string) =>
           revokeShareMutation.mutateAsync({
             entryId: entry.id,
             friendId
           })
         ),
-        ...toUpdate.map(friendId =>
+        ...toUpdate.map((friendId: string) =>
           shareEntryMutation.mutateAsync({
             entryId: entry.id,
             friendId,
@@ -381,8 +381,8 @@ export function JournalSharingModal({
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search friends..."
+              <FloatingInput
+                label="Search friends..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"

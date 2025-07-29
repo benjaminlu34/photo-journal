@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { Badge } from '@/components/ui/badge';
 import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
 import {
@@ -293,8 +293,8 @@ export function FriendList({
         {/* Search and Filter */}
         <div className="flex gap-2 mt-4">
           <Search className="h-4 w-4 text-muted-foreground self-center" />
-          <Input
-            placeholder="Search friends..."
+          <FloatingInput
+            label="Search friends..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1"

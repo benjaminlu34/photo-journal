@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, Clock, Users, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -70,9 +70,9 @@ export function FriendSearch({
   // Handle user selection
   const handleUserSelect = (user: UserSearchResult) => {
     onUserSelect?.(user);
-    setIsOpen(false);
-    setInputValue('');
-    clearSearch();
+    setInputValue(user.username); // Set input value to selected username
+    setIsOpen(false); // Close dropdown
+    clearSearch(); // Clear search results (but not input value)
   };
 
   // Handle friend request
@@ -135,18 +135,19 @@ export function FriendSearch({
   const showDropdown = isOpen && (hasResults || hasRecentSearches || isLoading || error || searchQuery);
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)}>
+    <div ref={containerRef} className={cn("relative w-full", className)} onClick={() => inputRef.current?.focus()}>
       {/* Search Input */}
       <div className="flex items-center gap-2 w-full">
-        <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <Search className="h-4 w-4 text-muted-foreground flex-shrink-0 cursor-pointer" onClick={() => inputRef.current?.focus()} />
         <div className="relative flex-1">
-          <Input
+          <FloatingInput
             ref={inputRef}
             value={inputValue}
             onChange={(e) => handleInputChange(e.target.value)}
             onFocus={handleFocus}
-            placeholder={placeholder}
-            className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10"
+            label={placeholder}
+            focused={isOpen || !!inputValue} // Pass isOpen or if there's a value
+            className="pr-10"
           />
           {inputValue && (
             <Button

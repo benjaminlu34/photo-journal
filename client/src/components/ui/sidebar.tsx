@@ -6,7 +6,7 @@ import { PanelLeft } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -341,13 +341,14 @@ const SidebarInset = React.forwardRef<
 SidebarInset.displayName = "SidebarInset"
 
 const SidebarInput = React.forwardRef<
-  React.ElementRef<typeof Input>,
-  React.ComponentProps<typeof Input>
->(({ className, ...props }, ref) => {
+  React.ElementRef<typeof FloatingInput>,
+  React.ComponentProps<typeof FloatingInput>
+>(({ className, label, ...props }, ref) => {
   return (
-    <Input
+    <FloatingInput
       ref={ref}
       data-sidebar="input"
+      label={label}
       className={cn(
         "h-8 w-full bg-background shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         className

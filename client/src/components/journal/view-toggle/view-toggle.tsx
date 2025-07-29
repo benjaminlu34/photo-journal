@@ -19,11 +19,12 @@ export function ViewToggle() {
         {views.map(({ mode, label, icon: Icon }) => (
           <Button
             key={mode}
-            variant="ghost"
+            variant="neu"
             size="sm"
             onClick={() => setViewMode(mode)}
-            className={`neu-nav-pill font-semibold ${
-              viewMode === mode ? "text-gray-700" : "active text-primary"
+            data-active={viewMode === mode}
+            className={`font-semibold neu-nav-pill ${
+              viewMode === mode ? "text-foreground" : "text-muted-foreground"
             }`}
           >
             <Icon className="w-4 h-4 mr-2" />

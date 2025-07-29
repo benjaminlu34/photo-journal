@@ -135,15 +135,15 @@ function HomeContent() {
             <div className="flex items-center space-x-4">
               <FriendshipNotifications className="neu-nav-pill" />
               <Button
-                variant="ghost"
-                className="neu-nav-pill font-semibold active text-gray-700 hover:text-[rgb(139,92,246)]"
+                variant="neu"
+                className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
 
               <Button
-                variant="ghost"
+                variant="neu"
                 onClick={async () => {
                   try {
                     await signOut();
@@ -156,7 +156,7 @@ function HomeContent() {
                     });
                   }
                 }}
-                className="neu-nav-pill font-semibold active text-gray-700 hover:text-red-500"
+                className="font-semibold text-gray-700 hover:text-red-500 neu-nav-pill"
               >
                 Logout
               </Button>

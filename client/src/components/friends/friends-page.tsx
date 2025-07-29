@@ -169,13 +169,13 @@ export function FriendsPage({
               <div className="lg:col-span-2">
                 <FriendList
                   onFriendSelect={handleFriendSelect}
-                  onRoleChange={handleRoleManagement} // Pass handleRoleManagement directly
+                  onRoleChange={handleRoleManagement}
                   showRoleManagement={true}
                 />
               </div>
               
               {/* Quick Actions Sidebar */}
-              <div className="space-y-4">
+              {/* <div className="space-y-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Quick Actions</CardTitle>
@@ -212,7 +212,6 @@ export function FriendsPage({
                   </CardContent>
                 </Card>
 
-                {/* Friend Stats */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Statistics</CardTitle>
@@ -234,7 +233,7 @@ export function FriendsPage({
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </div> */}
             </div>
           </TabsContent>
 

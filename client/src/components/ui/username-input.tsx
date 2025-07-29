@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usernameSchema } from '@shared/schema/schema';
@@ -171,29 +170,27 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
   };
 
   return (
-    <div className="space-y-2">
-      <Label className="text-foreground">{label}</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(
-            "flex-1 bg-secondary border-border text-foreground placeholder:text-muted-foreground",
-            validation.isValid && "border-green-500",
-            validation.error && value.trim() && "border-red-500",
-            className
-          )}
-          placeholder={placeholder}
-          disabled={disabled}
-          maxLength={20}
-          required={required}
-        />
-        <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-          {getValidationIcon()}
-        </div>
+    <div className="relative w-full">
+      <FloatingInput
+        label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "pr-10", // Add padding to the right for the icon
+          validation.isValid && "border-green-500",
+          validation.error && value.trim() && "border-red-500",
+          className
+        )}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={20}
+        required={required}
+      />
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+        {getValidationIcon()}
       </div>
       {getValidationMessage()}
-      <div className="text-xs text-muted-foreground">
+      <div className="text-xs text-muted-foreground mt-1">
         3-20 characters, letters, numbers, and underscores
       </div>
     </div>

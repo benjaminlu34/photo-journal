@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { FloatingTextarea } from "@/components/ui/floating-textarea";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useJournal } from "@/contexts/journal-context";
 import type { ContentBlockData, Position } from "@/types/journal";
@@ -239,11 +240,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
       case "text":
         return isEditing ? (
           <div className="space-y-2">
-            <Textarea
+            <FloatingTextarea
+              label="Write your thoughts..."
               value={editContent.text || ""}
               onChange={(e) => setEditContent({ ...editContent, text: e.target.value })}
               className="resize-none border-none bg-transparent text-sm"
-              placeholder="Write your thoughts..."
             />
             <div className="flex space-x-2">
               <Button size="sm" onClick={saveContent}>Save</Button>
@@ -281,11 +282,11 @@ export function ContentBlock({ block }: ContentBlockProps) {
             ))}
             {isEditing && (
               <div className="flex space-x-2">
-                <input
+                <FloatingInput
                   type="text"
-                  placeholder="Add item..."
+                  label="Add item..."
                   className="flex-1 text-sm border-none bg-transparent"
-                  onKeyPress={(e) => {
+                  onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (e.key === "Enter" && e.currentTarget.value.trim()) {
                       const newItems = [
                         ...block.content.items,
@@ -315,14 +316,14 @@ export function ContentBlock({ block }: ContentBlockProps) {
                 />
                 {isEditing ? (
                   <div className="absolute bottom-0 left-0 right-0 bg-black/80 p-3">
-                    <input
+                    <FloatingInput
                       type="text"
-                      placeholder="Add caption..."
+                      label="Add caption..."
                       value={editContent.caption || ""}
                       onChange={(e) => setEditContent({ ...editContent, caption: e.target.value })}
                       className="w-full bg-transparent text-white text-sm placeholder-gray-300 border-none outline-none mb-2"
                       autoFocus
-                      onKeyDown={(e) => {
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === 'Enter') saveContent();
                         if (e.key === 'Escape') setIsEditing(false);
                       }}

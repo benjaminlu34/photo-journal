@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Badge } from "@/components/ui/badge";
 import { UserDisplay } from "@/components/ui/user-display";
 import { useJournal } from "@/contexts/journal-context";
@@ -260,12 +260,12 @@ export function CollaborationPanel() {
         {/* Search */}
         <div className="mt-6 flex items-center gap-2">
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <Input
+          <FloatingInput
             type="text"
-            placeholder="Search your content..."
+            label="Search your content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="neu-inset text-gray-800 placeholder:text-gray-500 border-0 flex-1"
+            className="neu-inset text-gray-800 border-0 flex-1"
           />
         </div>
       </div>
