@@ -15,23 +15,9 @@ export function JournalWorkspace() {
   const { currentEntry, viewMode, isLoading, currentUserRole } = useJournal();
   const { data: user } = useUser();
 
-  // Return appropriate view based on viewMode
-  if (viewMode === "weekly-calendar") {
-    return <WeeklyCalendarView />;
-  }
-  
-  if (viewMode === "weekly-creative") {
-    return <WeeklyCreativeView />;
-  }
-  
-  if (viewMode === "monthly") {
-    return <MonthlyView />;
-  }
-
-  // Daily view (default) - optimized workspace
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  // Show loading state while journal entry is being loaded
+  // Show loading state while journal entry is being loaded (this is rendered unconditionally)
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center relative overflow-auto min-h-screen">
@@ -43,7 +29,7 @@ export function JournalWorkspace() {
     );
   }
 
-  // Only show "Begin Your Story" when we know for sure there's no entry
+  // Only show "Begin Your Story" when we know for sure there's no entry (this is rendered unconditionally)
   if (!currentEntry) {
     return (
       <div className="flex-1 flex items-center justify-center relative overflow-auto min-h-screen">
@@ -63,21 +49,35 @@ export function JournalWorkspace() {
   }
 
   return (
-    <div
-      ref={workspaceRef}
-      data-workspace="true"
-      className="flex-1 relative overflow-auto min-h-screen pinboard-bg"
-    >
-      {/* Collaboration status indicator */}
-      <div className="absolute top-4 left-4 z-10">
-        <CollaborationCursor />
+    <>
+      <div
+        ref={workspaceRef}
+        data-workspace="true"
+        className={viewMode === "daily" ? "flex-1 relative overflow-auto min-h-screen pinboard-bg" : "hidden"}
+      >
+        {/* Collaboration status indicator */}
+        <div className="absolute top-4 left-4 z-10">
+          <CollaborationCursor />
+        </div>
+
+        {/* New StickyBoard Component */}
+        <StickyBoard spaceId={`workspace-${currentEntry.id}`} currentUserRole={currentUserRole} currentUserId={user?.id} />
+
+        {/* Floating collaboration cursors */}
+        <FloatingCollaborationCursors />
       </div>
 
-      {/* New StickyBoard Component */}
-      <StickyBoard spaceId={`workspace-${currentEntry.id}`} currentUserRole={currentUserRole} currentUserId={user?.id} />
+      <div className={viewMode === "weekly-calendar" ? "flex-1" : "hidden"}>
+        <WeeklyCalendarView />
+      </div>
 
-      {/* Floating collaboration cursors */}
-      <FloatingCollaborationCursors />
-    </div>
+      <div className={viewMode === "weekly-creative" ? "flex-1" : "hidden"}>
+        <WeeklyCreativeView />
+      </div>
+
+      <div className={viewMode === "monthly" ? "flex-1" : "hidden"}>
+        <MonthlyView />
+      </div>
+    </>
   );
 }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FloatingInput } from '@/components/ui/floating-input';
+import { FloatingTextarea } from '@/components/ui/floating-textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Camera } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
@@ -287,25 +287,21 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               currentUsername={user.username}
             />
 
-            <div>
-              <Label className="text-foreground">First Name</Label>
-              <Input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                placeholder="Enter first name"
-              />
-            </div>
+            <FloatingInput
+              label="First Name"
+              value={firstName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)}
+              placeholder="Enter first name"
+              className="w-full"
+            />
 
-            <div>
-              <Label className="text-foreground">Last Name</Label>
-              <Input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                placeholder="Enter last name"
-              />
-            </div>
+            <FloatingInput
+              label="Last Name"
+              value={lastName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)}
+              placeholder="Enter last name"
+              className="w-full"
+            />
           </div>
 
           <div className="flex justify-end space-x-2">

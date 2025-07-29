@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { Badge } from '@/components/ui/badge';
 import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
 import {
@@ -68,7 +68,7 @@ interface FriendListResponse {
 interface FriendListProps {
   className?: string;
   onFriendSelect?: (friend: Friend) => void;
-  onRoleChange?: (friendId: string, newRole: string) => void; // Changed back to pass friendId
+  onRoleChange?: (friend: Friend) => void;
   showRoleManagement?: boolean;
 }
 
@@ -293,8 +293,8 @@ export function FriendList({
         {/* Search and Filter */}
         <div className="flex gap-2 mt-4">
           <Search className="h-4 w-4 text-muted-foreground self-center" />
-          <Input
-            placeholder="Search friends..."
+          <FloatingInput
+            label="Search friends..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1"
@@ -362,7 +362,7 @@ export function FriendList({
 interface FriendItemProps {
   friend: Friend;
   onSelect?: (friend: Friend) => void;
-  onRoleUpdate: (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => void; // Changed back to pass friendshipId
+  onRoleUpdate: (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => void;
   onUnfriend: (friendshipId: string) => void;
   showRoleManagement: boolean;
   isUpdatingRole: boolean;

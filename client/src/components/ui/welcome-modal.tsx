@@ -11,7 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { UsernameInput } from "@/components/ui/username-input"
 import { Camera } from "lucide-react"
 import { getInitials } from "@/hooks/useProfilePicture"
@@ -173,7 +173,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
                   <FormItem>
                     <FormLabel className="text-gray-700 dark:text-gray-200">First Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter your first name" {...field} className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm" />
+                      <FloatingInput label="First Name" placeholder="Enter your first name" {...field} className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -186,7 +186,7 @@ export function WelcomePage({ user, onComplete, updateProfile }: WelcomePageProp
                   <FormItem>
                     <FormLabel className="text-gray-700 dark:text-gray-200">Last Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter your last name" {...field} className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm" />
+                      <FloatingInput label="Last Name" placeholder="Enter your last name" {...field} className="bg-white/70 dark:bg-gray-900/70 rounded-xl shadow-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -338,6 +338,43 @@
       inset 1px 1px 3px rgba(255, 255, 255, 0.6);
   }
 
+  /* Floating Input Styles */
+  .floating-input-container {
+    @apply relative w-full mb-6;
+  }
+
+  .floating-input-base {
+    @apply w-full px-4 pt-6 pb-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-transparent;
+    @apply focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20;
+    @apply transition-all duration-200 ease-in-out;
+    @apply neumorphic-inset;
+  }
+
+  .floating-input-error {
+    @apply border-red-400 focus:border-red-400 focus:ring-red-400/20;
+  }
+
+  .floating-label {
+    @apply absolute left-4 transition-all duration-200 ease-in-out pointer-events-none;
+    @apply bg-surface/90 px-2 rounded-md;
+  }
+
+  .floating-label-active {
+    @apply top-2 text-xs text-indigo-400;
+  }
+
+  .floating-label-inactive {
+    @apply top-1/2 -translate-y-1/2 text-base text-muted-foreground;
+  }
+
+  /* Floating Textarea Styles */
+  .floating-textarea-base {
+    @apply w-full px-4 pt-6 pb-2 rounded-xl resize-none bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-transparent;
+    @apply focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20;
+    @apply transition-all duration-200 ease-in-out;
+    @apply neumorphic-inset;
+  }
+
 
 
   /* Enhanced scrollbars */
