@@ -68,7 +68,7 @@ interface FriendListResponse {
 interface FriendListProps {
   className?: string;
   onFriendSelect?: (friend: Friend) => void;
-  onRoleChange?: (friendId: string, newRole: string) => void; // Changed back to pass friendId
+  onRoleChange?: (friend: Friend) => void;
   showRoleManagement?: boolean;
 }
 
@@ -362,7 +362,7 @@ export function FriendList({
 interface FriendItemProps {
   friend: Friend;
   onSelect?: (friend: Friend) => void;
-  onRoleUpdate: (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => void; // Changed back to pass friendshipId
+  onRoleUpdate: (friendshipId: string, newRole: 'viewer' | 'contributor' | 'editor', direction: 'to_friend' | 'to_user') => void;
   onUnfriend: (friendshipId: string) => void;
   showRoleManagement: boolean;
   isUpdatingRole: boolean;
