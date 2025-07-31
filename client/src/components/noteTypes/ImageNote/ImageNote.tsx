@@ -30,10 +30,10 @@ interface UploadState {
   uploadId?: string;
 }
 
-const ImageNote: React.FC<ImageNoteProps> = ({ 
-  content = { type: 'image' }, 
+const ImageNote: React.FC<ImageNoteProps> = ({
+  content = { type: 'image' },
   onChange,
-  noteId 
+  noteId
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -46,7 +46,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
-  
+
   // Get authenticated user (same pattern as profile pictures)
   const { data: user } = useUser();
   const { currentDate } = useJournal();
@@ -58,20 +58,43 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   useEffect(() => {
     const loadImage = async () => {
       const storagePath = (content as any).storagePath;
+      const existingImageUrl = (content as any).imageUrl;
+
+      // Skip loading if we already have a valid signed URL (prevents duplicate calls after upload)
+      if (existingImageUrl && !existingImageUrl.startsWith('blob:')) {
+        setCachedImageUrl(existingImageUrl);
+        return;
+      }
+
       if (storagePath && user?.id) {
         setIsLoadingImage(true);
         setImageLoadError(null);
-        
+
         try {
           // Get signed URL from Supabase Storage (same as profile pictures)
           const { data, error } = await supabase.storage
             .from('journal-images')
             .createSignedUrl(storagePath, 3600); // 1 hour TTL
-          
-          if (error) throw error;
-          
+
+          if (error) {
+            // Handle specific error cases
+            if (error.message?.includes('not found') || error.message?.includes('404')) {
+              // Image was deleted - clear the storagePath to prevent future attempts
+              console.warn(`Image not found (likely deleted): ${storagePath}`);
+              onChange?.({
+                ...content,
+                imageUrl: undefined,
+                storagePath: undefined,
+              } as any);
+              return;
+            }
+            throw error;
+          }
+
           if (data?.signedUrl) {
             setCachedImageUrl(data.signedUrl);
+          } else {
+            throw new Error('No signed URL returned');
           }
         } catch (error) {
           console.error('Failed to load image:', error);
@@ -88,7 +111,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     };
 
     loadImage();
-  }, [(content as any).storagePath, user?.id]);
+  }, [(content as any).storagePath, (content as any).imageUrl, user?.id]);
 
   // No complex upload monitoring needed
 
@@ -106,16 +129,16 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
-    
+
     // If no user or noteId, fall back to blob URL behavior (same as profile images)
     if (!user?.id || !noteId) {
       const reason = !user?.id ? 'No user ID' : 'No note ID';
       console.warn(`${reason}, using blob URL fallback`);
-      
+
       try {
         const previewUrl = URL.createObjectURL(file);
         setLocalPreviewUrl(previewUrl);
-        
+
         const sanitizedAlt = file.name.replace(/\.[^/.]+$/, "").replace(/<[^>]*>/g, '');
         onChange?.({
           type: 'image',
@@ -132,12 +155,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({
       }
       return;
     }
-    
+
     try {
       // Create optimistic local preview immediately
       const previewUrl = URL.createObjectURL(file);
       setLocalPreviewUrl(previewUrl);
-      
+
       const sanitizedAlt = file.name.replace(/\.[^/.]+$/, "").replace(/<[^>]*>/g, '');
       const journalDate = formatLocalDate(currentDate);
 
@@ -151,11 +174,11 @@ const ImageNote: React.FC<ImageNoteProps> = ({
       // Direct Supabase upload (same as profile images)
       try {
         setUploadState({ status: 'uploading', progress: 0 });
-        
+
         // Generate file path
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${journalDate}/${noteId}/${Date.now()}.${fileExt}`;
-        
+
         // Upload to Supabase Storage
         const { data, error: uploadError } = await supabase.storage
           .from('journal-images')
@@ -166,22 +189,33 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
         if (uploadError) throw uploadError;
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
+        // Get signed URL (same as loading logic)
+        const { data: signedData, error: signedError } = await supabase.storage
           .from('journal-images')
-          .getPublicUrl(fileName);
-        
-        setCachedImageUrl(publicUrl);
+          .createSignedUrl(fileName, 3600); // 1 hour TTL
+
+        if (signedError) throw signedError;
+
+        const signedUrl = signedData?.signedUrl;
+        if (!signedUrl) throw new Error('Failed to generate signed URL');
+
+        setCachedImageUrl(signedUrl);
         setUploadState({ status: 'completed', progress: 100 });
-        
-        // Update content with the persistent URL
+
+        // Clean up local preview URL since we now have the persistent URL
+        if (localPreviewUrl) {
+          URL.revokeObjectURL(localPreviewUrl);
+          setLocalPreviewUrl(null);
+        }
+
+        // Update content with the signed URL and storage path
         onChange?.({
           ...content,
-          imageUrl: publicUrl,
+          imageUrl: signedUrl,
           alt: sanitizedAlt,
           storagePath: fileName,
         } as any);
-        
+
       } catch (error) {
         console.error('Upload failed:', error);
         setUploadState({
@@ -252,20 +286,24 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         setLocalPreviewUrl(null);
       }
 
-      // Clean up cached image URL
-      if (cachedImageUrl && cachedImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(cachedImageUrl);
+      // Clean up cached image URL (both blob and signed URLs)
+      if (cachedImageUrl) {
+        if (cachedImageUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(cachedImageUrl);
+        }
         setCachedImageUrl(null);
       }
 
       // Reset state
       setUploadState({ status: 'idle', progress: 0 });
-      
-      // Update content
-      onChange?.({ 
+      setImageLoadError(null);
+
+      // Update content - IMPORTANT: Clear storagePath to prevent reload attempts
+      onChange?.({
         ...content,
-        imageUrl: undefined, 
+        imageUrl: undefined,
         alt: undefined,
+        storagePath: undefined, // Clear this to prevent reload attempts
       } as any);
     } catch (error) {
       console.error('Failed to remove image:', error);
@@ -288,7 +326,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           alt={content.alt || "Uploaded image"}
           className="w-full h-full object-cover rounded-lg"
         />
-        
+
         {/* Image loading overlay */}
         {isLoadingImage && (
           <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
@@ -310,7 +348,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
                 <span className="text-sm font-medium">Uploading...</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadState.progress}%` }}
                 />
@@ -358,7 +396,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
               <RotateCcw className="w-3 h-3" />
             </button>
           )}
-          
+
           {/* Remove button */}
           <button
             onClick={handleRemoveImage}
@@ -413,7 +451,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         onChange={handleFileInputChange}
         className="hidden"
       />
-      
+
       {uploadState.status === 'uploading' ? (
         <div className={cn(
           'flex flex-col items-center gap-2',
@@ -422,7 +460,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           <Upload className="w-8 h-8 text-blue-500" />
           <span className="text-sm">Uploading...</span>
           <div className="w-32 bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-blue-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${uploadState.progress}%` }}
             />
@@ -457,7 +495,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
               or drag and drop
             </p>
           </div>
-          
+
 
         </div>
       )}
