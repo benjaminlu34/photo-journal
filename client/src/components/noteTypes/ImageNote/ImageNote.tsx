@@ -1,13 +1,9 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { security } from "@/lib/security";
 import { X, Camera, Upload, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 import { useJournal } from "@/contexts/journal-context";
-import { PhotoStorageService } from "@/services/storage.service/photo-storage.service";
-import { UploadQueueService } from "@/services/storage.service/upload-queue.service";
-import { ServiceAvailabilityManager, ServiceAvailability } from "@/services/storage.service/service-availability.manager";
-import { StorageError } from "@/services/storage.service/storage-errors";
 import { useBoardStore } from "@/lib/board-store";
 import type { NoteContent } from "@/types/notes";
 
@@ -49,90 +45,37 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const [cachedImageUrl, setCachedImageUrl] = useState<string | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
-  const [serviceAvailability, setServiceAvailability] = useState<ServiceAvailability | null>(null);
-  const [showServiceMessage, setShowServiceMessage] = useState(false);
+
   
-  // Handle auth context gracefully - it might not be available in all contexts
-  let user: any = null;
-  let currentDate: Date = new Date();
-  
-  try {
-    const auth = useAuth();
-    user = auth.user;
-  } catch (error) {
-    console.warn('ImageNote: Auth context not available, using fallback behavior');
-  }
-  
-  try {
-    const journal = useJournal();
-    currentDate = journal.currentDate;
-  } catch (error) {
-    console.warn('ImageNote: Journal context not available, using current date');
-  }
-  const photoService = PhotoStorageService.getInstance();
-  const uploadQueue = UploadQueueService.getInstance();
-  const availabilityManager = ServiceAvailabilityManager.getInstance();
+  // Get authenticated user (same pattern as profile pictures)
+  const { data: user } = useUser();
+  const { currentDate } = useJournal();
   const { updateNoteWithStorageMetadata } = useBoardStore((s) => s.actions);
 
-  // Monitor service availability
+  // Simple state management - no complex service monitoring needed
+
+  // Load image from Supabase Storage (same pattern as profile pictures)
   useEffect(() => {
-    const unsubscribe = availabilityManager.subscribe((availability) => {
-      setServiceAvailability(availability);
-      
-      // Show service message for degraded or offline modes
-      const shouldShow = availability.recommendedStrategy.showOfflineMessage || 
-                        availability.recommendedStrategy.showDegradedMessage;
-      setShowServiceMessage(shouldShow);
-    });
-
-    // Get initial availability
-    setServiceAvailability(availabilityManager.getAvailability());
-
-    return unsubscribe;
-  }, [availabilityManager]);
-
-  // Load cached image if storage path exists with stale-while-revalidate and graceful degradation
-  useEffect(() => {
-    const loadCachedImage = async () => {
+    const loadImage = async () => {
       const storagePath = (content as any).storagePath;
       if (storagePath && user?.id) {
         setIsLoadingImage(true);
         setImageLoadError(null);
         
         try {
-          const { url, fromCache, isStale, error } = await photoService.getPhotoWithCache(
-            storagePath,
-            user.id,
-            {
-              onStaleUpdate: (freshUrl) => {
-                // Update with fresh content when available
-                setCachedImageUrl(freshUrl);
-                console.log(`Image updated with fresh content: ${storagePath}`);
-              },
-              maxStaleAge: 24 * 60 * 60 * 1000, // 24 hours
-              fallbackToCache: true, // Use cache even if stale when storage unavailable
-            }
-          );
-          setCachedImageUrl(url);
+          // Get signed URL from Supabase Storage (same as profile pictures)
+          const { data, error } = await supabase.storage
+            .from('journal-images')
+            .createSignedUrl(storagePath, 3600); // 1 hour TTL
           
-          // Show appropriate error message if there was an issue but we got cached content
-          if (error && fromCache) {
-            setImageLoadError(`Using cached image: ${error.getUserMessage()}`);
-          } else {
-            setImageLoadError(null);
+          if (error) throw error;
+          
+          if (data?.signedUrl) {
+            setCachedImageUrl(data.signedUrl);
           }
-          
-          console.log(`Image loaded from ${fromCache ? 'cache' : 'storage'}${isStale ? ' (stale)' : ''}${error ? ' (with error)' : ''}: ${storagePath}`);
         } catch (error) {
-          console.error('Failed to load cached image:', error);
-          
-          if (error instanceof StorageError) {
-            setImageLoadError(error.getUserMessage());
-          } else {
-            setImageLoadError(error instanceof Error ? error.message : 'Failed to load image');
-          }
-          
-          // Fall back to blob URL if available
+          console.error('Failed to load image:', error);
+          setImageLoadError(error instanceof Error ? error.message : 'Failed to load image');
         } finally {
           setIsLoadingImage(false);
         }
@@ -144,33 +87,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({
       }
     };
 
-    loadCachedImage();
-  }, [(content as any).storagePath, user?.id, photoService]);
+    loadImage();
+  }, [(content as any).storagePath, user?.id]);
 
-  // Monitor upload progress if there's an active upload
-  useEffect(() => {
-    const uploadId = (content as any).uploadId;
-    if (uploadId) {
-      const checkUploadStatus = () => {
-        const upload = uploadQueue.getUpload(uploadId);
-        if (upload) {
-          setUploadState({
-            status: upload.status,
-            progress: upload.progress,
-            error: upload.error,
-            uploadId: upload.id,
-          });
-
-          // Continue monitoring if still in progress
-          if (upload.status === 'uploading' || upload.status === 'retrying') {
-            setTimeout(checkUploadStatus, 500);
-          }
-        }
-      };
-
-      checkUploadStatus();
-    }
-  }, [(content as any).uploadId, uploadQueue]);
+  // No complex upload monitoring needed
 
   // Cleanup blob URLs on unmount
   useEffect(() => {
@@ -187,14 +107,9 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const handleFileSelect = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     
-    // Check service availability before proceeding
-    const availability = serviceAvailability || availabilityManager.getAvailability();
-    
-    // If no user or noteId, or uploads not allowed, fall back to blob URL behavior
-    if (!user?.id || !noteId || !availability.recommendedStrategy.allowUploads) {
-      const reason = !user?.id ? 'No user ID' : 
-                    !noteId ? 'No note ID' : 
-                    'Uploads not allowed due to service availability';
+    // If no user or noteId, fall back to blob URL behavior (same as profile images)
+    if (!user?.id || !noteId) {
+      const reason = !user?.id ? 'No user ID' : 'No note ID';
       console.warn(`${reason}, using blob URL fallback`);
       
       try {
@@ -207,16 +122,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           imageUrl: previewUrl,
           alt: sanitizedAlt,
         });
-
-        // Show message about why upload is disabled
-        if (!availability.recommendedStrategy.allowUploads) {
-          const statusMessage = availabilityManager.getStatusMessage();
-          setUploadState({
-            status: 'failed',
-            progress: 0,
-            error: statusMessage.message,
-          });
-        }
       } catch (error) {
         console.error("Failed to create blob URL:", error);
         setUploadState({
@@ -243,89 +148,58 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         alt: sanitizedAlt,
       });
 
-      // Queue upload for background processing
-      const uploadId = await uploadQueue.enqueue(
-        file,
-        user.id,
-        journalDate,
-        noteId,
-        { compress: true }, // Enable compression by default
-        {
-          onProgress: (progress) => {
-            setUploadState(prev => ({ ...prev, progress }));
-          },
-          onComplete: (result) => {
-            console.log('Upload completed:', result);
-            
-            // Update the CRDT with storage metadata for friend access
-            if (noteId) {
-              updateNoteWithStorageMetadata(noteId, result.storagePath, result.signedUrl);
-            }
-            
-            // Update content with persistent storage path and signed URL
-            onChange?.({
-              ...content,
-              imageUrl: result.signedUrl,
-              alt: sanitizedAlt,
-              storagePath: result.storagePath,
-            } as any);
+      // Direct Supabase upload (same as profile images)
+      try {
+        setUploadState({ status: 'uploading', progress: 0 });
+        
+        // Generate file path
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${journalDate}/${noteId}/${Date.now()}.${fileExt}`;
+        
+        // Upload to Supabase Storage
+        const { data, error: uploadError } = await supabase.storage
+          .from('journal-images')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
 
-            // Clean up local preview
-            if (localPreviewUrl) {
-              URL.revokeObjectURL(localPreviewUrl);
-              setLocalPreviewUrl(null);
-            }
+        if (uploadError) throw uploadError;
 
-            setUploadState({
-              status: 'completed',
-              progress: 100,
-            });
-          },
-          onError: (error) => {
-            console.error('Upload failed:', error);
-            
-            // Provide user-friendly error message
-            const errorMessage = error instanceof StorageError 
-              ? error.getUserMessage()
-              : (error instanceof Error ? error.message : 'Upload failed');
-            
-            setUploadState({
-              status: 'failed',
-              progress: 0,
-              error: errorMessage,
-            });
-          },
-        }
-      );
-
-      // Update content with upload ID for monitoring
-      onChange?.({
-        ...content,
-        imageUrl: previewUrl,
-        alt: sanitizedAlt,
-        uploadId,
-      } as any);
-
-      setUploadState({
-        status: 'uploading',
-        progress: 0,
-        uploadId,
-      });
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('journal-images')
+          .getPublicUrl(fileName);
+        
+        setCachedImageUrl(publicUrl);
+        setUploadState({ status: 'completed', progress: 100 });
+        
+        // Update content with the persistent URL
+        onChange?.({
+          ...content,
+          imageUrl: publicUrl,
+          alt: sanitizedAlt,
+          storagePath: fileName,
+        } as any);
+        
+      } catch (error) {
+        console.error('Upload failed:', error);
+        setUploadState({
+          status: 'failed',
+          progress: 0,
+          error: error instanceof Error ? error.message : 'Upload failed'
+        });
+      }
 
     } catch (error) {
       console.error("Failed to start upload:", error);
-      
-      const errorMessage = error instanceof StorageError 
-        ? error.getUserMessage()
-        : (error instanceof Error ? error.message : 'Failed to start upload');
-      
       setUploadState({
         status: 'failed',
         progress: 0,
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Failed to start upload',
       });
     }
-  }, [onChange, user?.id, noteId, currentDate, uploadQueue, localPreviewUrl, serviceAvailability, availabilityManager]);
+  }, [onChange, user?.id, noteId, currentDate, localPreviewUrl]);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -359,17 +233,13 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   const handleRemoveImage = useCallback(async () => {
     try {
-      // Cancel any active upload
-      const uploadId = (content as any).uploadId;
-      if (uploadId) {
-        uploadQueue.cancel(uploadId);
-      }
-
       // Delete from persistent storage if it exists
       const storagePath = (content as any).storagePath;
       if (storagePath && user?.id) {
         try {
-          await photoService.deletePhoto(storagePath, user.id);
+          await supabase.storage
+            .from('journal-images')
+            .remove([storagePath]);
         } catch (error) {
           console.error('Failed to delete photo from storage:', error);
           // Continue with removal even if storage deletion fails
@@ -400,17 +270,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     } catch (error) {
       console.error('Failed to remove image:', error);
     }
-  }, [onChange, (content as any).uploadId, (content as any).storagePath, user?.id, uploadQueue, photoService, localPreviewUrl, cachedImageUrl]);
+  }, [onChange, (content as any).storagePath, user?.id, localPreviewUrl, cachedImageUrl]);
 
   const handleRetryUpload = useCallback(() => {
-    const uploadId = (content as any).uploadId;
-    if (uploadId) {
-      const success = uploadQueue.retry(uploadId);
-      if (success) {
-        setUploadState(prev => ({ ...prev, status: 'uploading', error: undefined }));
-      }
-    }
-  }, [(content as any).uploadId, uploadQueue]);
+    // For simple implementation, just trigger file select again
+    fileInputRef.current?.click();
+  }, []);
 
   // Determine which image URL to display (priority: cached > local preview > content URL)
   const displayImageUrl = cachedImageUrl || localPreviewUrl || content.imageUrl;
@@ -523,16 +388,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           </div>
         )}
 
-        {/* Service availability message */}
-        {showServiceMessage && serviceAvailability && (
-          <div className={cn(
-            "absolute top-8 left-2 right-2 text-white text-xs p-2 rounded",
-            serviceAvailability.offline ? "bg-red-500" : 
-            serviceAvailability.storage.degraded ? "bg-yellow-500" : "bg-blue-500"
-          )}>
-            {availabilityManager.getStatusMessage().message}
-          </div>
-        )}
+
       </div>
     );
   }
@@ -595,26 +451,14 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           <div className="text-center text-gray-400">
             <Camera className="w-12 h-12 mx-auto mb-2" />
             <span className="text-sm font-medium">
-              {serviceAvailability?.recommendedStrategy.allowUploads ? 'Click to upload' : 'Upload unavailable'}
+              Click to upload
             </span>
             <p className="text-xs">
-              {serviceAvailability?.recommendedStrategy.allowUploads ? 'or drag and drop' : 
-               serviceAvailability?.offline ? 'Device is offline' :
-               serviceAvailability?.storage.degraded ? 'Service temporarily limited' :
-               'Check connection'}
+              or drag and drop
             </p>
           </div>
           
-          {/* Service status indicator */}
-          {showServiceMessage && serviceAvailability && (
-            <div className={cn(
-              "text-xs p-2 rounded max-w-xs text-center",
-              serviceAvailability.offline ? "bg-red-100 text-red-700" : 
-              serviceAvailability.storage.degraded ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700"
-            )}>
-              {availabilityManager.getStatusMessage().message}
-            </div>
-          )}
+
         </div>
       )}
     </div>

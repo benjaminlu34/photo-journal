@@ -5,8 +5,7 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 // Types
 import type { NoteData } from '@/types/notes';
 
-// Storage service for handling persistent images
-import { PhotoStorageService } from '@/services/storage.service/photo-storage.service';
+
 
 export type BoardSDK = ReturnType<typeof createBoardSDK>;
 
@@ -69,21 +68,18 @@ export function createBoardSDK({
     if (!storagePath) return undefined;
     
     try {
-      const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return data.signedUrl;
-      } else {
-        console.error('Failed to generate signed URL:', response.statusText);
+      // Use direct Supabase Storage like ImageNote does
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase.storage
+        .from('journal-images')
+        .createSignedUrl(storagePath, 3600); // 1 hour TTL
+      
+      if (error) {
+        console.error('Failed to generate signed URL:', error);
         return undefined;
       }
+      
+      return data?.signedUrl;
     } catch (error) {
       console.error('Error generating signed URL:', error);
       return undefined;
