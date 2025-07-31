@@ -150,7 +150,7 @@ export function FriendshipStatusIndicator({
                   statusConfig.color === 'default' && 'text-primary'
                 )}
               />
-              {showRole && roleConfig && (
+              {showRole && roleConfig && RoleIcon && (
                 <RoleIcon 
                   className={cn(
                     iconSizes[size],
@@ -184,7 +184,7 @@ export function FriendshipStatusIndicator({
       <Button
         variant={statusConfig.color === 'destructive' ? 'destructive' : 
                 statusConfig.color === 'success' ? 'default' : 'outline'}
-        size={size}
+        size={size === 'md' ? 'default' : size}
         onClick={onClick}
         disabled={disabled || status === 'blocked'}
         className={cn(sizeClasses[size], className)}
@@ -194,7 +194,7 @@ export function FriendshipStatusIndicator({
         {showRole && roleConfig && (
           <>
             <span className="mx-2">•</span>
-            <RoleIcon className={cn(iconSizes[size], "mr-1")} />
+            {RoleIcon && <RoleIcon className={cn(iconSizes[size], "mr-1")} />}
             {roleConfig.label}
           </>
         )}
@@ -231,7 +231,7 @@ export function FriendshipStatusIndicator({
             roleConfig.color === 'default' && 'border-primary/20 text-primary'
           )}
         >
-          <RoleIcon className={cn(iconSizes[size], "mr-1")} />
+          {RoleIcon && <RoleIcon className={cn(iconSizes[size], "mr-1")} />}
           {roleConfig.label}
         </Badge>
       )}

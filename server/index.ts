@@ -120,7 +120,7 @@ app.use((req, res, next) => {
         log('⚠️  Redis not available, using memory-based rate limiting fallback');
       }
     } catch (error) {
-      log('⚠️  Redis connection failed, using memory-based rate limiting fallback:', error);
+      log('⚠️  Redis connection failed, using memory-based rate limiting fallback:', error instanceof Error ? error.message : String(error));
     }
   } else {
     log('⚠️  Redis not configured, using memory-based rate limiting fallback');

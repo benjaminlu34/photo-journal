@@ -35,7 +35,7 @@ export class PhotoCacheService {
   private readonly storeName = 'photos';
   private readonly maxCacheSize = 50 * 1024 * 1024; // 50MB cache limit
   private readonly defaultTTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-  private isAvailable = true; // Track cache availability
+  private cacheAvailable = true; // Track cache availability
   private initializationError: Error | null = null;
 
   static getInstance(): PhotoCacheService {
@@ -55,7 +55,7 @@ export class PhotoCacheService {
 
     // Check if IndexedDB is available
     if (!window.indexedDB) {
-      this.isAvailable = false;
+      this.cacheAvailable = false;
       this.initializationError = new Error('IndexedDB is not supported in this browser');
       console.warn('Photo cache unavailable: IndexedDB not supported');
       return;
@@ -63,11 +63,11 @@ export class PhotoCacheService {
 
     try {
       await this.initializeDatabase();
-      this.isAvailable = true;
+      this.cacheAvailable = true;
       this.initializationError = null;
       console.log('Photo cache initialized successfully');
     } catch (error) {
-      this.isAvailable = false;
+      this.cacheAvailable = false;
       this.initializationError = error instanceof Error ? error : new Error('Cache initialization failed');
       console.error('Photo cache initialization failed:', error);
       
@@ -116,7 +116,7 @@ export class PhotoCacheService {
         this.db.onclose = () => {
           console.warn('IndexedDB connection closed unexpectedly');
           this.db = null;
-          this.isAvailable = false;
+          this.cacheAvailable = false;
         };
 
         resolve();
@@ -169,7 +169,7 @@ export class PhotoCacheService {
     }
   ): Promise<void> {
     // Graceful degradation - if cache is unavailable, don't fail
-    if (!this.isAvailable) {
+    if (!this.cacheAvailable) {
       console.warn('Photo cache unavailable, skipping cache operation');
       return;
     }
@@ -256,7 +256,7 @@ export class PhotoCacheService {
    */
   async getCachedPhoto(storagePath: string): Promise<PhotoCacheEntry | null> {
     // Graceful degradation - if cache is unavailable, return null
-    if (!this.isAvailable) {
+    if (!this.cacheAvailable) {
       return null;
     }
 
@@ -500,11 +500,11 @@ export class PhotoCacheService {
    * Ensure the database is initialized before operations
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.db && this.isAvailable) {
+    if (!this.db && this.cacheAvailable) {
       await this.initialize();
     }
     
-    if (!this.isAvailable) {
+    if (!this.cacheAvailable) {
       throw new Error('Photo cache is not available');
     }
   }
@@ -513,7 +513,7 @@ export class PhotoCacheService {
    * Check if cache is available
    */
   isAvailable(): boolean {
-    return this.isAvailable;
+    return this.cacheAvailable;
   }
 
   /**
@@ -531,7 +531,7 @@ export class PhotoCacheService {
     error?: Error;
     stats?: PhotoCacheStats;
   } {
-    if (!this.isAvailable) {
+    if (!this.cacheAvailable) {
       return {
         available: false,
         error: this.initializationError || new Error('Cache unavailable'),
@@ -547,7 +547,7 @@ export class PhotoCacheService {
    * Attempt to recover cache functionality
    */
   async attemptRecovery(): Promise<boolean> {
-    if (this.isAvailable) {
+    if (this.cacheAvailable) {
       return true; // Already available
     }
 
@@ -561,19 +561,19 @@ export class PhotoCacheService {
       }
 
       // Reset state
-      this.isAvailable = true;
+      this.cacheAvailable = true;
       this.initializationError = null;
 
       // Try to reinitialize
       await this.initialize();
       
-      if (this.isAvailable) {
+      if (this.cacheAvailable) {
         console.log('Photo cache recovery successful');
         return true;
       }
     } catch (error) {
       console.error('Photo cache recovery failed:', error);
-      this.isAvailable = false;
+      this.cacheAvailable = false;
       this.initializationError = error instanceof Error ? error : new Error('Recovery failed');
     }
 
@@ -588,7 +588,7 @@ export class PhotoCacheService {
     fallback: T,
     operationName: string
   ): Promise<T> {
-    if (!this.isAvailable) {
+    if (!this.cacheAvailable) {
       console.warn(`Cache ${operationName} skipped - cache unavailable`);
       return fallback;
     }

@@ -4,6 +4,7 @@ import { PhotoCacheService, PhotoCacheEntry } from './photo-cache.service';
 import { StorageError, StorageErrorFactory, StorageErrorType, StorageErrorRecovery } from './storage-errors';
 import { StorageHealthService } from './storage-health.service';
 import { z } from 'zod';
+import path from 'path';
 
 export interface PhotoUploadResult extends BaseStorageUploadResult {
   storagePath: string;
@@ -32,8 +33,7 @@ const photoUploadSchema = z.object({
 export class PhotoStorageService extends BaseStorageService {
   private static photoInstance: PhotoStorageService;
   private readonly cacheService = PhotoCacheService.getInstance();
-  private readonly healthService = StorageHealthService.getInstance();
-  
+
   protected config: StorageConfig = {
     bucket: 'journal-images',
     signedUrlTTL: 7 * 24 * 60 * 60, // 7 days in seconds
@@ -130,33 +130,27 @@ export class PhotoStorageService extends BaseStorageService {
             maxWidthOrHeight: options.maxDimension || 1920,
           });
           fileToUpload = compressionInfo.compressedFile;
-          
+
           console.log(`Image compressed: ${file.size} → ${fileToUpload.size} bytes (${compressionInfo.sizeIncreasePercentage.toFixed(1)}% change)`);
         } catch (error) {
           console.warn('Image compression failed, using original file:', error);
-          
+
           // Create compression error but continue with original file
           const compressionError = StorageErrorFactory.createCompressionError(
             error instanceof Error ? error : new Error('Compression failed'),
             true // fallback used
           );
-          
+
           // Log the error but don't throw - we'll use the original file
           console.warn('Compression error (continuing with original):', compressionError.getUserMessage());
         }
       }
 
-      // Generate deterministic storage path
-      const storagePath = this.generatePhotoPath(userId, journalDate, noteId, fileToUpload.name);
-
-      // Upload using base service with timeout
-      const { path } = await this.uploadToStorage(storagePath, fileToUpload, { 
-        upsert: true,
-        timeout: 60000 // 60 second timeout
-      });
-
-      // Generate signed URL for immediate access with retry
-      const signedUrl = await this.getPhotoUrlWithRetry(storagePath, userId);
+      // Upload to server endpoint instead of direct Supabase upload
+      const uploadResult = await this.uploadToServer(fileToUpload, userId, journalDate, noteId);
+      
+      const storagePath = uploadResult.storagePath;
+      const signedUrl = uploadResult.url;
 
       // Cache the uploaded file for offline access (non-blocking)
       this.cacheUploadedPhoto(storagePath, fileToUpload, signedUrl, {
@@ -170,7 +164,7 @@ export class PhotoStorageService extends BaseStorageService {
 
       return {
         url: signedUrl,
-        path,
+        path: storagePath, // Use storagePath as the path
         storagePath,
         signedUrl,
         size: fileToUpload.size,
@@ -179,11 +173,11 @@ export class PhotoStorageService extends BaseStorageService {
       };
     } catch (error) {
       console.error('Photo upload failed:', error);
-      
+
       if (error instanceof StorageError) {
         throw error;
       }
-      
+
       // Convert generic errors to StorageError
       throw StorageErrorFactory.createFromError(
         error instanceof Error ? error : new Error('Upload failed'),
@@ -197,7 +191,7 @@ export class PhotoStorageService extends BaseStorageService {
    * Enhanced with comprehensive error handling and graceful degradation
    */
   async getPhotoWithCache(
-    storagePath: string, 
+    storagePath: string,
     userId: string,
     options?: {
       onStaleUpdate?: (freshUrl: string) => void;
@@ -206,7 +200,7 @@ export class PhotoStorageService extends BaseStorageService {
     }
   ): Promise<{ url: string; fromCache: boolean; isStale?: boolean; error?: StorageError }> {
     const maxStaleAge = options?.maxStaleAge || 24 * 60 * 60 * 1000; // 24 hours default
-    
+
     try {
       // Check cache first
       const cachedEntry = await this.cacheService.getCachedPhoto(storagePath);
@@ -214,18 +208,18 @@ export class PhotoStorageService extends BaseStorageService {
         const blobUrl = URL.createObjectURL(cachedEntry.blob);
         const age = Date.now() - cachedEntry.cachedAt.getTime();
         const isStale = age > maxStaleAge;
-        
+
         // If storage is unavailable, use cache regardless of staleness
         if (!this.healthService.isStorageAvailable()) {
           console.log(`Using cached image (storage unavailable): ${storagePath}`);
-          return { 
-            url: blobUrl, 
-            fromCache: true, 
+          return {
+            url: blobUrl,
+            fromCache: true,
             isStale: true,
             error: this.healthService.getHealthStatus().error
           };
         }
-        
+
         // If stale but storage available, trigger background revalidation
         if (isStale && options?.onStaleUpdate) {
           this.revalidateInBackground(storagePath, userId, options.onStaleUpdate)
@@ -233,14 +227,14 @@ export class PhotoStorageService extends BaseStorageService {
               console.warn('Background revalidation failed:', error);
             });
         }
-        
+
         return { url: blobUrl, fromCache: true, isStale };
       }
 
       // Cache miss - try to get from storage
       try {
         const signedUrl = await this.getPhotoUrl(storagePath, userId);
-        
+
         // Fetch the image and cache it for future use (non-blocking)
         this.fetchAndCache(storagePath, signedUrl, userId).catch(error => {
           console.warn('Failed to cache fetched photo:', error);
@@ -254,24 +248,24 @@ export class PhotoStorageService extends BaseStorageService {
           if (anyCachedEntry) {
             const blobUrl = URL.createObjectURL(anyCachedEntry.blob);
             console.log(`Using stale cached image due to storage error: ${storagePath}`);
-            return { 
-              url: blobUrl, 
-              fromCache: true, 
+            return {
+              url: blobUrl,
+              fromCache: true,
               isStale: true,
               error: storageError instanceof StorageError ? storageError : undefined
             };
           }
         }
-        
+
         throw storageError;
       }
     } catch (error) {
       console.error('Failed to get photo with cache:', error);
-      
+
       if (error instanceof StorageError) {
         throw error;
       }
-      
+
       throw StorageErrorFactory.createFromError(
         error instanceof Error ? error : new Error('Failed to get photo'),
         'photo retrieval'
@@ -283,18 +277,18 @@ export class PhotoStorageService extends BaseStorageService {
    * Background revalidation for stale-while-revalidate pattern
    */
   private async revalidateInBackground(
-    storagePath: string, 
-    userId: string, 
+    storagePath: string,
+    userId: string,
     onUpdate: (freshUrl: string) => void
   ): Promise<void> {
     try {
       const signedUrl = await this.getPhotoUrl(storagePath, userId);
       const response = await fetch(signedUrl);
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const freshBlobUrl = URL.createObjectURL(blob);
-        
+
         // Update cache
         const pathParts = storagePath.split('/');
         if (pathParts.length >= 4) {
@@ -304,7 +298,7 @@ export class PhotoStorageService extends BaseStorageService {
             userId: pathParts[0],
           });
         }
-        
+
         // Notify component of fresh content
         onUpdate(freshBlobUrl);
       }
@@ -320,7 +314,7 @@ export class PhotoStorageService extends BaseStorageService {
     const response = await fetch(signedUrl);
     if (response.ok) {
       const blob = await response.blob();
-      
+
       // Extract metadata from storage path
       const pathParts = storagePath.split('/');
       if (pathParts.length >= 4) {
@@ -335,23 +329,67 @@ export class PhotoStorageService extends BaseStorageService {
 
   /**
    * Get signed URL for a photo with permission validation and comprehensive error handling
-   * Uses RLS policies to ensure user has access to the photo
+   * Uses server endpoint for signed URL generation with permission validation
    */
   async getPhotoUrl(storagePath: string, userId: string): Promise<string> {
     try {
-      // Validate that user has access to this path (basic path-based check)
-      if (!this.validatePhotoAccess(storagePath, userId)) {
-        throw StorageErrorFactory.createAuthError('invalid');
+      // Use server endpoint for signed URL generation
+      const response = await fetch(`/api/photos/${encodeURIComponent(storagePath)}/signed-url`, {
+        method: 'GET',
+        credentials: 'include', // Include cookies for authentication
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to get signed URL' }));
+        throw new Error(errorData.message || `Failed to get signed URL: ${response.status}`);
       }
 
-      return await this.createSignedUrl(storagePath);
+      const result = await response.json();
+      return result.signedUrl;
     } catch (error) {
       if (error instanceof StorageError) {
         throw error;
       }
-      
+
       throw StorageErrorFactory.createSignedUrlError(
         error instanceof Error ? error : new Error('Failed to get photo URL')
+      );
+    }
+  }
+
+  /**
+   * Upload photo to server endpoint
+   */
+  private async uploadToServer(
+    file: File,
+    userId: string,
+    journalDate: string,
+    noteId: string
+  ): Promise<{ url: string; storagePath: string; size: number; mimeType: string; fileName: string }> {
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('journalDate', journalDate);
+    formData.append('noteId', noteId);
+
+    try {
+      const response = await fetch('/api/photos/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include', // Include cookies for authentication
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(errorData.message || `Upload failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Server upload failed:', error);
+      throw StorageErrorFactory.createFromError(
+        error instanceof Error ? error : new Error('Upload failed'),
+        'server upload'
       );
     }
   }
@@ -361,44 +399,55 @@ export class PhotoStorageService extends BaseStorageService {
    */
   private async getPhotoUrlWithRetry(storagePath: string, userId: string, retryCount = 0): Promise<string> {
     const maxRetries = 3;
-    
+
     try {
       return await this.getPhotoUrl(storagePath, userId);
     } catch (error) {
       if (error instanceof StorageError && error.isRetryable() && retryCount < maxRetries) {
         const delay = StorageErrorRecovery.calculateRetryDelay(retryCount);
         console.log(`Retrying signed URL generation in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-        
+
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.getPhotoUrlWithRetry(storagePath, userId, retryCount + 1);
       }
-      
+
       throw error;
     }
   }
 
   /**
    * Delete a photo from storage
-   * Validates ownership before deletion
+   * Uses server endpoint for deletion with permission validation
    */
   async deletePhoto(storagePath: string, userId: string): Promise<void> {
-    // Validate ownership
-    if (!this.validatePhotoAccess(storagePath, userId)) {
-      throw new Error('Unauthorized access to photo');
-    }
-
-    // Delete from storage using base service
-    await this.deleteFromStorage(storagePath);
-
-    // Also remove from cache
     try {
-      await this.cacheService.removeCachedPhoto(storagePath);
-    } catch (cacheError) {
-      console.warn('Failed to remove photo from cache:', cacheError);
-      // Don't fail deletion if cache removal fails
-    }
+      // Use server endpoint for photo deletion
+      const response = await fetch(`/api/photos/${encodeURIComponent(storagePath)}`, {
+        method: 'DELETE',
+        credentials: 'include', // Include cookies for authentication
+      });
 
-    console.log(`Photo deleted successfully: ${storagePath}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete photo' }));
+        throw new Error(errorData.message || `Failed to delete photo: ${response.status}`);
+      }
+
+      // Also remove from cache
+      try {
+        await this.cacheService.removeCachedPhoto(storagePath);
+      } catch (cacheError) {
+        console.warn('Failed to remove photo from cache:', cacheError);
+        // Don't fail deletion if cache removal fails
+      }
+
+      console.log(`Photo deleted successfully: ${storagePath}`);
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+      throw StorageErrorFactory.createFromError(
+        error instanceof Error ? error : new Error('Failed to delete photo'),
+        'photo deletion'
+      );
+    }
   }
 
   /**
@@ -413,7 +462,7 @@ export class PhotoStorageService extends BaseStorageService {
   ): string {
     // Sanitize filename
     const sanitizedFileName = this.sanitizeFileName(originalFileName);
-    
+
     // Add timestamp and random string to prevent conflicts
     const timestamp = Date.now();
     const randomBytes = new Uint8Array(4);
@@ -423,7 +472,7 @@ export class PhotoStorageService extends BaseStorageService {
       .join('');
 
     const finalFileName = `${timestamp}-${randomString}-${sanitizedFileName}`;
-    
+
     return `${userId}/${journalDate}/${noteId}/${finalFileName}`;
   }
 
@@ -437,11 +486,11 @@ export class PhotoStorageService extends BaseStorageService {
   private validatePhotoAccess(storagePath: string, userId: string): boolean {
     // Path format: userId/yyyy-mm-dd/noteId/filename
     const pathParts = storagePath.split('/');
-    
+
     if (pathParts.length < 4) {
       return false;
     }
-    
+
     // First part should be the user ID
     return pathParts[0] === userId;
   }
@@ -496,11 +545,11 @@ export class PhotoStorageService extends BaseStorageService {
     try {
       await this.cacheService.initialize();
       this.healthService.startMonitoring();
-      
+
       // Initialize service availability manager
       const { ServiceAvailabilityManager } = await import('./service-availability.manager');
       const availabilityManager = ServiceAvailabilityManager.getInstance();
-      
+
       console.log('PhotoStorageService initialized successfully');
     } catch (error) {
       console.error('Failed to initialize PhotoStorageService:', error);
@@ -541,86 +590,12 @@ export class PhotoStorageService extends BaseStorageService {
         ],
         originalError: error instanceof Error ? error : undefined,
       });
-      
+
       throw cacheError;
     }
   }
 
-  /**
-   * Enhanced background revalidation with error handling
-   */
-  private async revalidateInBackground(
-    storagePath: string, 
-    userId: string, 
-    onUpdate: (freshUrl: string) => void
-  ): Promise<void> {
-    try {
-      // Check if storage is available before attempting revalidation
-      if (!this.healthService.isStorageAvailable()) {
-        console.log('Skipping background revalidation - storage unavailable');
-        return;
-      }
 
-      const signedUrl = await this.getPhotoUrl(storagePath, userId);
-      const response = await fetch(signedUrl);
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const freshBlobUrl = URL.createObjectURL(blob);
-        
-        // Update cache
-        const pathParts = storagePath.split('/');
-        if (pathParts.length >= 4) {
-          await this.cacheService.cachePhoto(storagePath, blob, signedUrl, {
-            noteId: pathParts[2],
-            journalDate: pathParts[1],
-            userId: pathParts[0],
-          });
-        }
-        
-        // Notify component of fresh content
-        onUpdate(freshBlobUrl);
-        console.log(`Background revalidation completed: ${storagePath}`);
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.warn('Background revalidation failed:', error);
-      
-      // Don't throw - this is a background operation
-      // But we could emit an event or update health status if needed
-    }
-  }
-
-  /**
-   * Enhanced fetch and cache with error handling
-   */
-  private async fetchAndCache(storagePath: string, signedUrl: string, userId: string): Promise<void> {
-    try {
-      const response = await fetch(signedUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        
-        // Extract metadata from storage path
-        const pathParts = storagePath.split('/');
-        if (pathParts.length >= 4) {
-          await this.cacheService.cachePhoto(storagePath, blob, signedUrl, {
-            noteId: pathParts[2],
-            journalDate: pathParts[1],
-            userId: pathParts[0],
-          });
-          console.log(`Photo fetched and cached: ${storagePath}`);
-        }
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.warn('Failed to fetch and cache photo:', error);
-      
-      // Don't throw - this is a background operation
-      // The user already has the signed URL to work with
-    }
-  }
 
   /**
    * Get storage health status

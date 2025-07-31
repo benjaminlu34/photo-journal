@@ -322,7 +322,7 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
         <div className="flex items-center gap-2">
           {notification.metadata?.username && (
             <ProfilePicture
-              userId={notification.metadata.userId || notification.metadata.username}
+              userId={notification.metadata.username || ''}
               size="sm"
               fallbackText={notification.metadata.username}
             />

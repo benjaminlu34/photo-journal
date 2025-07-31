@@ -7,6 +7,7 @@ import { queryClient } from "@/lib/queryClient";
 import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
 import { UsernameRouteValidator } from "@/components/routing/UsernameRouteValidator";
 import { supabase } from "@/lib/supabase";
+import { PhotoStorageService } from "@/services/storage.service/photo-storage.service";
 
 // Lazy load pages
 const Home = lazy(() => import("@/pages/home"));
@@ -21,6 +22,22 @@ function AppContent() {
   const [location, setLocation] = useLocation();
 
   const isProfileIncomplete = user && (!user.firstName || !user.lastName);
+
+  // Initialize PhotoStorageService when app starts
+  useEffect(() => {
+    const initializeServices = async () => {
+      try {
+        const photoService = PhotoStorageService.getInstance();
+        await photoService.initializeCache();
+        console.log('Photo storage services initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize photo storage services:', error);
+        // Don't block app startup if storage services fail to initialize
+      }
+    };
+
+    initializeServices();
+  }, []);
 
   // Handle routing based on user state
   useEffect(() => {
