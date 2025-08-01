@@ -44,11 +44,7 @@ const mockJournalContext = {
 };
 
 const renderWithContext = (component: React.ReactElement) => {
-  return render(
-    <JournalProvider value={mockJournalContext as any}>
-      {component}
-    </JournalProvider>
-  );
+  return render(component);
 };
 
 describe('WeeklyCalendarView', () => {

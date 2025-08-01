@@ -4,6 +4,8 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useMemo,
+  useCallback,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -95,32 +97,30 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
   const dateString = formatLocalDate(currentDate);
 
-  // Track current week for weekly views
-  const [currentWeek, setCurrentWeek] = useState(currentDate);
+  // Track current week for weekly views - initialize based on current date
+  const [currentWeek, setCurrentWeek] = useState(() => currentDate);
 
-  // Sync currentWeek with currentDate when switching to weekly views
+  // Update currentWeek when currentDate changes, but only if we're not in a weekly view
+  // This prevents the circular dependency
   useEffect(() => {
-    if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+    if (viewMode !== "weekly-calendar" && viewMode !== "weekly-creative") {
       setCurrentWeek(currentDate);
     }
-  }, [viewMode, currentDate]);
+  }, [currentDate, viewMode]);
 
-  // Update currentDate when currentWeek changes in weekly views
-  useEffect(() => {
-    if ((viewMode === "weekly-calendar" || viewMode === "weekly-creative") && currentWeek !== currentDate) {
-      // Don't update URL when just navigating weeks, only when switching back to daily
-      // setCurrentDate(currentWeek);
-    }
-  }, [currentWeek, viewMode, currentDate]);
-
-  // Function to update the current date (updates URL)
-  const setCurrentDate = (newDate: Date) => {
+  // Function to update the current date (updates URL) - memoized to prevent re-renders
+  const setCurrentDate = useCallback((newDate: Date) => {
     if (urlUsername) {
       navigateToUserBoard(urlUsername, newDate);
     } else {
       navigateToMyBoard(newDate);
     }
-  };
+  }, [urlUsername, navigateToUserBoard, navigateToMyBoard]);
+
+  // Function to update the current week - memoized
+  const setCurrentWeekMemo = useCallback((newWeek: Date) => {
+    setCurrentWeek(newWeek);
+  }, []);
 
   // Fetch current journal entry - use username-based API if in username route
   const apiEndpoint = urlUsername
@@ -326,7 +326,8 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   // Removed: legacyNotes, updateNote, deleteNote, and their usages
 
-  const value: JournalContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value: JournalContextType = useMemo(() => ({
     currentDate,
     currentWeek,
     viewMode,
@@ -335,7 +336,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     gridSnap,
     currentUserRole: currentEntry?.permissions?.effectiveRole || (urlUsername ? 'viewer' : 'owner'),
     setCurrentDate,
-    setCurrentWeek,
+    setCurrentWeek: setCurrentWeekMemo,
     setViewMode,
     createContentBlock,
     updateContentBlock,
@@ -344,7 +345,20 @@ export function JournalProvider({ children }: JournalProviderProps) {
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,
-  };
+  }), [
+    currentDate,
+    currentWeek,
+    viewMode,
+    currentEntry,
+    friends,
+    gridSnap,
+    urlUsername,
+    setCurrentDate,
+    setCurrentWeekMemo,
+    createBlockMutation.isPending,
+    updateBlockMutation.isPending,
+    isLoading
+  ]);
 
   return (
     <JournalContext.Provider value={value}>{children}</JournalContext.Provider>
