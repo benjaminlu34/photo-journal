@@ -8,6 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Bell, Palette, Globe, Clock } from "lucide-react";
 
+const timezones = [
+  "America/New_York",
+  "America/Los_Angeles",
+  "America/Chicago",
+  "America/Denver",
+  "America/Toronto",
+  "America/Vancouver",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Asia/Dubai",
+  "Australia/Sydney",
+];
+
 interface CalendarSettingsProps {
   onClose: () => void;
 }
@@ -16,7 +32,6 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
   const [settings, setSettings] = useState({
     // General Settings
     defaultView: "week",
-    weekStartsOn: 0,
     timeFormat: "12h",
     firstDayOfWeek: "sunday",
     
@@ -49,22 +64,6 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
     console.log("Saving settings:", settings);
     onClose();
   };
-  
-  const timezones = [
-    "America/New_York",
-    "America/Los_Angeles",
-    "America/Chicago",
-    "America/Denver",
-    "America/Toronto",
-    "America/Vancouver",
-    "Europe/London",
-    "Europe/Paris",
-    "Europe/Berlin",
-    "Asia/Tokyo",
-    "Asia/Shanghai",
-    "Asia/Dubai",
-    "Australia/Sydney",
-  ];
   
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">

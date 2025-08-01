@@ -258,7 +258,7 @@ export function WeeklyCalendarView({
                   {dayEvents.map((event) => {
                     const hour = parseInt(event.time.split(':')[0]);
                     const isPM = event.time.includes('PM');
-                    const hour24 = isPM && hour !== 12 ? hour + 12 : hour;
+                    const hour24 = hour === 12 ? (isPM ? 12 : 0) : (isPM ? hour + 12 : hour);
                     
                     return (
                       <div
@@ -328,7 +328,7 @@ export function WeeklyCalendarView({
 function convertToLocalEvent(event: LocalCalendarEvent): LocalEvent {
   const hour = parseInt(event.time.split(':')[0]);
   const isPM = event.time.includes('PM');
-  const hour24 = isPM && hour !== 12 ? hour + 12 : hour;
+  const hour24 = hour === 12 ? (isPM ? 12 : 0) : (isPM ? hour + 12 : hour);
   
   const startDate = new Date(event.date);
   startDate.setHours(hour24, 0, 0, 0);

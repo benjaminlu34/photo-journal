@@ -10,6 +10,17 @@ import { Calendar, Clock, MapPin, Tag } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
 
+const getAvailableColors = () => [
+  { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
+  { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
+  { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
+  { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
+  { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
+  { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
+  { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
+  { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
+];
+
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,18 +29,6 @@ interface EventModalProps {
 }
 
 export function EventModal({ isOpen, onClose, event, initialDate }: EventModalProps) {
-  // Mock calendar service for UI purposes
-  const getAvailableColors = () => [
-    { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
-    { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
-    { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
-    { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
-    { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
-    { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
-    { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
-    { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
-  ];
-  
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -54,8 +53,8 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
         isAllDay: event.isAllDay,
         location: event.location || "",
         color: event.color,
-        reminderMinutes: (event as LocalEvent).reminderMinutes || 30,
-        tags: (event as LocalEvent).tags || [],
+        reminderMinutes: 'reminderMinutes' in event ? event.reminderMinutes || 30 : 30,
+        tags: 'tags' in event ? event.tags || [] : [],
       });
     } else if (initialDate) {
       setFormData(prev => ({

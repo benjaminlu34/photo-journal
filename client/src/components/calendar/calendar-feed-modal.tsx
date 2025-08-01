@@ -10,6 +10,24 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Plus, Settings, Trash2, Chrome, Link, RefreshCw } from "lucide-react";
 import type { CalendarFeed } from "@/types/calendar";
 
+const availableColors = [
+  { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
+  { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
+  { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
+  { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
+  { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
+  { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
+  { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
+  { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
+];
+
+const mockGoogleCalendars = [
+  { id: "primary", name: "Personal Calendar", description: "Your main calendar" },
+  { id: "work", name: "Work Calendar", description: "Work-related events" },
+  { id: "family", name: "Family Calendar", description: "Family events and activities" },
+  { id: "holidays", name: "Holidays", description: "Public holidays" },
+];
+
 interface CalendarFeedModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,16 +43,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
     color: "#3B82F6",
   });
   
-  const availableColors = [
-    { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
-    { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
-    { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
-    { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
-    { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
-    { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
-    { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
-    { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
-  ];
+  const [selectedCalendars, setSelectedCalendars] = useState<Record<string, boolean>>({});
   
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -46,12 +55,9 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
     onClose();
   };
   
-  const mockGoogleCalendars = [
-    { id: "primary", name: "Personal Calendar", description: "Your main calendar" },
-    { id: "work", name: "Work Calendar", description: "Work-related events" },
-    { id: "family", name: "Family Calendar", description: "Family events and activities" },
-    { id: "holidays", name: "Holidays", description: "Public holidays" },
-  ];
+  const handleCalendarSelection = (id: string, checked: boolean) => {
+    setSelectedCalendars(prev => ({ ...prev, [id]: checked }));
+  };
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -121,6 +127,8 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                               <input
                                 type="checkbox"
                                 className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                checked={selectedCalendars[calendar.id] || false}
+                                onChange={(e) => handleCalendarSelection(calendar.id, e.target.checked)}
                               />
                             </div>
                           </CardContent>

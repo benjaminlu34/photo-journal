@@ -58,8 +58,8 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
     const hourEnd = addHours(hourStart, 1);
     
     return events.filter(event => {
-      const eventStart = new Date(event.startTime);
-      const eventEnd = new Date(event.endTime);
+      const eventStart = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+      const eventEnd = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
       
       return (
         isSameDay(eventStart, date) &&
@@ -71,8 +71,8 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
   }, [date, events]);
 
   const calculateEventPosition = useCallback((event: CalendarEvent | LocalEvent) => {
-    const eventStart = new Date(event.startTime);
-    const eventEnd = new Date(event.endTime);
+    const eventStart = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+    const eventEnd = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
     const dayStart = startOfDay(date);
     
     const startMinutes = (eventStart.getTime() - dayStart.getTime()) / (1000 * 60);
@@ -179,7 +179,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
                       </div>
                     )}
                     <div className="text-xs opacity-90 mt-1">
-                      {format(new Date(event.startTime), "h:mm a")} - {format(new Date(event.endTime), "h:mm a")}
+                      {format(event.startTime instanceof Date ? event.startTime : new Date(event.startTime), "h:mm a")} - {format(event.endTime instanceof Date ? event.endTime : new Date(event.endTime), "h:mm a")}
                     </div>
                   </div>
                 );
