@@ -92,19 +92,13 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         setImageLoadError(null);
 
         try {
-          // Get current session for authentication
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error('Authentication required');
-          }
-
           // Get signed URL from server endpoint for proper permission validation
           const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
             headers: {
               'Authorization': `Bearer ${session.access_token}`
             }
           });
-          
+
           if (!response.ok) {
             if (response.status === 404) {
               // Image was deleted - clear the storagePath to prevent future attempts
@@ -128,10 +122,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           if (result.signedUrl) {
             // Calculate expiration time (server returns expiresAt as ISO string)
             const expiresAt = new Date(result.expiresAt).getTime();
-            
+
             // Add to global cache
             addToCache(storagePath, result.signedUrl, expiresAt);
-            
+
             // Set local state
             setCachedImageUrl(result.signedUrl);
           } else {
@@ -151,7 +145,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     };
 
     loadImage();
-  }, [storagePath, existingImageUrl, user?.id, content, onChange]);
+  }, [storagePath, existingImageUrl, user?.id, content, onChange, getFromCache, addToCache, clearCacheForStoragePath]);
 
   useEffect(() => {
     return () => {
@@ -341,7 +335,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         }
         setCachedImageUrl(null);
       }
-      
+
       if (storagePath) {
         clearCacheForStoragePath(storagePath);
       }
@@ -353,7 +347,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         ...content,
         imageUrl: undefined,
         alt: undefined,
-        storagePath: undefined, 
+        storagePath: undefined,
       } as any);
     } catch (error) {
       console.error('Failed to remove image:', error);
