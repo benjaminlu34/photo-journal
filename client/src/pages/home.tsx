@@ -109,7 +109,7 @@ function HomeContent() {
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4 flex-shrink-0">
-              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center w-96">
+              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center min-w-80 max-w-96 flex-shrink-0">
                 {viewMode === "daily" && "Daily Pinboard"}
                 {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
                   const startOfWeekDate = new Date(currentWeek);

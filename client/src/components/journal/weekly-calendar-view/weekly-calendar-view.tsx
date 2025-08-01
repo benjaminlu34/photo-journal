@@ -9,6 +9,15 @@ import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { WeeklyCalendarViewProps } from "@/types/calendar";
 
+// Local interface for calendar events
+interface CalendarEvent {
+  id: string;
+  title: string;
+  date: Date;
+  time: string;
+  color: string;
+}
+
 export function WeeklyCalendarView({
   initialDate,
   username,
@@ -22,7 +31,7 @@ export function WeeklyCalendarView({
   void feedsEnabled;
   void syncedFriends;
   const { currentWeek, setCurrentWeek } = useJournal();
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   // Use responsive hook for viewport management
   const {
@@ -43,13 +52,15 @@ export function WeeklyCalendarView({
   // In a real implementation, events would be fetched from an external source
   // and managed through a proper state management system
 
-  // Recalculate week days when currentWeek changes
-  const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
-  const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
-  const weekDays = eachDayOfInterval({ start: startDate, end: endDate });
+  // Memoize week days calculation to prevent unnecessary re-computations
+  const weekDays = useMemo(() => {
+    const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
+    const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start: startDate, end: endDate });
+  }, [currentWeek]);
 
-  // Get days for current pad in mobile view
-  const getPadDays = () => {
+  // Memoize display days calculation for pad view optimization
+  const displayDays = useMemo(() => {
     if (viewMode !== 'pads') return weekDays;
 
     const padSize = CALENDAR_CONFIG.MOBILE.PAD_SIZE;
@@ -62,12 +73,10 @@ export function WeeklyCalendarView({
     }
 
     return weekDays.slice(startIndex, endIndex);
-  };
-
-  const displayDays = getPadDays();
+  }, [viewMode, weekDays, currentPadIndex]);
 
   const addEventToDay = (day: Date) => {
-    const newEvent = {
+    const newEvent: CalendarEvent = {
       id: crypto.randomUUID(),
       title: "New Event",
       date: day,

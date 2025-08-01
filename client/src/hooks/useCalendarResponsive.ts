@@ -80,14 +80,16 @@ export function useCalendarResponsive(): UseCalendarResponsiveReturn {
     window.addEventListener('resize', handleResize);
     
     // Listen for orientation changes on mobile
-    window.addEventListener('orientationchange', () => {
+    const orientationChangeHandler = () => {
       // Delay to allow orientation change to complete
       setTimeout(handleResize, 100);
-    });
+    };
+    
+    window.addEventListener('orientationchange', orientationChangeHandler);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('orientationchange', orientationChangeHandler);
     };
   }, []);
 
