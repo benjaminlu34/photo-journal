@@ -23,21 +23,20 @@ export function WeeklyCreativeView() {
     const position = {
       x: Math.random() * 300 + 100,
       y: Math.random() * 200 + 100,
-      width: type === "photo" ? 300 : type === "drawing" ? 400 : 240,
-      height: type === "photo" ? 200 : type === "drawing" ? 300 : 180,
+      width: type === "photo" ? 300 : 240,
+      height: type === "photo" ? 200 : 180,
       rotation: Math.random() * 4 - 2
     };
 
     const defaultContent = {
       "sticky_note": { text: "Creative thought..." },
       "photo": { url: "", caption: "Capture the moment" },
-      "drawing": { strokes: [] },
-      "audio": { url: "", duration: "0:00" },
-      "text": { text: "Write your story..." },
       "checklist": { items: [{ text: "Creative goal", completed: false }] }
     };
 
-    createContentBlock(type, defaultContent[type], position);
+    // Type assertion to handle the ContentBlockType mapping
+    const content = defaultContent[type as keyof typeof defaultContent];
+    createContentBlock(type, content, position);
   };
 
   const getMoodEmoji = (dayIndex: number) => {
@@ -157,25 +156,7 @@ export function WeeklyCreativeView() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => addCreativeContent(day, "drawing")}
-                    className="neu-inset text-xs justify-start text-gray-700"
-                  >
-                    <Palette className="w-3 h-3 mr-2" />
-                    Draw Something
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addCreativeContent(day, "audio")}
-                    className="neu-inset text-xs justify-start text-gray-700"
-                  >
-                    <Music className="w-3 h-3 mr-2" />
-                    Voice Note
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addCreativeContent(day, "sticky_note")}
+                    onClick={() => addCreativeContent(day, "checklist")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Heart className="w-3 h-3 mr-2" />
@@ -222,7 +203,7 @@ export function WeeklyCreativeView() {
           <Heart className="w-5 h-5 text-primary-500 mr-2" />
           This Week's Creative Journey
         </h3>
-        <div className="grid grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center">
           <div className="space-y-1">
             <div className="text-2xl font-bold text-primary-600">3</div>
             <div className="text-xs text-secondary-500">Photos Captured</div>
@@ -230,14 +211,6 @@ export function WeeklyCreativeView() {
           <div className="space-y-1">
             <div className="text-2xl font-bold text-primary-600">7</div>
             <div className="text-xs text-secondary-500">Notes Written</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-primary-600">2</div>
-            <div className="text-xs text-secondary-500">Drawings Created</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-primary-600">5</div>
-            <div className="text-xs text-secondary-500">Voice Memos</div>
           </div>
         </div>
       </div>

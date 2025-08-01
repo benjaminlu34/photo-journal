@@ -45,16 +45,10 @@ function ContentTypeButton({
     switch (legacyType) {
       case "sticky_note":
         return "sticky_note";
-      case "text":
-        return "text";
       case "checklist":
         return "checklist";
       case "photo":
         return "image";
-      case "audio":
-        return "voice";
-      case "drawing":
-        return "drawing";
       default:
         return "sticky_note";
     }
@@ -78,9 +72,6 @@ function ContentTypeButton({
       const id = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       let content: any;
       switch (noteType) {
-        case 'text':
-          content = { type: 'text', text: 'New text note' };
-          break;
         case 'sticky_note':
           content = { type: 'sticky_note', text: 'New sticky note' };
           break;
@@ -89,12 +80,6 @@ function ContentTypeButton({
           break;
         case 'image':
           content = { type: 'image', imageUrl: undefined, alt: undefined };
-          break;
-        case 'voice':
-          content = { type: 'voice', audioUrl: undefined, duration: undefined };
-          break;
-        case 'drawing':
-          content = { type: 'drawing', strokes: [] };
           break;
         default:
           content = { type: noteType, text: 'New note' };
@@ -181,24 +166,11 @@ export function CollaborationPanel() {
       color: "text-red-500",
     },
     { type: "photo", icon: Camera, label: "Photo", color: "text-blue-500" },
-    { type: "audio", icon: Mic, label: "Voice Note", color: "text-purple-500" },
     {
       type: "checklist",
       icon: CheckSquare,
       label: "Checklist",
       color: "text-green-500",
-    },
-    {
-      type: "text",
-      icon: FileText,
-      label: "Text Block",
-      color: "text-gray-500",
-    },
-    {
-      type: "drawing",
-      icon: Palette,
-      label: "Drawing",
-      color: "text-pink-500",
     },
   ];
 
