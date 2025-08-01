@@ -11,9 +11,7 @@ export const FriendshipImageHandler: React.FC = () => {
   const { refreshImageUrls } = useCRDT();
 
   // Handle friendship events that affect image access
-  const handlePermissionChange = React.useCallback(async (event: FriendshipEvent) => {
-    console.log('Friendship permission change detected, refreshing image URLs:', event.type);
-    
+  const handlePermissionChange = React.useCallback(async (event: FriendshipEvent) => {    
     try {
       await refreshImageUrls();
     } catch (error) {

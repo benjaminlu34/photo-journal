@@ -349,15 +349,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     upload.single("photo"),
     async (req, res) => {
       try {
-        // LOG: Add debugging for server-side upload endpoint usage
-        console.log('[DEBUG] Server-side upload endpoint called:', {
-          hasFile: !!req.file,
-          userId: getUserId(req),
-          journalDate: req.body.journalDate,
-          noteId: req.body.noteId,
-          fileSize: req.file?.size,
-          fileType: req.file?.mimetype
-        });
 
         if (!req.file) {
           return res.status(400).json({ message: "No photo uploaded" });
@@ -385,19 +376,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!validationResult.isValid) {
           await fs.promises.unlink(req.file.path);
-          console.log('[DEBUG] File validation failed:', {
-            filename: req.file.originalname,
-            declaredMime: req.file.mimetype,
-            error: validationResult.error
-          });
           return res.status(400).json({ message: validationResult.error });
         }
         
-        console.log('[DEBUG] File validation passed:', {
-          filename: req.file.originalname,
-          declaredMime: req.file.mimetype,
-          size: req.file.size
-        });
 
         // Generate deterministic storage path
         const { generatePhotoPath, formatJournalDate } = await import('./utils/photo-storage');
@@ -478,28 +459,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const currentUserId = getUserId(req);
         const storagePath = req.params.path;
 
-        // LOG: Add debugging for signed URL requests
-        console.log('[DEBUG] Signed URL requested:', {
-          currentUserId,
-          storagePath,
-          timestamp: new Date().toISOString()
-        });
-
         // Parse and validate storage path
         const pathInfo = parsePhotoPath(storagePath);
         if (!pathInfo) {
-          console.log('[DEBUG] Invalid storage path format:', storagePath);
           return res.status(400).json({ message: "Invalid storage path format" });
         }
 
         // Check if user owns the photo or has permission through friendship
         const hasAccess = await validatePhotoAccess(currentUserId, pathInfo.userId, storagePath);
-        console.log('[DEBUG] Access validation result:', {
-          currentUserId,
-          photoOwnerId: pathInfo.userId,
-          hasAccess,
-          isOwner: currentUserId === pathInfo.userId
-        });
         
         if (!hasAccess) {
           return res.status(403).json({ message: "Access denied to this photo" });
@@ -544,27 +511,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const currentUserId = getUserId(req);
         const storagePath = req.params.path;
 
-        // LOG: Add debugging for deletion attempts
-        console.log('[DEBUG] Photo deletion requested:', {
-          currentUserId,
-          storagePath,
-          timestamp: new Date().toISOString()
-        });
-
         // Parse and validate storage path
         const pathInfo = parsePhotoPath(storagePath);
         if (!pathInfo) {
-          console.log('[DEBUG] Invalid storage path format for deletion:', storagePath);
           return res.status(400).json({ message: "Invalid storage path format" });
         }
 
         // Validate ownership - only owner can delete photos
         const isOwner = validatePhotoOwnership(storagePath, currentUserId);
-        console.log('[DEBUG] Ownership validation for deletion:', {
-          currentUserId,
-          photoOwnerId: pathInfo.userId,
-          isOwner
-        });
         
         if (!isOwner) {
           return res.status(403).json({ message: "Access denied. You can only delete your own photos." });

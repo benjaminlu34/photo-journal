@@ -55,7 +55,6 @@ export function isAuthenticatedSupabase(
     next();
   } catch (error) {
     console.error('JWT verification failed:', error);
-    console.log('Token preview:', token.substring(0, 20) + '...');
     return res.status(401).json({ error: 'Invalid token' });
   }
 }

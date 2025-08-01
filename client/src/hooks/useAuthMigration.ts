@@ -59,7 +59,6 @@ export function useAuthMigration() {
   };
 
   const signOut = async () => {
-    window.location.href = '/';
     // Import dynamically to avoid circular dependencies
     const { cleanupUserState } = await import('../lib/cleanup');
     
@@ -67,7 +66,9 @@ export function useAuthMigration() {
     await cleanupUserState();
     
     const { error } = await supabase.auth.signOut();
+    window.location.href = '/';
     if (error) throw error;
+    
   };
 
   const updateProfile = async (profileData: any) => {

@@ -84,7 +84,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         // Check global cache first
         const cachedURL = getFromCache(storagePath);
         if (cachedURL) {
-          console.log('[DEBUG] Using cached signed URL for:', storagePath);
           setCachedImageUrl(cachedURL);
           return;
         }
@@ -99,12 +98,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
             throw new Error('Authentication required');
           }
 
-          // LOG: Add debugging for image loading request
-          console.log('[DEBUG] Requesting signed URL from server:', {
-            storagePath,
-            userId: user.id
-          });
-
           // Get signed URL from server endpoint for proper permission validation
           const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
             headers: {
@@ -112,12 +105,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
             }
           });
           
-          // LOG: Add debugging for signed URL response
-          console.log('[DEBUG] Signed URL response:', {
-            status: response.status,
-            ok: response.ok
-          });
-
           if (!response.ok) {
             if (response.status === 404) {
               // Image was deleted - clear the storagePath to prevent future attempts
@@ -137,12 +124,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           }
 
           const result = await response.json();
-          
-          // LOG: Add debugging for successful signed URL
-          console.log('[DEBUG] Received signed URL:', {
-            hasSignedUrl: !!result.signedUrl,
-            expiresAt: result.expiresAt
-          });
 
           if (result.signedUrl) {
             // Calculate expiration time (server returns expiresAt as ISO string)
@@ -163,7 +144,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           setIsLoadingImage(false);
         }
       } else {
-        // Clear states if no storage path
         setCachedImageUrl(null);
         setIsLoadingImage(false);
         setImageLoadError(null);
@@ -173,9 +153,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     loadImage();
   }, [storagePath, existingImageUrl, user?.id, content, onChange]);
 
-  // No complex upload monitoring needed
-
-  // Cleanup blob URLs on unmount
   useEffect(() => {
     return () => {
       if (localPreviewUrl) {
@@ -217,23 +194,18 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     }
 
     try {
-      // Create optimistic local preview immediately
       const previewUrl = URL.createObjectURL(file);
       setLocalPreviewUrl(previewUrl);
 
       const sanitizedAlt = file.name.replace(/\.[^/.]+$/, "").replace(/<[^>]*>/g, '');
       const journalDate = formatLocalDate(currentDate);
-
-      // Update content with blob URL for immediate display (fallback)
       onChange?.({
         ...content,
         imageUrl: previewUrl,
         alt: sanitizedAlt,
       });
 
-      // Use server-side upload endpoint for proper permission handling
       try {
-        // Get current session for authentication
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
           throw new Error('Authentication required');
@@ -241,36 +213,19 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
         setUploadState({ status: 'uploading', progress: 0 });
 
-        // Create FormData for server upload
         const formData = new FormData();
         formData.append('photo', file);
         formData.append('journalDate', journalDate);
         if (noteId) {
           formData.append('noteId', noteId);
         }
-        
-        // LOG: Add debugging for server-side upload request
-        console.log('[DEBUG] Server-side upload initiated:', {
-          fileSize: file.size,
-          fileType: file.type,
-          userId: user.id,
-          journalDate,
-          noteId
-        });
 
-        // Upload to server endpoint
         const response = await fetch('/api/photos/upload', {
           method: 'POST',
           body: formData,
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
-        });
-        
-        // LOG: Add debugging for upload response
-        console.log('[DEBUG] Server-side upload response:', {
-          status: response.status,
-          ok: response.ok
         });
 
         if (!response.ok) {
@@ -279,19 +234,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         }
 
         const result = await response.json();
-        
-        // LOG: Add debugging for successful upload result
-        console.log('[DEBUG] Server-side upload success:', {
-          url: result.url,
-          storagePath: result.storagePath,
-          size: result.size,
-          mimeType: result.mimeType
-        });
 
         setCachedImageUrl(result.url);
         setUploadState({ status: 'completed', progress: 100 });
 
-        // Clean up local preview URL since we now have the persistent URL
         if (localPreviewUrl) {
           URL.revokeObjectURL(localPreviewUrl);
           setLocalPreviewUrl(null);
@@ -356,35 +302,22 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   const handleRemoveImage = useCallback(async () => {
     try {
-      // Delete from persistent storage using server endpoint if it exists
       const storagePath = (content as any).storagePath;
       if (storagePath && user?.id) {
         try {
-          // Get current session for authentication
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.access_token) {
             console.error('Authentication required for deletion');
             return;
           }
 
-          // LOG: Add debugging for image deletion
-          console.log('[DEBUG] Deleting image via server endpoint:', {
-            storagePath,
-            userId: user.id
-          });
 
           const response = await fetch(`/api/photos/${storagePath}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${session.access_token}`
             }
-          });
-          
-          // LOG: Add debugging for deletion response
-          console.log('[DEBUG] Server deletion response:', {
-            status: response.status,
-            ok: response.ok
-          });
+          })
 
           if (!response.ok) {
             console.error('Failed to delete photo from server:', await response.text());
@@ -402,7 +335,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         setLocalPreviewUrl(null);
       }
 
-      // Clean up cached image URL (both blob and signed URLs)
       if (cachedImageUrl) {
         if (cachedImageUrl.startsWith('blob:')) {
           URL.revokeObjectURL(cachedImageUrl);
@@ -410,21 +342,18 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         setCachedImageUrl(null);
       }
       
-      // Clear from global cache
       if (storagePath) {
         clearCacheForStoragePath(storagePath);
       }
 
-      // Reset state
       setUploadState({ status: 'idle', progress: 0 });
       setImageLoadError(null);
 
-      // Update content - IMPORTANT: Clear storagePath to prevent reload attempts
       onChange?.({
         ...content,
         imageUrl: undefined,
         alt: undefined,
-        storagePath: undefined, // Clear this to prevent reload attempts
+        storagePath: undefined, 
       } as any);
     } catch (error) {
       console.error('Failed to remove image:', error);
@@ -432,11 +361,9 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   }, [onChange, (content as any).storagePath, user?.id, localPreviewUrl, cachedImageUrl]);
 
   const handleRetryUpload = useCallback(() => {
-    // For simple implementation, just trigger file select again
     fileInputRef.current?.click();
   }, []);
 
-  // Determine which image URL to display (priority: cached > local preview > content URL)
   const displayImageUrl = cachedImageUrl || localPreviewUrl || content.imageUrl;
 
   if (displayImageUrl) {
@@ -448,7 +375,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           className="w-full h-full object-cover rounded-lg"
         />
 
-        {/* Image loading overlay */}
         {isLoadingImage && (
           <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
             <div className="bg-white rounded-lg p-3">
@@ -460,7 +386,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           </div>
         )}
 
-        {/* Upload progress overlay */}
         {uploadState.status === 'uploading' && (
           <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
             <div className="bg-white rounded-lg p-4 max-w-xs w-full mx-4">
@@ -481,7 +406,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           </div>
         )}
 
-        {/* Upload status indicators */}
         {uploadState.status === 'completed' && (content as any).storagePath && (
           <div className="absolute top-2 left-2 bg-green-500 text-white rounded-full p-1">
             <CheckCircle className="w-3 h-3" />
@@ -500,9 +424,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           </div>
         )}
 
-        {/* Action buttons */}
         <div className="absolute top-2 right-2 flex gap-1">
-          {/* Retry button for failed uploads */}
           {uploadState.status === 'failed' && (
             <button
               onClick={handleRetryUpload}
@@ -518,7 +440,6 @@ const ImageNote: React.FC<ImageNoteProps> = ({
             </button>
           )}
 
-          {/* Remove button */}
           <button
             onClick={handleRemoveImage}
             className={cn(
@@ -533,14 +454,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           </button>
         </div>
 
-        {/* Upload error message */}
         {uploadState.status === 'failed' && uploadState.error && (
           <div className="absolute bottom-2 left-2 right-2 bg-red-500 text-white text-xs p-2 rounded">
             Upload failed: {uploadState.error}
           </div>
         )}
 
-        {/* Image load error message */}
         {imageLoadError && (
           <div className="absolute bottom-2 left-2 right-2 bg-orange-500 text-white text-xs p-2 rounded">
             {imageLoadError}

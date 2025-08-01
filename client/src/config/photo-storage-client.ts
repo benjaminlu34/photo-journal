@@ -175,27 +175,27 @@ export function getCompressionSettings(config?: ClientStorageConfig) {
 /**
  * Log client storage configuration (development only)
  */
-export function logClientStorageConfig(): void {
-  if (!import.meta.env.DEV) return;
+// export function logClientStorageConfig(): void {
+//   if (!import.meta.env.DEV) return;
 
-  try {
-    const config = getClientStorageConfig();
+//   try {
+//     const config = getClientStorageConfig();
 
-    console.log('📱 Client Storage Configuration:');
-    console.log(`   Bucket: ${config.bucketName}`);
-    console.log(`   Max File Size: ${config.maxImageSizeMB}MB`);
-    console.log(`   Max Files Per Upload: ${config.maxFilesPerUpload}`);
-    console.log(`   Client Compression: ${config.enableClientCompression ? 'enabled' : 'disabled'}`);
-    console.log(`   Upload Progress: ${config.showUploadProgress ? 'enabled' : 'disabled'}`);
-    console.log(`   URL Caching: ${config.enableUrlCaching ? 'enabled' : 'disabled'}`);
-    console.log(`   Cache TTL: ${Math.round(config.urlCacheTtlMs / 1000 / 60)} minutes`);
-    console.log(`   Supabase URL: ${config.supabaseUrl ? '✅ configured' : '❌ missing'}`);
-    console.log(`   Anon Key: ${config.anonKey ? '✅ configured' : '❌ missing'}`);
+//     console.log('📱 Client Storage Configuration:');
+//     console.log(`   Bucket: ${config.bucketName}`);
+//     console.log(`   Max File Size: ${config.maxImageSizeMB}MB`);
+//     console.log(`   Max Files Per Upload: ${config.maxFilesPerUpload}`);
+//     console.log(`   Client Compression: ${config.enableClientCompression ? 'enabled' : 'disabled'}`);
+//     console.log(`   Upload Progress: ${config.showUploadProgress ? 'enabled' : 'disabled'}`);
+//     console.log(`   URL Caching: ${config.enableUrlCaching ? 'enabled' : 'disabled'}`);
+//     console.log(`   Cache TTL: ${Math.round(config.urlCacheTtlMs / 1000 / 60)} minutes`);
+//     console.log(`   Supabase URL: ${config.supabaseUrl ? '✅ configured' : '❌ missing'}`);
+//     console.log(`   Anon Key: ${config.anonKey ? '✅ configured' : '❌ missing'}`);
 
-  } catch (error) {
-    console.error('❌ Client storage configuration error:', error instanceof Error ? error.message : String(error));
-  }
-}
+//   } catch (error) {
+//     console.error('❌ Client storage configuration error:', error instanceof Error ? error.message : String(error));
+//   }
+// }
 
 // Initialize configuration
 let _config: ClientStorageConfig | null = null;
@@ -204,9 +204,9 @@ export function initializeClientStorageConfig(): ClientStorageConfig {
   if (!_config) {
     _config = getClientStorageConfig();
 
-    if (import.meta.env.DEV) {
-      logClientStorageConfig();
-    }
+    // if (import.meta.env.DEV) {
+    //   logClientStorageConfig();
+    // }
   }
 
   return _config;

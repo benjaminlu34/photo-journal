@@ -93,28 +93,28 @@ function validateServerConfig(config: ServerStorageConfig): { isValid: boolean; 
 /**
  * Log storage configuration (without sensitive data)
  */
-export function logStorageConfig(): void {
-  try {
-    const config = getServerStorageConfig();
+// export function logStorageConfig(): void {
+//   try {
+//     const config = getServerStorageConfig();
     
-    console.log('📁 Storage Configuration:');
-    console.log(`   Bucket: ${config.bucketName}`);
-    console.log(`   Signed URL TTL: ${config.signedUrlTtlSeconds}s (${Math.round(config.signedUrlTtlSeconds / 86400)} days)`);
-    console.log(`   Compression Quality: ${config.compressionQuality}`);
-    console.log(`   Max File Size: ${config.maxImageSizeMB}MB`);
-    console.log(`   Max Dimension: ${config.maxImageDimension}px`);
-    console.log(`   Default Format: ${config.defaultCompressionFormat}`);
-    console.log(`   Supported Types: ${config.supportedMimeTypes.join(', ')}`);
-    console.log(`   Max Concurrent Uploads: ${config.maxConcurrentUploads}`);
-    console.log(`   Upload Timeout: ${config.uploadTimeoutMs}ms`);
-    console.log(`   Storage Logging: ${config.enableStorageLogging ? 'enabled' : 'disabled'}`);
-    console.log(`   Supabase URL: ${config.supabaseUrl ? '✅ configured' : '❌ missing'}`);
-    console.log(`   Service Role Key: ${config.serviceRoleKey ? '✅ configured' : '❌ missing'}`);
+//     console.log('📁 Storage Configuration:');
+//     console.log(`   Bucket: ${config.bucketName}`);
+//     console.log(`   Signed URL TTL: ${config.signedUrlTtlSeconds}s (${Math.round(config.signedUrlTtlSeconds / 86400)} days)`);
+//     console.log(`   Compression Quality: ${config.compressionQuality}`);
+//     console.log(`   Max File Size: ${config.maxImageSizeMB}MB`);
+//     console.log(`   Max Dimension: ${config.maxImageDimension}px`);
+//     console.log(`   Default Format: ${config.defaultCompressionFormat}`);
+//     console.log(`   Supported Types: ${config.supportedMimeTypes.join(', ')}`);
+//     console.log(`   Max Concurrent Uploads: ${config.maxConcurrentUploads}`);
+//     console.log(`   Upload Timeout: ${config.uploadTimeoutMs}ms`);
+//     console.log(`   Storage Logging: ${config.enableStorageLogging ? 'enabled' : 'disabled'}`);
+//     console.log(`   Supabase URL: ${config.supabaseUrl ? '✅ configured' : '❌ missing'}`);
+//     console.log(`   Service Role Key: ${config.serviceRoleKey ? '✅ configured' : '❌ missing'}`);
     
-  } catch (error) {
-    console.error('❌ Storage configuration error:', error instanceof Error ? error.message : String(error));
-  }
-}
+//   } catch (error) {
+//     console.error('❌ Storage configuration error:', error instanceof Error ? error.message : String(error));
+//   }
+// }
 
 // Initialize and validate configuration on module load
 let _config: ServerStorageConfig | null = null;
@@ -123,9 +123,9 @@ export function initializeStorageConfig(): ServerStorageConfig {
   if (!_config) {
     _config = getServerStorageConfig();
     
-    if (process.env.NODE_ENV !== 'test') {
-      logStorageConfig();
-    }
+    // if (process.env.NODE_ENV !== 'test') {
+    //   logStorageConfig();
+    // }
   }
   
   return _config;
