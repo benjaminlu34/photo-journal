@@ -2,6 +2,7 @@
  * TimezoneService - Handles timezone conversions, floating times, and DST transitions
  * for the Weekly Calendar View
  */
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 export interface BaseEvent {
   id: string;
@@ -51,27 +52,19 @@ export class TimezoneService {
   }
 
   /**
-   * Handle floating times by treating them as local to the viewer's timezone
-   * Rule: If TZID missing, treat as floating and render in viewer's zone
-   * NEVER mutate original startTime - always create new Date objects
-   * @param dateTime - Original date/time
-   * @param userTimezone - User's timezone
-   * @returns New Date object adjusted for user's timezone
-   */
-  public handleFloatingTime(dateTime: Date, userTimezone: string): Date {
-    // For floating times, we interpret the date/time as if it were in the user's timezone
-    // This means a floating "2:00 PM" appears as "2:00 PM" in the user's local time
-    const year = dateTime.getFullYear();
-    const month = dateTime.getMonth();
-    const date = dateTime.getDate();
-    const hours = dateTime.getHours();
-    const minutes = dateTime.getMinutes();
-    const seconds = dateTime.getSeconds();
-    const milliseconds = dateTime.getMilliseconds();
-
-    // Create new date in user's timezone
-    return new Date(year, month, date, hours, minutes, seconds, milliseconds);
-  }
+    * Handle floating times by treating them as local to the viewer's timezone
+    * Rule: If TZID missing, treat as floating and render in viewer's zone
+    * NEVER mutate original startTime - always create new Date objects
+    * @param dateTime - Original date/time
+    * @param userTimezone - User's timezone
+    * @returns New Date object adjusted for user's timezone
+    */
+   public handleFloatingTime(dateTime: Date, userTimezone: string): Date {
+     // For floating times, we interpret the date/time as if it were in the user's timezone
+     // This means a floating "2:00 PM" appears as "2:00 PM" in the user's local time
+     // Using date-fns-tz for proper timezone handling
+     return toZonedTime(dateTime, userTimezone);
+   }
 
   /**
    * Convert event times to user's local timezone
@@ -101,57 +94,31 @@ export class TimezoneService {
   }
 
   /**
-   * Convert a date from one timezone to another
-   * @param date - Date to convert
-   * @param fromTimezone - Source timezone
-   * @param toTimezone - Target timezone
-   * @returns Converted date
-   */
-  private convertTimezone(date: Date, fromTimezone: string, toTimezone: string): Date {
-    // Use Intl.DateTimeFormat to handle timezone conversion
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: fromTimezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-
-    const parts = formatter.formatToParts(date);
-    const partsObj = parts.reduce((acc, part) => {
-      acc[part.type] = part.value;
-      return acc;
-    }, {} as Record<string, string>);
-
-    // Create date string in ISO format
-    const isoString = `${partsObj.year}-${partsObj.month}-${partsObj.day}T${partsObj.hour}:${partsObj.minute}:${partsObj.second}`;
-    
-    // Parse as if it were in the target timezone
-    const targetFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: toTimezone,
-    });
-
-    // Create a new date and adjust for timezone difference
-    const tempDate = new Date(isoString);
-    const offset = this.getTimezoneOffset(tempDate, toTimezone) - this.getTimezoneOffset(tempDate, fromTimezone);
-    
-    return new Date(tempDate.getTime() - offset * 60000);
-  }
+    * Convert a date from one timezone to another
+    * @param date - Date to convert
+    * @param fromTimezone - Source timezone
+    * @param toTimezone - Target timezone
+    * @returns Converted date
+    */
+   private convertTimezone(date: Date, fromTimezone: string, toTimezone: string): Date {
+     // Convert to UTC first, then to the target timezone
+     // Using date-fns-tz for proper timezone handling
+     const utcDate = fromZonedTime(date, fromTimezone);
+     return toZonedTime(utcDate, toTimezone);
+   }
 
   /**
-   * Get timezone offset in minutes for a given date and timezone
-   * @param date - Date to check
-   * @param timezone - Timezone to check
-   * @returns Offset in minutes
-   */
-  private getTimezoneOffset(date: Date, timezone: string): number {
-    const utc1 = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const utc2 = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-    return (utc2.getTime() - utc1.getTime()) / 60000;
-  }
+    * Get timezone offset in minutes for a given date and timezone
+    * @param date - Date to check
+    * @param timezone - Timezone to check
+    * @returns Offset in minutes
+    */
+   private getTimezoneOffset(date: Date, timezone: string): number {
+     // Convert to UTC using date-fns-tz
+     const utcDate = fromZonedTime(date, timezone);
+     // Get the offset (difference between UTC and the zoned time)
+     return (date.getTime() - utcDate.getTime()) / 60000;
+   }
 
   /**
    * Handle DST transitions by adjusting events for time changes

@@ -51,11 +51,11 @@ export class ColorPaletteManager {
   }
 
   /**
-   * Get the next available distinct color from the palette
+   * Get the next available color from the palette
    * @param existingColors - Array of colors already in use
-   * @returns Next distinct color
+   * @returns Next color (distinct if available, otherwise reused from palette)
    */
-  public getNextDistinctColor(existingColors: string[] = []): string {
+  public getNextColor(existingColors: string[] = []): string {
     // Update internal tracking with existing colors
     existingColors.forEach(color => this.usedColors.add(color.toLowerCase()));
 
@@ -72,10 +72,60 @@ export class ColorPaletteManager {
       attempts++;
     }
 
-    // If all colors are used, generate a pattern variant
+    // If all colors are used, cycle back through the palette
     const baseColor = this.CALENDAR_COLORS[this.colorIndex % this.CALENDAR_COLORS.length];
     this.colorIndex++;
     return baseColor;
+  }
+
+  /**
+   * Get the next available distinct color assignment with pattern variants
+   * @param existingAssignments - Array of existing color assignments
+   * @returns Next distinct color assignment (with pattern if colors are exhausted)
+   */
+  public getNextDistinctColorAssignment(existingAssignments: ColorAssignment[] = []): ColorAssignment {
+    const usedColors = existingAssignments.map(a => a.color.toLowerCase());
+    const usedPatterns = new Map<string, Set<string>>();
+    
+    // Track which patterns are used for each color
+    existingAssignments.forEach(assignment => {
+      const colorKey = assignment.color.toLowerCase();
+      if (!usedPatterns.has(colorKey)) {
+        usedPatterns.set(colorKey, new Set());
+      }
+      usedPatterns.get(colorKey)!.add(assignment.pattern || 'plain');
+    });
+
+    // Try to find an unused color first
+    for (const color of this.CALENDAR_COLORS) {
+      if (!usedColors.includes(color.toLowerCase())) {
+        return this.generatePatternVariant(color);
+      }
+    }
+
+    // If all colors are used, find a color with an unused pattern
+    const patterns: Array<'plain' | 'stripe' | 'dot'> = ['plain', 'stripe', 'dot'];
+    
+    for (const color of this.CALENDAR_COLORS) {
+      const colorKey = color.toLowerCase();
+      const usedPatternsForColor = usedPatterns.get(colorKey) || new Set();
+      
+      for (const pattern of patterns) {
+        if (!usedPatternsForColor.has(pattern)) {
+          const contrast = checkContrastCompliance(color);
+          const wcagRating = contrast.contrastRatio && contrast.contrastRatio >= 7 ? 'AAA' : 'AA';
+          
+          return {
+            color,
+            pattern,
+            wcagRating,
+          };
+        }
+      }
+    }
+
+    // If all color-pattern combinations are used, return the first color with plain pattern
+    return this.generatePatternVariant(this.CALENDAR_COLORS[0]);
   }
 
   /**
@@ -138,7 +188,7 @@ export class ColorPaletteManager {
 
     items.forEach(item => {
       if (!assignments.has(item.id)) {
-        const color = this.getNextDistinctColor(usedColors);
+        const color = this.getNextColor(usedColors);
         const assignment = this.generatePatternVariant(color);
         assignments.set(item.id, assignment);
         usedColors.push(color);
@@ -173,7 +223,7 @@ export class ColorPaletteManager {
       return existing;
     }
 
-    const color = fallbackColor || this.getNextDistinctColor();
+    const color = fallbackColor || this.getNextColor();
     return this.generatePatternVariant(color);
   }
 

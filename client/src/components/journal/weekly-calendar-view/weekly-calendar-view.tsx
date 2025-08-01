@@ -34,7 +34,7 @@ export function WeeklyCalendarView({
 
   // Initialize with provided date or current week
   useEffect(() => {
-    if (initialDate && initialDate !== currentWeek) {
+    if (initialDate && initialDate.getTime() !== currentWeek.getTime()) {
       setCurrentWeek(initialDate);
     }
   }, [initialDate, currentWeek, setCurrentWeek]);
@@ -68,7 +68,7 @@ export function WeeklyCalendarView({
 
   const addEventToDay = (day: Date) => {
     const newEvent = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       title: "New Event",
       date: day,
       time: "12:00 PM",
