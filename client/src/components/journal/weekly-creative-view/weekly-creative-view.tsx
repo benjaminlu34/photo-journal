@@ -6,7 +6,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "da
 import type { ContentBlockType } from "@/types/journal";
 
 export function WeeklyCreativeView() {
-  const { currentDate, setCurrentDate, setViewMode, createContentBlock, currentWeek, setCurrentWeek } = useJournal();
+  const { currentDate, setCurrentDate, setViewMode, createContentBlock, currentWeek } = useJournal();
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -24,14 +24,14 @@ export function WeeklyCreativeView() {
       rotation: Math.random() * 4 - 2
     };
 
-    const defaultContent = {
+    const defaultContent: Record<ContentBlockType, any> = {
       "sticky_note": { text: "Creative thought..." },
       "photo": { url: "", caption: "Capture the moment" },
       "checklist": { items: [{ text: "Creative goal", completed: false }] }
     };
 
-    // Type assertion to handle the ContentBlockType mapping
-    const content = defaultContent[type as keyof typeof defaultContent];
+    // Now type-safe since ContentBlockType only includes the keys we handle
+    const content = defaultContent[type];
     createContentBlock(type, content, position);
   };
 

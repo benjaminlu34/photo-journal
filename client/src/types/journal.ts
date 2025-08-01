@@ -1,6 +1,6 @@
 export type ViewMode = "daily" | "weekly-calendar" | "weekly-creative" | "monthly";
 
-export type ContentBlockType = "sticky_note" | "photo" | "text" | "checklist" | "audio" | "drawing";
+export type ContentBlockType = "sticky_note" | "photo" | "checklist";
 
 export interface Position {
   x: number;
