@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
 import { UsernameRouteValidator } from "@/components/routing/UsernameRouteValidator";
 import { supabase } from "@/lib/supabase";
 
+
 // Lazy load pages
 const Home = lazy(() => import("@/pages/home"));
 const Landing = lazy(() => import("@/pages/landing"));
@@ -21,6 +22,7 @@ function AppContent() {
   const [location, setLocation] = useLocation();
 
   const isProfileIncomplete = user && (!user.firstName || !user.lastName);
+
 
   // Handle routing based on user state
   useEffect(() => {
@@ -94,6 +96,7 @@ function AppContent() {
           </Switch>
         </Suspense>
       </ErrorBoundary>
+
       <Toaster />
     </>
   );

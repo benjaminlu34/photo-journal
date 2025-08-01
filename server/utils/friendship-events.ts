@@ -302,6 +302,16 @@ export function emitFriendBlocked(
     metadata
   };
 
+  // Handle photo access revocation asynchronously
+  (async () => {
+    try {
+      const { handleFriendshipChange } = await import('./photo-storage');
+      await handleFriendshipChange(blockerId, blockedId, 'accepted', 'blocked');
+    } catch (error) {
+      console.error('Error handling photo access revocation on friend block:', error);
+    }
+  })();
+
   // Only emit to the blocker (blocked user doesn't get notification)
   friendshipEventManager.emitToUser(blockerId, event);
 }
@@ -323,6 +333,16 @@ export function emitFriendUnfriended(
     timestamp: new Date(),
     metadata
   };
+
+  // Handle photo access revocation asynchronously
+  (async () => {
+    try {
+      const { handleFriendshipChange } = await import('./photo-storage');
+      await handleFriendshipChange(unfrienderId, unfriendedId, 'accepted', 'unfriended');
+    } catch (error) {
+      console.error('Error handling photo access revocation on unfriend:', error);
+    }
+  })();
 
   // Only emit to the unfriender (unfriended user doesn't get notification)
   friendshipEventManager.emitToUser(unfrienderId, event);

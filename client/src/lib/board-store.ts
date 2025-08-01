@@ -9,9 +9,11 @@ interface State {
   userId?: string;
   actions: {
     init: (spaceId: string, userId?: string, userName?: string, username?: string) => void;
-    create: (n: NoteData) => void;
-    update: (id: string, u: Partial<NoteData>) => void;
+    create: (n: NoteData) => Promise<void>;
+    update: (id: string, u: Partial<NoteData>) => Promise<void>;
     remove: (id: string) => void;
+    updateNoteWithStorageMetadata: (id: string, storagePath: string, signedUrl: string) => void;
+    refreshImageUrls: () => Promise<void>;
   };
 }
 
@@ -42,14 +44,22 @@ export const useBoardStore = create<State>((set) => ({
       set((s) => ({
         actions: {
           ...s.actions,
-          create: sdk.createNote,
-          update: sdk.updateNote,
+          create: async (note: NoteData) => {
+            await sdk.createNote(note);
+          },
+          update: async (id: string, updates: Partial<NoteData>) => {
+            await sdk.updateNote(id, updates);
+          },
           remove: sdk.deleteNote,
+          updateNoteWithStorageMetadata: sdk.updateNoteWithStorageMetadata,
+          refreshImageUrls: sdk.refreshImageUrls,
         },
       }));
     },
-    create: () => {},
-    update: () => {},
+    create: async () => {},
+    update: async () => {},
     remove: () => {},
+    updateNoteWithStorageMetadata: () => {},
+    refreshImageUrls: async () => {},
   },
 }));

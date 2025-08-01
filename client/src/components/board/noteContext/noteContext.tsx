@@ -6,7 +6,7 @@ import type { NotePosition, NoteData } from '@/types/notes';
 interface NoteContextValue {
   updateNote: (id: string, updates: Partial<NoteData>) => void;
   deleteNote: (id: string) => void;
-  createNote: (type: NoteData['type']) => void;
+  createNote: (type: NoteData['type']) => Promise<void>;
   gridSnapEnabled: boolean;
   setGridSnapEnabled: (enabled: boolean) => void;
   selectedId: string | null;
@@ -25,9 +25,9 @@ export const useNoteContext = (): NoteContextValue => {
 
 interface NoteContextProviderProps {
   children: React.ReactNode;
-  onUpdate: (id: string, updates: Partial<NoteData>) => void;
+  onUpdate: (id: string, updates: Partial<NoteData>) => Promise<void>;
   onDelete: (id: string) => void;
-  onCreate: (type: NoteData['type']) => void;
+  onCreate: (type: NoteData['type']) => Promise<void>;
 }
 
 export const NoteContextProvider: React.FC<NoteContextProviderProps> = ({
@@ -52,13 +52,17 @@ export const NoteContextProvider: React.FC<NoteContextProviderProps> = ({
       clearTimeout(updateTimeoutRef.current);
     }
 
-    updateTimeoutRef.current = setTimeout(() => {
+    updateTimeoutRef.current = setTimeout(async () => {
       const updates = Array.from(updateQueueRef.current.entries());
       updateQueueRef.current.clear();
       
-      updates.forEach(([noteId, noteUpdates]) => {
-        onUpdate(noteId, noteUpdates);
-      });
+      for (const [noteId, noteUpdates] of updates) {
+        try {
+          await onUpdate(noteId, noteUpdates);
+        } catch (error) {
+          console.error('Failed to update note:', error);
+        }
+      }
     }, 100); // Debounce time
   }, [onUpdate]);
 

@@ -20,22 +20,8 @@ class RedisManager {
         url: redisUrl,
         socket: {
           connectTimeout: 5000,
-          lazyConnect: true,
         },
         // Graceful error handling
-        retry_strategy: (options) => {
-          if (options.error && options.error.code === 'ECONNREFUSED') {
-            console.warn('Redis connection refused, falling back to memory-based rate limiting');
-            return undefined; // Don't retry
-          }
-          if (options.total_retry_time > 1000 * 60 * 60) {
-            return new Error('Retry time exhausted');
-          }
-          if (options.attempt > 10) {
-            return undefined;
-          }
-          return Math.min(options.attempt * 100, 3000);
-        }
       });
 
       this.client.on('error', (err) => {
@@ -183,7 +169,7 @@ export class RedisRateLimiter {
     pipeline.expire(bucketKey, Math.ceil(config.windowMs / 1000));
     
     const results = await pipeline.exec();
-    const currentCount = results?.[0] as number || 0;
+    const currentCount = (results?.[0] as unknown as number) || 0;
 
     const remaining = Math.max(0, config.maxRequests - currentCount);
     const allowed = currentCount <= config.maxRequests;
