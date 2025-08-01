@@ -2,20 +2,23 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { ChevronLeft, ChevronRight, Plus, Calendar } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Settings, Link } from "lucide-react";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
 // Removed colorPaletteManager import to avoid potential re-render issues
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
-import type { WeeklyCalendarViewProps } from "@/types/calendar";
+import type { WeeklyCalendarViewProps, LocalEvent } from "@/types/calendar";
+import { EventModal, CalendarFeedModal, TimeGrid, CalendarSettings } from "@/components/calendar";
 
 // Local interface for calendar events
-interface CalendarEvent {
+interface LocalCalendarEvent {
   id: string;
   title: string;
   date: Date;
   time: string;
   color: string;
+  location?: string;
+  description?: string;
 }
 
 export function WeeklyCalendarView({
@@ -31,11 +34,16 @@ export function WeeklyCalendarView({
   void feedsEnabled;
   void syncedFriends;
   const { currentWeek, setCurrentWeek } = useJournal();
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [events, setEvents] = useState<LocalCalendarEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<LocalCalendarEvent | null>(null);
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isFeedModalOpen, setIsFeedModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectedDateForEvent, setSelectedDateForEvent] = useState<Date | null>(null);
 
   // Use responsive hook for viewport management
   const {
-    viewMode,
+    viewMode: responsiveViewMode,
     currentPadIndex,
     navigatePad,
     canNavigatePad,
@@ -48,10 +56,6 @@ export function WeeklyCalendarView({
     }
   }, [initialDate, currentWeek, setCurrentWeek]);
 
-  // Remove sample events to prevent infinite re-render issues
-  // In a real implementation, events would be fetched from an external source
-  // and managed through a proper state management system
-
   // Memoize week days calculation to prevent unnecessary re-computations
   const weekDays = useMemo(() => {
     const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -61,7 +65,7 @@ export function WeeklyCalendarView({
 
   // Memoize display days calculation for pad view optimization
   const displayDays = useMemo(() => {
-    if (viewMode !== 'pads') return weekDays;
+    if (responsiveViewMode !== 'pads') return weekDays;
 
     const padSize = CALENDAR_CONFIG.MOBILE.PAD_SIZE;
     const startIndex = currentPadIndex * padSize;
@@ -73,24 +77,62 @@ export function WeeklyCalendarView({
     }
 
     return weekDays.slice(startIndex, endIndex);
-  }, [viewMode, weekDays, currentPadIndex]);
+  }, [responsiveViewMode, weekDays, currentPadIndex]);
+
+  // Memoize events by day to prevent filtering on every render
+  const eventsByDay = useMemo(() => {
+    const eventsMap: Record<string, LocalCalendarEvent[]> = {};
+    
+    displayDays.forEach(day => {
+      const dayKey = day.toDateString();
+      eventsMap[dayKey] = events.filter(event => isSameDay(event.date, day));
+    });
+    
+    return eventsMap;
+  }, [events, displayDays]);
+
+  // Create responsive grid template based on display days
+  const gridTemplate = useMemo(() => {
+    const dayCount = displayDays.length;
+    return `64px repeat(${dayCount}, 1fr)`;
+  }, [displayDays.length]);
 
   const addEventToDay = (day: Date) => {
-    const newEvent: CalendarEvent = {
+    setSelectedDateForEvent(day);
+    setIsEventModalOpen(true);
+  };
+  
+  const handleEventClick = (event: LocalCalendarEvent) => {
+    setSelectedEvent(event);
+    setIsEventModalOpen(true);
+  };
+  
+  const handleEventModalClose = () => {
+    setIsEventModalOpen(false);
+    setSelectedEvent(null);
+    setSelectedDateForEvent(null);
+  };
+  
+  const handleCreateEvent = (eventData: any) => {
+    const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    const newEvent: LocalCalendarEvent = {
       id: crypto.randomUUID(),
-      title: "New Event",
-      date: day,
-      time: "12:00 PM",
-      color: '#3B82F6' // Use a fixed color to avoid re-render issues
+      title: eventData.title,
+      date: selectedDateForEvent || new Date(),
+      time: format(eventData.startTime, "h:mm a"),
+      color: eventData.color || randomColor,
+      location: eventData.location,
+      description: eventData.description
     };
     setEvents(prev => [...prev, newEvent]);
+    handleEventModalClose();
   };
-
-
 
   // Render mobile pad navigation
   const renderPadNavigation = () => {
-    if (viewMode !== 'pads') return null;
+    if (responsiveViewMode !== 'pads') return null;
 
     return (
       <div className="flex items-center justify-between mb-4 px-4">
@@ -99,19 +141,21 @@ export function WeeklyCalendarView({
           size="sm"
           onClick={() => navigatePad('prev')}
           disabled={!canNavigatePad('prev')}
-          className="neu-card text-gray-700 hover:shadow-neu-active transition-all"
+          className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
           aria-label="Previous 3-day pad"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
 
-        <div className="flex space-x-1" role="tablist" aria-label="Calendar pads">
+        <div className="flex space-x-2" role="tablist" aria-label="Calendar pads">
           {[0, 1, 2].map((index) => (
             <div
               key={index}
               role="tab"
               aria-selected={index === currentPadIndex}
-              className={`w-2 h-2 rounded-full transition-colors ${index === currentPadIndex ? 'bg-purple-500' : 'bg-gray-300'
+              className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentPadIndex
+                ? 'bg-purple-500 shadow-neu-lg transform scale-125'
+                : 'bg-gray-300 shadow-neu-soft'
                 }`}
               aria-label={`Pad ${index + 1} of 3`}
             />
@@ -123,7 +167,7 @@ export function WeeklyCalendarView({
           size="sm"
           onClick={() => navigatePad('next')}
           disabled={!canNavigatePad('next')}
-          className="neu-card text-gray-700 hover:shadow-neu-active transition-all"
+          className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
           aria-label="Next 3-day pad"
         >
           <ChevronRight className="w-4 h-4" />
@@ -132,104 +176,180 @@ export function WeeklyCalendarView({
     );
   };
 
-  // Get responsive grid classes
-  const getGridClasses = () => {
-    switch (viewMode) {
-      case 'full':
-        return 'grid grid-cols-7 gap-4 h-full';
-      case 'scroll':
-        return 'flex gap-4 h-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100';
-      case 'pads':
-        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 h-full';
-      default:
-        return 'grid grid-cols-7 gap-4 h-full';
-    }
-  };
-
   return (
-    <div className="flex-1 p-6 bg-surface overflow-auto">
+    <div className="flex-1 h-full bg-surface overflow-hidden">
       {renderPadNavigation()}
-
-      {/* Calendar Grid */}
-      <div className={getGridClasses()}>
-        {displayDays.map((day) => {
-          const isToday = isSameDay(day, new Date());
-          const dayEvents = events.filter(event => isSameDay(event.date, day));
-
-          return (
-            <div
-              key={day.toISOString()}
-              className={`group neu-card p-4 flex flex-col transition-all hover:shadow-neu-active ${viewMode === 'scroll' ? 'min-w-[260px] flex-shrink-0' : ''
-                } ${viewMode === 'pads' ? 'min-h-[300px]' : 'min-h-[400px]'
-                }`}
-              role="gridcell"
-              aria-label={`${format(day, "EEEE, MMMM d, yyyy")} - ${dayEvents.length} events`}
-            >
-              {/* Day Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-center">
-                  <div className="text-xs text-gray-500 font-medium uppercase">
-                    {format(day, "EEE")}
-                  </div>
-                  <div className={`text-lg font-semibold ${isToday ? "text-purple-600" : "text-gray-800"
-                    }`}>
-                    {format(day, "d")}
-                  </div>
-                  {isToday && (
-                    <Badge variant="secondary" className="bg-purple-500 text-white text-xs mt-1">
-                      Today
-                    </Badge>
-                  )}
+      
+      {/* Calendar Grid - Weekly Row Layout */}
+      <div className="h-full flex flex-col">
+        {/* Day Headers Row */}
+        <div className="border-b border-gray-200 bg-gray-50" style={{display: 'grid', gridTemplateColumns: gridTemplate}}>
+          {/* Time column header */}
+          <div className="p-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Time
+          </div>
+          {displayDays.map((day) => {
+            const isToday = isSameDay(day, new Date());
+            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+            
+            return (
+              <div
+                key={`header-${day.toISOString()}`}
+                className={`p-3 text-center border-l border-gray-200 ${isWeekend ? 'bg-rose-50' : ''}`}
+              >
+                <div className={`text-xs font-bold uppercase tracking-wider ${isWeekend ? 'text-rose-500' : 'text-gray-500'}`}>
+                  {format(day, "EEE")}
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => addEventToDay(day)}
-                  className="w-6 h-6 p-0 neu-button text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
-                  aria-label={`Add event to ${format(day, "EEEE")}`}
-                >
-                  <Plus className="w-3 h-3" />
-                </Button>
-              </div>
-
-              {/* Events List */}
-              <div className="flex-1 space-y-2">
-                {dayEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="p-2 rounded-lg text-xs neu-inset hover:shadow-neu-active transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: event.color + '20',
-                      borderLeft: `3px solid ${event.color}`
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${event.title} at ${event.time}`}
-                  >
-                    <div className="font-medium text-gray-800">{event.title}</div>
-                    <div className="text-gray-600">{event.time}</div>
-                  </div>
-                ))}
-
-                {/* Empty state message */}
-                {dayEvents.length === 0 && (
-                  <div className="text-center text-gray-400 text-sm mt-8">
-                    <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>No events</p>
-                  </div>
+                <div className={`text-lg font-bold mt-1 ${isToday ? "text-purple-600" : isWeekend ? "text-rose-600" : "text-gray-800"
+                  }`}>
+                  {format(day, "d")}
+                </div>
+                {isToday && (
+                  <Badge variant="secondary" className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-xs mt-1 shadow-neu">
+                    Today
+                  </Badge>
                 )}
               </div>
+            );
+          })}
+        </div>
+        
+        {/* Time Grid Row */}
+        <div className="flex-1 overflow-y-auto">
+          <div style={{display: 'grid', gridTemplateColumns: gridTemplate, height: '100%'}}>
+            {/* Time slots column */}
+            <div className="border-r border-gray-200 bg-gray-50">
+              {Array.from({ length: 24 }, (_, i) => (
+                <div key={`time-${i}`} className="h-16 border-b border-gray-200 flex items-center justify-center">
+                  <span className="text-xs text-gray-500">
+                    {i === 0 ? '12AM' : i < 12 ? `${i}AM` : i === 12 ? '12PM' : `${i - 12}PM`}
+                  </span>
+                </div>
+              ))}
             </div>
-          );
-        })}
+            
+            {/* Calendar grid with days */}
+            
+            {displayDays.map((day) => {
+              const isToday = isSameDay(day, new Date());
+              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+              const dayEvents = eventsByDay[day.toDateString()] || [];
+              
+              return (
+                <div
+                  key={`grid-${day.toISOString()}`}
+                  className={`relative border-l border-gray-200 ${isWeekend ? 'bg-rose-50' : ''} ${isToday ? 'bg-purple-50' : ''}`}
+                >
+                  {/* Time slots for the day */}
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <div
+                      key={`slot-${day.toISOString()}-${hour}`}
+                      className="h-16 border-b border-r border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const slotDate = new Date(day);
+                        slotDate.setHours(hour, 0, 0, 0);
+                        setSelectedDateForEvent(slotDate);
+                        setIsEventModalOpen(true);
+                      }}
+                    />
+                  ))}
+                  
+                  {/* Events positioned absolutely */}
+                  {dayEvents.map((event) => {
+                    const hour = parseInt(event.time.split(':')[0]);
+                    const isPM = event.time.includes('PM');
+                    const hour24 = isPM && hour !== 12 ? hour + 12 : hour;
+                    
+                    return (
+                      <div
+                        key={event.id}
+                        onClick={() => handleEventClick(event)}
+                        className="absolute left-1 right-1 p-2 rounded-lg text-sm neu-inset hover:shadow-neu-active transition-all duration-300 cursor-pointer transform hover:scale-[1.02] z-10"
+                        style={{
+                          backgroundColor: event.color + '15',
+                          borderLeft: `4px solid ${event.color}`,
+                          top: `${hour24 * 64}px`, // 64px per hour (h-16)
+                          height: '60px',
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${event.title} at ${event.time}`}
+                      >
+                        <div className="font-semibold text-gray-800 truncate text-xs">
+                          {event.title}
+                        </div>
+                        <div className="flex items-center text-xs text-gray-600 mt-1">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {event.time}
+                        </div>
+                        {event.location && (
+                          <div className="flex items-center text-xs text-gray-600 mt-1">
+                            <MapPin className="w-3 h-3 mr-1" />
+                            <span className="truncate">{event.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Responsive indicators for overflow content */}
-      {viewMode === 'scroll' && (
-        <div className="absolute right-8 top-1/2 transform -translate-y-1/2 pointer-events-none">
-          <div className="w-8 h-16 bg-gradient-to-l from-white to-transparent opacity-75 rounded-l-lg" />
+      {/* Event Modal */}
+      <EventModal
+        isOpen={isEventModalOpen}
+        onClose={handleEventModalClose}
+        event={selectedEvent ? convertToLocalEvent(selectedEvent) : undefined}
+        initialDate={selectedDateForEvent || undefined}
+      />
+      
+      {/* Calendar Feed Modal */}
+      <CalendarFeedModal
+        isOpen={isFeedModalOpen}
+        onClose={() => setIsFeedModalOpen(false)}
+      />
+      
+      {/* Calendar Settings */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-h-[90vh] overflow-auto neu-card">
+            <CalendarSettings onClose={() => setIsSettingsOpen(false)} />
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+// Helper function to convert our local event to the LocalEvent type
+function convertToLocalEvent(event: LocalCalendarEvent): LocalEvent {
+  const hour = parseInt(event.time.split(':')[0]);
+  const isPM = event.time.includes('PM');
+  const hour24 = isPM && hour !== 12 ? hour + 12 : hour;
+  
+  const startDate = new Date(event.date);
+  startDate.setHours(hour24, 0, 0, 0);
+  
+  const endDate = new Date(event.date);
+  endDate.setHours(hour24 + 1, 0, 0, 0);
+  
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    startTime: startDate,
+    endTime: endDate,
+    timezone: undefined,
+    isAllDay: false,
+    color: event.color,
+    location: event.location,
+    createdBy: 'user',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    collaborators: [],
+    tags: [],
+  };
 }
