@@ -34,7 +34,8 @@
     --border: 234 20% 91%;
     --input: 234 20% 91%;
     --ring: 250 100% 69%;
-    --ring-primary-40: 250 100% 69% / 0.4; /* Added for neumorphic input focus ring */
+    --ring-primary-40: 250 100% 69% / 0.4;
+    /* Added for neumorphic input focus ring */
     --sidebar-background: 237 100% 98%;
     --sidebar-foreground: 224 5% 21%;
     --sidebar-primary: 250 100% 69%;
@@ -158,24 +159,29 @@
 
   .neu-input:focus {
     @apply shadow-neu ring-2;
-    filter: drop-shadow(0 0 2px var(--ring-primary-40)); /* Using filter for glow effect */
+    filter: drop-shadow(0 0 2px var(--ring-primary-40));
+    /* Using filter for glow effect */
   }
 
   /* Navigation pills */
   .neu-nav-pill {
-    @apply px-4 py-2 rounded-sm bg-surface-elevated transition-all duration-150; /* Re-added rounded-sm */
+    @apply px-4 py-2 rounded-sm bg-surface-elevated transition-all duration-150;
+    /* Re-added rounded-sm */
   }
 
   .neu-nav-pill {
-    @apply shadow-neu; /* Default to unpressed */
+    @apply shadow-neu;
+    /* Default to unpressed */
   }
 
   .neu-nav-pill.active {
-    @apply shadow-neu-inset; /* Active state is pressed */
+    @apply shadow-neu-inset;
+    /* Active state is pressed */
   }
 
   .neu-nav-pill:hover {
-    @apply shadow-neu-lg; /* Hover state is slightly elevated */
+    @apply shadow-neu-lg;
+    /* Hover state is slightly elevated */
   }
 
   /* Sticky note style with soft pastel gradients */
@@ -422,7 +428,8 @@
   .bg-dropdown-solid {
     background-color: white !important;
   }
-/* Ensure toast notifications have solid white background */
+
+  /* Ensure toast notifications have solid white background */
   [data-radix-toast-root] {
     background-color: white !important;
   }
@@ -508,7 +515,7 @@
   /* Pinboard background */
   .pinboard-bg {
     background-color: var(--surface);
-    background-image: radial-gradient(circle, rgba(140,113,255,0.15) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(140, 113, 255, 0.15) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
@@ -556,21 +563,21 @@
   .calendar-nav-button {
     @apply w-8 h-8 p-0 rounded-lg text-gray-600 hover:text-gray-800 transition-all duration-200 flex items-center justify-center;
     background: var(--surface-elevated);
-    box-shadow: 
+    box-shadow:
       3px 3px 6px rgba(0, 0, 0, 0.1),
       -3px -3px 6px rgba(255, 255, 255, 0.8);
     border: none;
   }
 
   .calendar-nav-button:hover {
-    box-shadow: 
+    box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.15),
       -2px -2px 4px rgba(255, 255, 255, 0.9);
     transform: translateY(-1px);
   }
 
   .calendar-nav-button:active {
-    box-shadow: 
+    box-shadow:
       inset 2px 2px 4px rgba(0, 0, 0, 0.1),
       inset -2px -2px 4px rgba(255, 255, 255, 0.7);
     transform: translateY(0);
@@ -591,14 +598,14 @@
 
   .calendar-day-default {
     @apply text-gray-700;
-    box-shadow: 
+    box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.08),
       -2px -2px 4px rgba(255, 255, 255, 0.8);
   }
 
   .calendar-day-default:hover {
     @apply text-gray-800;
-    box-shadow: 
+    box-shadow:
       3px 3px 6px rgba(0, 0, 0, 0.12),
       -3px -3px 6px rgba(255, 255, 255, 0.9);
     transform: translateY(-1px);
@@ -607,7 +614,7 @@
   .calendar-day-today {
     @apply text-blue-700 font-semibold;
     background: linear-gradient(145deg, #dbeafe, #bfdbfe);
-    box-shadow: 
+    box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.1),
       -2px -2px 4px rgba(255, 255, 255, 0.9),
       inset 1px 1px 2px rgba(59, 130, 246, 0.1);
@@ -616,14 +623,14 @@
   .calendar-day-selected {
     @apply text-white font-bold;
     background: linear-gradient(145deg, #3b82f6, #2563eb);
-    box-shadow: 
+    box-shadow:
       4px 4px 8px rgba(0, 0, 0, 0.15),
       -4px -4px 8px rgba(255, 255, 255, 0.7),
       inset 1px 1px 2px rgba(255, 255, 255, 0.2);
   }
 
   .calendar-day-selected:hover {
-    box-shadow: 
+    box-shadow:
       5px 5px 10px rgba(0, 0, 0, 0.2),
       -5px -5px 10px rgba(255, 255, 255, 0.8),
       inset 1px 1px 2px rgba(255, 255, 255, 0.3);
@@ -634,18 +641,19 @@
     content: '';
     @apply absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full;
     background: #3b82f6;
-    box-shadow: 
+    box-shadow:
       0 1px 2px rgba(59, 130, 246, 0.3),
       inset 0 0 1px rgba(255, 255, 255, 0.5);
   }
 
   .calendar-day-selected.calendar-day-has-events::after {
     background: rgba(255, 255, 255, 0.8);
-    box-shadow: 
+    box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.2),
       inset 0 0 1px rgba(255, 255, 255, 0.3);
   }
 }
+
 /* Force white background for toast notifications */
 [data-radix-toast-viewport] [data-state],
 [role="status"][data-state],

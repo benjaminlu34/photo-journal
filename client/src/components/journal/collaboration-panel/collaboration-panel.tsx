@@ -206,24 +206,23 @@ export function CollaborationPanel() {
   return (
     <div className="w-80 bg-surface flex flex-col h-screen p-4 space-y-4">
       {/* Header Card */}
-      <div className="neu-card p-6 flex-shrink-0">
-        <div className="flex items-center space-x-4 mb-4">
+      <div className="neu-card p-4 flex-shrink-0">
+        <div className="flex items-center justify-between mb-4">
           <Button
             size="sm"
-            className="neu-button text-white font-semibold px-4 py-2 rounded-xl"
+            className="neu-button text-white font-semibold px-3 py-2 rounded-xl text-xs"
           >
-            <FolderOpen className="w-4 h-4 mr-2" />
-            <span>Content Library</span>
+            <FolderOpen className="w-3 h-3 mr-1" />
+            <span>Library</span>
           </Button>
-          <span className="text-gray-400">|</span>
-          <div className="flex items-center space-x-2 text-gray-600">
-            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+          <div className="flex items-center space-x-1 text-gray-600">
+            <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded">
               M
             </span>
-            <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+            <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded">
               T
             </span>
-            <span className="text-sm font-medium gradient-button px-2 py-1 rounded text-white">
+            <span className="text-xs font-medium gradient-button px-2 py-1 rounded text-white">
               W
             </span>
           </div>
@@ -234,10 +233,10 @@ export function CollaborationPanel() {
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <FloatingInput
             type="text"
-            label="Search your content..."
+            label="Search content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="neu-inset text-gray-800 border-0 flex-1"
+            className="neu-inset text-gray-800 border-0 flex-1 text-sm"
           />
         </div>
       </div>
