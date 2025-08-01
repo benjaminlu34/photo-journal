@@ -66,8 +66,8 @@ export function useAuthMigration() {
     await cleanupUserState();
     
     const { error } = await supabase.auth.signOut();
-    window.location.href = '/';
     if (error) throw error;
+    window.location.href = '/';
     
   };
 

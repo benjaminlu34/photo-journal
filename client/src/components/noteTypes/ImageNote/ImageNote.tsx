@@ -52,14 +52,13 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
   // Memoize storage path to prevent unnecessary re-renders
-  const storagePath = useMemo(() => (content as any).storagePath, [(content as any).storagePath]);
-  const existingImageUrl = useMemo(() => (content as any).imageUrl, [(content as any).imageUrl]);
+  const storagePath = useMemo(() => content.storagePath, [content.storagePath]);
+  const existingImageUrl = useMemo(() => content.imageUrl, [content.imageUrl]);
 
 
   // Get authenticated user (same pattern as profile pictures)
   const { data: user } = useUser();
   const { currentDate } = useJournal();
-  const { updateNoteWithStorageMetadata } = useBoardStore((s) => s.actions);
 
   // Simple state management - no complex service monitoring needed
 
@@ -145,7 +144,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     };
 
     loadImage();
-  }, [storagePath, existingImageUrl, user?.id, content, onChange, getFromCache, addToCache, clearCacheForStoragePath]);
+  }, [storagePath, existingImageUrl, user?.id, onChange]);
 
   useEffect(() => {
     return () => {
@@ -262,7 +261,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         error: error instanceof Error ? error.message : 'Failed to start upload',
       });
     }
-  }, [onChange, user?.id, noteId, currentDate]);
+  }, [onChange, user?.id, noteId, currentDate, content]);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -352,7 +351,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     } catch (error) {
       console.error('Failed to remove image:', error);
     }
-  }, [onChange, (content as any).storagePath, user?.id, localPreviewUrl, cachedImageUrl]);
+  }, [onChange, content, user?.id, localPreviewUrl, cachedImageUrl]);
 
   const handleRetryUpload = useCallback(() => {
     fileInputRef.current?.click();
