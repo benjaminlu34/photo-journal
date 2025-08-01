@@ -59,6 +59,7 @@ export function useAuthMigration() {
   };
 
   const signOut = async () => {
+    window.location.href = '/';
     // Import dynamically to avoid circular dependencies
     const { cleanupUserState } = await import('../lib/cleanup');
     

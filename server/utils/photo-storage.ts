@@ -72,7 +72,7 @@ export function getFileExtension(filename: string): string {
 export function validatePhotoFile(file: Express.Multer.File): string | null {
   const allowedMimeTypes = [
     'image/jpeg',
-    'image/png', 
+    'image/png',
     'image/webp',
     'image/gif'
   ];
@@ -88,6 +88,127 @@ export function validatePhotoFile(file: Express.Multer.File): string | null {
   }
   
   return null; // Valid file
+}
+
+/**
+ * Magic number signatures for common image formats
+ * These are the actual file header bytes that identify file types
+ */
+export const MAGIC_NUMBERS: Record<string, Uint8Array> = {
+  // JPEG: FF D8 FF (start of image marker)
+  'image/jpeg': new Uint8Array([0xFF, 0xD8, 0xFF]), 
+  
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  'image/png': new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+  
+  // GIF: "GIF87a" or "GIF89a"
+  'image/gif': new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x37, 0x61]), // GIF87a
+  
+  // WebP: "RIFF" + 4 bytes + "WEBP"
+  'image/webp': new Uint8Array([0x52, 0x49, 0x46, 0x46]) // RIFF header
+};
+
+/**
+ * Alternative magic numbers for GIF89a
+ */
+export const MAGIC_NUMBERS_GIF89A = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+
+/**
+ * Validate file content using magic numbers to prevent MIME type spoofing
+ * This reads the actual file header bytes to verify the declared file type
+ */
+export function validateFileMagicNumber(buffer: Buffer, declaredMimeType: string): string | null {
+  if (!buffer || buffer.length < 12) { // Need at least 12 bytes for the largest signature
+    return 'File is too small to validate.';
+  }
+
+  // Convert buffer to Uint8Array for comparison
+  const fileHeader = new Uint8Array(buffer);
+
+  // Get expected magic numbers for the declared MIME type
+  const expectedMagic = MAGIC_NUMBERS[declaredMimeType];
+  if (!expectedMagic) {
+    return 'Unsupported file type for magic number validation.';
+  }
+
+  // Check if file header matches expected magic numbers
+  const matchesMagicNumber = (header: Uint8Array, magic: Uint8Array): boolean => {
+    for (let i = 0; i < magic.length; i++) {
+      if (header[i] !== magic[i]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Special handling for different file types
+  switch (declaredMimeType) {
+    case 'image/jpeg':
+      if (!matchesMagicNumber(fileHeader, expectedMagic)) {
+        return 'File content does not match JPEG format. Invalid image file.';
+      }
+      break;
+
+    case 'image/png':
+      if (!matchesMagicNumber(fileHeader, expectedMagic)) {
+        return 'File content does not match PNG format. Invalid image file.';
+      }
+      break;
+
+    case 'image/gif':
+      // GIF can be either GIF87a or GIF89a
+      if (!matchesMagicNumber(fileHeader, expectedMagic) &&
+          !matchesMagicNumber(fileHeader, MAGIC_NUMBERS_GIF89A)) {
+        return 'File content does not match GIF format. Invalid image file.';
+      }
+      break;
+
+    case 'image/webp':
+      // WebP has RIFF header, then 4 bytes for file size, then "WEBP"
+      if (!matchesMagicNumber(fileHeader, expectedMagic)) {
+        return 'File content does not match WebP format. Invalid image file.';
+      }
+      
+      // Check for "WEBP" identifier at bytes 8-11
+      const webpSignature = new Uint8Array([0x57, 0x45, 0x42, 0x50]); // "WEBP"
+      const webpHeader = new Uint8Array(buffer.slice(8, 12));
+      
+      if (!matchesMagicNumber(webpHeader, webpSignature)) {
+        return 'File content does not match WebP format. Invalid image file.';
+      }
+      break;
+
+    default:
+      return 'Unsupported file type for magic number validation.';
+  }
+
+  return null; // Validation passed
+}
+
+/**
+ * Enhanced file validation that combines MIME type, size, and magic number validation
+ * This is the main validation function that should be used for file uploads
+ */
+export async function validateFileUpload(
+  file: Express.Multer.File,
+  fileBuffer?: Buffer
+): Promise<{ isValid: boolean; error?: string }> {
+  // First, perform basic validation
+  const basicValidationError = validatePhotoFile(file);
+  if (basicValidationError) {
+    return { isValid: false, error: basicValidationError };
+  }
+
+  // If file buffer is provided, perform magic number validation
+  if (fileBuffer) {
+    const magicNumberError = validateFileMagicNumber(fileBuffer, file.mimetype);
+    if (magicNumberError) {
+      console.warn(`Magic number validation failed for ${file.originalname}: ${magicNumberError}`);
+      return { isValid: false, error: magicNumberError };
+    }
+  }
+
+  return { isValid: true };
 }
 
 /**

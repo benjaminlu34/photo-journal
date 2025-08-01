@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { X, Camera, Upload, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -6,6 +6,11 @@ import { useUser } from "@/hooks/useUser";
 import { useJournal } from "@/contexts/journal-context";
 import { useBoardStore } from "@/lib/board-store";
 import type { NoteContent } from "@/types/notes";
+import {
+  getFromCache,
+  addToCache,
+  clearCacheForStoragePath
+} from "@/utils/image-url-cache";
 
 // Utility function to format date as YYYY-MM-DD in local timezone
 function formatLocalDate(date: Date): string {
@@ -46,6 +51,10 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
 
+  // Memoize storage path to prevent unnecessary re-renders
+  const storagePath = useMemo(() => (content as any).storagePath, [(content as any).storagePath]);
+  const existingImageUrl = useMemo(() => (content as any).imageUrl, [(content as any).imageUrl]);
+
 
   // Get authenticated user (same pattern as profile pictures)
   const { data: user } = useUser();
@@ -54,12 +63,9 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   // Simple state management - no complex service monitoring needed
 
-  // Load image from Supabase Storage (same pattern as profile pictures)
+  // Load image using server's signed URL endpoint for proper permission validation
   useEffect(() => {
     const loadImage = async () => {
-      const storagePath = (content as any).storagePath;
-      const existingImageUrl = (content as any).imageUrl;
-
       // Skip loading if we already have a valid signed URL (prevents duplicate calls after upload)
       if (existingImageUrl && !existingImageUrl.startsWith('blob:')) {
         setCachedImageUrl(existingImageUrl);
@@ -67,20 +73,56 @@ const ImageNote: React.FC<ImageNoteProps> = ({
       }
 
       if (storagePath && user?.id) {
+        // Get current session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setImageLoadError('Authentication required');
+          setIsLoadingImage(false);
+          return;
+        }
+
+        // Check global cache first
+        const cachedURL = getFromCache(storagePath);
+        if (cachedURL) {
+          console.log('[DEBUG] Using cached signed URL for:', storagePath);
+          setCachedImageUrl(cachedURL);
+          return;
+        }
+
         setIsLoadingImage(true);
         setImageLoadError(null);
 
         try {
-          // Get signed URL from Supabase Storage (same as profile pictures)
-          const { data, error } = await supabase.storage
-            .from('journal-images')
-            .createSignedUrl(storagePath, 3600); // 1 hour TTL
+          // Get current session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error('Authentication required');
+          }
 
-          if (error) {
-            // Handle specific error cases
-            if (error.message?.includes('not found') || error.message?.includes('404')) {
+          // LOG: Add debugging for image loading request
+          console.log('[DEBUG] Requesting signed URL from server:', {
+            storagePath,
+            userId: user.id
+          });
+
+          // Get signed URL from server endpoint for proper permission validation
+          const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+          
+          // LOG: Add debugging for signed URL response
+          console.log('[DEBUG] Signed URL response:', {
+            status: response.status,
+            ok: response.ok
+          });
+
+          if (!response.ok) {
+            if (response.status === 404) {
               // Image was deleted - clear the storagePath to prevent future attempts
               console.warn(`Image not found (likely deleted): ${storagePath}`);
+              clearCacheForStoragePath(storagePath);
               onChange?.({
                 ...content,
                 imageUrl: undefined,
@@ -88,13 +130,31 @@ const ImageNote: React.FC<ImageNoteProps> = ({
               } as any);
               return;
             }
-            throw error;
+            if (response.status === 403) {
+              throw new Error('Access denied to this image');
+            }
+            throw new Error('Failed to load image');
           }
 
-          if (data?.signedUrl) {
-            setCachedImageUrl(data.signedUrl);
+          const result = await response.json();
+          
+          // LOG: Add debugging for successful signed URL
+          console.log('[DEBUG] Received signed URL:', {
+            hasSignedUrl: !!result.signedUrl,
+            expiresAt: result.expiresAt
+          });
+
+          if (result.signedUrl) {
+            // Calculate expiration time (server returns expiresAt as ISO string)
+            const expiresAt = new Date(result.expiresAt).getTime();
+            
+            // Add to global cache
+            addToCache(storagePath, result.signedUrl, expiresAt);
+            
+            // Set local state
+            setCachedImageUrl(result.signedUrl);
           } else {
-            throw new Error('No signed URL returned');
+            throw new Error('No signed URL returned from server');
           }
         } catch (error) {
           console.error('Failed to load image:', error);
@@ -111,7 +171,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
     };
 
     loadImage();
-  }, [(content as any).storagePath, (content as any).imageUrl, user?.id]);
+  }, [storagePath, existingImageUrl, user?.id, content, onChange]);
 
   // No complex upload monitoring needed
 
@@ -171,35 +231,64 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         alt: sanitizedAlt,
       });
 
-      // Direct Supabase upload (same as profile images)
+      // Use server-side upload endpoint for proper permission handling
       try {
+        // Get current session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('Authentication required');
+        }
+
         setUploadState({ status: 'uploading', progress: 0 });
 
-        // Generate file path
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${journalDate}/${noteId}/${Date.now()}.${fileExt}`;
+        // Create FormData for server upload
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('journalDate', journalDate);
+        if (noteId) {
+          formData.append('noteId', noteId);
+        }
+        
+        // LOG: Add debugging for server-side upload request
+        console.log('[DEBUG] Server-side upload initiated:', {
+          fileSize: file.size,
+          fileType: file.type,
+          userId: user.id,
+          journalDate,
+          noteId
+        });
 
-        // Upload to Supabase Storage
-        const { data, error: uploadError } = await supabase.storage
-          .from('journal-images')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: true
-          });
+        // Upload to server endpoint
+        const response = await fetch('/api/photos/upload', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        
+        // LOG: Add debugging for upload response
+        console.log('[DEBUG] Server-side upload response:', {
+          status: response.status,
+          ok: response.ok
+        });
 
-        if (uploadError) throw uploadError;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Upload failed');
+        }
 
-        // Get signed URL (same as loading logic)
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from('journal-images')
-          .createSignedUrl(fileName, 3600); // 1 hour TTL
+        const result = await response.json();
+        
+        // LOG: Add debugging for successful upload result
+        console.log('[DEBUG] Server-side upload success:', {
+          url: result.url,
+          storagePath: result.storagePath,
+          size: result.size,
+          mimeType: result.mimeType
+        });
 
-        if (signedError) throw signedError;
-
-        const signedUrl = signedData?.signedUrl;
-        if (!signedUrl) throw new Error('Failed to generate signed URL');
-
-        setCachedImageUrl(signedUrl);
+        setCachedImageUrl(result.url);
         setUploadState({ status: 'completed', progress: 100 });
 
         // Clean up local preview URL since we now have the persistent URL
@@ -208,12 +297,12 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           setLocalPreviewUrl(null);
         }
 
-        // Update content with the signed URL and storage path
+        // Update content with the server-provided URL and storage path
         onChange?.({
           ...content,
-          imageUrl: signedUrl,
+          imageUrl: result.url,
           alt: sanitizedAlt,
-          storagePath: fileName,
+          storagePath: result.storagePath,
         } as any);
 
       } catch (error) {
@@ -267,13 +356,40 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   const handleRemoveImage = useCallback(async () => {
     try {
-      // Delete from persistent storage if it exists
+      // Delete from persistent storage using server endpoint if it exists
       const storagePath = (content as any).storagePath;
       if (storagePath && user?.id) {
         try {
-          await supabase.storage
-            .from('journal-images')
-            .remove([storagePath]);
+          // Get current session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            console.error('Authentication required for deletion');
+            return;
+          }
+
+          // LOG: Add debugging for image deletion
+          console.log('[DEBUG] Deleting image via server endpoint:', {
+            storagePath,
+            userId: user.id
+          });
+
+          const response = await fetch(`/api/photos/${storagePath}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+          
+          // LOG: Add debugging for deletion response
+          console.log('[DEBUG] Server deletion response:', {
+            status: response.status,
+            ok: response.ok
+          });
+
+          if (!response.ok) {
+            console.error('Failed to delete photo from server:', await response.text());
+            // Continue with removal even if server deletion fails
+          }
         } catch (error) {
           console.error('Failed to delete photo from storage:', error);
           // Continue with removal even if storage deletion fails
@@ -292,6 +408,11 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           URL.revokeObjectURL(cachedImageUrl);
         }
         setCachedImageUrl(null);
+      }
+      
+      // Clear from global cache
+      if (storagePath) {
+        clearCacheForStoragePath(storagePath);
       }
 
       // Reset state

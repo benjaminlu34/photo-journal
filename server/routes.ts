@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
 import {
   usernameCheckRateLimit,
-  userSearchRateLimit,
+userSearchRateLimit,
   usernameChangeRateLimit,
   friendRequestRateLimit,
   friendManagementRateLimit,
@@ -26,7 +26,7 @@ import {
   blockedUserSecurityCheck
 } from "./middleware/rateLimit";
 import { validateUsername, generateUsernameSuggestions } from "./utils/username";
-import { validatePhotoOwnership, parsePhotoPath, validatePhotoAccess, cleanupPhotoReferences, generateSignedUrlWithServiceRole } from "./utils/photo-storage";
+import { validatePhotoOwnership, parsePhotoPath, validatePhotoAccess, cleanupPhotoReferences, generateSignedUrlWithServiceRole, validateFileUpload as validateFileContent } from "./utils/photo-storage";
 import {
   resolveJournalPermissions,
   requireViewPermission,
@@ -304,13 +304,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Enhanced file validation
         const validationError = validateFileUpload(req, req.file);
         if (validationError) {
-          fs.unlinkSync(req.file.path); // Delete invalid file
+          await fs.promises.unlink(req.file.path); // Delete invalid file
           return res.status(400).json({ message: validationError });
         }
 
         // Validate that the file belongs to the user
         if (!validateFileOwnership(userId, path.basename(req.file.path))) {
-          fs.unlinkSync(req.file.path); // Delete the file
+          await fs.promises.unlink(req.file.path); // Delete the file
           return res.status(403).json({ message: "Unauthorized file access" });
         }
 
@@ -349,6 +349,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     upload.single("photo"),
     async (req, res) => {
       try {
+        // LOG: Add debugging for server-side upload endpoint usage
+        console.log('[DEBUG] Server-side upload endpoint called:', {
+          hasFile: !!req.file,
+          userId: getUserId(req),
+          journalDate: req.body.journalDate,
+          noteId: req.body.noteId,
+          fileSize: req.file?.size,
+          fileType: req.file?.mimetype
+        });
+
         if (!req.file) {
           return res.status(400).json({ message: "No photo uploaded" });
         }
@@ -358,23 +368,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Validate required fields
         if (!journalDate) {
-          fs.unlinkSync(req.file.path);
+          await fs.promises.unlink(req.file.path);
           return res.status(400).json({ message: "Journal date is required" });
         }
 
         // Validate date format
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(journalDate)) {
-          fs.unlinkSync(req.file.path);
+          await fs.promises.unlink(req.file.path);
           return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
         }
 
-        // Enhanced file validation
-        const validationError = validateFileUpload(req, req.file);
-        if (validationError) {
-          fs.unlinkSync(req.file.path);
-          return res.status(400).json({ message: validationError });
+        // Enhanced file validation with magic number checking
+        const validationBuffer = await fs.promises.readFile(req.file.path);
+        const validationResult = await validateFileContent(req.file, validationBuffer);
+        
+        if (!validationResult.isValid) {
+          await fs.promises.unlink(req.file.path);
+          console.log('[DEBUG] File validation failed:', {
+            filename: req.file.originalname,
+            declaredMime: req.file.mimetype,
+            error: validationResult.error
+          });
+          return res.status(400).json({ message: validationResult.error });
         }
+        
+        console.log('[DEBUG] File validation passed:', {
+          filename: req.file.originalname,
+          declaredMime: req.file.mimetype,
+          size: req.file.size
+        });
 
         // Generate deterministic storage path
         const { generatePhotoPath, formatJournalDate } = await import('./utils/photo-storage');
@@ -411,7 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (uploadError) {
           console.error('Supabase upload error:', uploadError);
           // Clean up local file
-          fs.unlinkSync(req.file.path);
+          await fs.promises.unlink(req.file.path);
           return res.status(500).json({ message: "Failed to upload to storage" });
         }
 
@@ -423,12 +446,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (signedUrlError) {
           console.error('Signed URL generation error:', signedUrlError);
           // Clean up local file
-          fs.unlinkSync(req.file.path);
+          await fs.promises.unlink(req.file.path);
           return res.status(500).json({ message: "Failed to generate access URL" });
         }
 
         // Clean up local temporary file
-        fs.unlinkSync(req.file.path);
+        await fs.promises.unlink(req.file.path);
 
         return res.status(201).json({
           url: signedUrlData.signedUrl,
@@ -440,7 +463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error("POST /api/photos/upload:", err);
         if (req.file) {
-          fs.unlinkSync(req.file.path); // Clean up on error
+          await fs.promises.unlink(req.file.path); // Clean up on error
         }
         return res.status(500).json({ message: "Failed to upload photo" });
       }
@@ -455,14 +478,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const currentUserId = getUserId(req);
         const storagePath = req.params.path;
 
+        // LOG: Add debugging for signed URL requests
+        console.log('[DEBUG] Signed URL requested:', {
+          currentUserId,
+          storagePath,
+          timestamp: new Date().toISOString()
+        });
+
         // Parse and validate storage path
         const pathInfo = parsePhotoPath(storagePath);
         if (!pathInfo) {
+          console.log('[DEBUG] Invalid storage path format:', storagePath);
           return res.status(400).json({ message: "Invalid storage path format" });
         }
 
         // Check if user owns the photo or has permission through friendship
         const hasAccess = await validatePhotoAccess(currentUserId, pathInfo.userId, storagePath);
+        console.log('[DEBUG] Access validation result:', {
+          currentUserId,
+          photoOwnerId: pathInfo.userId,
+          hasAccess,
+          isOwner: currentUserId === pathInfo.userId
+        });
+        
         if (!hasAccess) {
           return res.status(403).json({ message: "Access denied to this photo" });
         }
@@ -506,14 +544,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const currentUserId = getUserId(req);
         const storagePath = req.params.path;
 
+        // LOG: Add debugging for deletion attempts
+        console.log('[DEBUG] Photo deletion requested:', {
+          currentUserId,
+          storagePath,
+          timestamp: new Date().toISOString()
+        });
+
         // Parse and validate storage path
         const pathInfo = parsePhotoPath(storagePath);
         if (!pathInfo) {
+          console.log('[DEBUG] Invalid storage path format for deletion:', storagePath);
           return res.status(400).json({ message: "Invalid storage path format" });
         }
 
         // Validate ownership - only owner can delete photos
-        if (!validatePhotoOwnership(storagePath, currentUserId)) {
+        const isOwner = validatePhotoOwnership(storagePath, currentUserId);
+        console.log('[DEBUG] Ownership validation for deletion:', {
+          currentUserId,
+          photoOwnerId: pathInfo.userId,
+          isOwner
+        });
+        
+        if (!isOwner) {
           return res.status(403).json({ message: "Access denied. You can only delete your own photos." });
         }
 
@@ -541,8 +594,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Also try to delete from local storage if it exists (cleanup)
         const localFilePath = path.join(uploadDir, storagePath);
-        if (fs.existsSync(localFilePath)) {
-          fs.unlinkSync(localFilePath);
+        try {
+          await fs.promises.unlink(localFilePath);
+        } catch (unlinkError) {
+          // Ignore errors when deleting local files that might not exist
+          console.log('Local file cleanup skipped:', unlinkError);
         }
 
         // Clean up database references
@@ -1710,3 +1766,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return server;
 }
+
