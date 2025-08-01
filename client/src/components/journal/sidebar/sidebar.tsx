@@ -78,7 +78,7 @@ export function JournalSidebar() {
     if (!Array.isArray(friends)) {
       return [];
     }
-    
+
     // Simulate online status - in real app this would come from real-time data
     return friends.slice(0, 3).map((friend) => ({
       ...friend,
@@ -103,7 +103,7 @@ export function JournalSidebar() {
             <p className="text-sm text-muted-foreground">
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
-                month: "long", 
+                month: "long",
                 day: "numeric"
               })}
             </p>
@@ -150,19 +150,19 @@ export function JournalSidebar() {
 
             {getDaysInMonth().map((date, index) => {
               const hasEvents = date && (date.getDate() === 8 || date.getDate() === 13 || date.getDate() === 16 || date.getDate() === 20 || date.getDate() === 28);
-              
+              //${hasEvents ? "calendar-day-has-events" : ""} this displays events on the navigation calendar in the sidebar, not needed for now
+              //but might in future
               return (
                 <div
                   key={index}
-                  className={`calendar-day-cell ${
-                    !date
-                      ? "calendar-day-empty"
-                      : isSelected(date)
-                        ? "calendar-day-selected"
-                        : isToday(date)
-                          ? "calendar-day-today"
-                          : "calendar-day-default"
-                  } ${hasEvents ? "calendar-day-has-events" : ""}`}
+                  className={`calendar-day-cell ${!date
+                    ? "calendar-day-empty"
+                    : isSelected(date)
+                      ? "calendar-day-selected"
+                      : isToday(date)
+                        ? "calendar-day-today"
+                        : "calendar-day-default"
+                    }`}
                   onClick={() => date && setCurrentDate(date)}
                 >
                   {date?.getDate() || ""}
@@ -194,11 +194,10 @@ export function JournalSidebar() {
               <div className="relative">
                 <ProfilePicture userId={friend.id} size="md" />
                 <div
-                  className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${
-                    friend.isOnline
-                      ? "bg-green-400 animate-glow"
-                      : "bg-purple-400"
-                  }`}
+                  className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border-2 border-white/20 ${friend.isOnline
+                    ? "bg-green-400 animate-glow"
+                    : "bg-purple-400"
+                    }`}
                 />
               </div>
               <div className="flex-1">
