@@ -7,7 +7,7 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "dev": "nodemon --exec tsx server/index.ts",
+    "dev": "dotenv -e .env.supabase -- nodemon --exec tsx server/index.ts",
     "dev:local": "dotenv -e .env.local -- nodemon --exec tsx server/index.ts",
     "dev:supabase": "dotenv -e .env.supabase -- nodemon --exec tsx server/index.ts",
     "db:init": "dotenv -e .env -- bash ./scripts/db-init.sh",

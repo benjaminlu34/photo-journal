@@ -86,16 +86,24 @@ interface JournalProviderProps {
 
 export function JournalProvider({ children }: JournalProviderProps) {
   const { date: urlDate, username: urlUsername } = useParams();
-  const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [gridSnap, setGridSnap] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { navigateToUserBoard, navigateToMyBoard } = useUsernameNavigation();
 
-  // Parse date from URL or use today's date (timezone-safe)
-  const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
-  const dateString = formatLocalDate(currentDate);
+  // Get today's date string for stable comparison
+  const todayString = useMemo(() => {
+    const today = new Date();
+    return formatLocalDate(today);
+  }, []); // Empty dependency array means this only runs once
+
+  // Parse date from URL or use today's date (timezone-safe) - memoized to prevent re-renders
+  const currentDate = useMemo(() => {
+    return urlDate ? parseLocalDate(urlDate) : parseLocalDate(todayString);
+  }, [urlDate, todayString]);
+  
+  const dateString = useMemo(() => formatLocalDate(currentDate), [currentDate]);
 
   // Track current week for weekly views - initialize based on current date
   const [currentWeek, setCurrentWeek] = useState(() => currentDate);
@@ -120,6 +128,11 @@ export function JournalProvider({ children }: JournalProviderProps) {
   // Function to update the current week - memoized
   const setCurrentWeekMemo = useCallback((newWeek: Date) => {
     setCurrentWeek(newWeek);
+  }, []);
+
+  // Function to update view mode - memoized
+  const setViewModeMemo = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
   }, []);
 
   // Fetch current journal entry - use username-based API if in username route
@@ -301,28 +314,28 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  const createContentBlock = (
+  const createContentBlock = useCallback((
     type: ContentBlockType,
     content: any,
     position: Position,
   ) => {
     createBlockMutation.mutate({ type, content, position });
-  };
+  }, [createBlockMutation]);
 
-  const updateContentBlock = (
+  const updateContentBlock = useCallback((
     id: string,
     updates: Partial<ContentBlockData>,
   ) => {
     updateBlockMutation.mutate({ id, updates });
-  };
+  }, [updateBlockMutation]);
 
-  const deleteContentBlock = (id: string) => {
+  const deleteContentBlock = useCallback((id: string) => {
     deleteBlockMutation.mutate(id);
-  };
+  }, [deleteBlockMutation]);
 
-  const updateBlockPosition = (id: string, position: Position) => {
+  const updateBlockPosition = useCallback((id: string, position: Position) => {
     updateBlockMutation.mutate({ id, updates: { position } });
-  };
+  }, [updateBlockMutation]);
 
   // Removed: legacyNotes, updateNote, deleteNote, and their usages
 
@@ -337,7 +350,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     currentUserRole: currentEntry?.permissions?.effectiveRole || (urlUsername ? 'viewer' : 'owner'),
     setCurrentDate,
     setCurrentWeek: setCurrentWeekMemo,
-    setViewMode,
+    setViewMode: setViewModeMemo,
     createContentBlock,
     updateContentBlock,
     deleteContentBlock,
@@ -355,6 +368,11 @@ export function JournalProvider({ children }: JournalProviderProps) {
     urlUsername,
     setCurrentDate,
     setCurrentWeekMemo,
+    setViewModeMemo,
+    createContentBlock,
+    updateContentBlock,
+    deleteContentBlock,
+    updateBlockPosition,
     createBlockMutation.isPending,
     updateBlockMutation.isPending,
     isLoading
