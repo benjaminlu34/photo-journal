@@ -1,22 +1,18 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { ChevronLeft, ChevronRight, Plus, Heart, Camera, Music, Palette } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { Plus, Heart, Camera, Palette } from "lucide-react";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
 import type { ContentBlockType } from "@/types/journal";
 
 export function WeeklyCreativeView() {
-  const { currentDate, setCurrentDate, setViewMode, createContentBlock } = useJournal();
-  const [currentWeek, setCurrentWeek] = useState(currentDate);
+  const { currentDate, setCurrentDate, setViewMode, createContentBlock, currentWeek, setCurrentWeek } = useJournal();
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const navigateWeek = (direction: "prev" | "next") => {
-    setCurrentWeek(prev => direction === "prev" ? subWeeks(prev, 1) : addWeeks(prev, 1));
-  };
+
 
   const addCreativeContent = (day: Date, type: ContentBlockType) => {
     setCurrentDate(day);
@@ -62,37 +58,11 @@ export function WeeklyCreativeView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-            <Palette className="w-7 h-7 text-purple-500 mr-3" />
-            Creative Week
+          <h2 className="text-lg font-bold text-gray-800 flex items-center">
+            <Palette className="w-5 h-5 text-purple-500 mr-2" />
+            Creative Mode
           </h2>
-          <p className="text-gray-600 mt-1">{format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("prev")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentWeek(new Date())}
-            className="neu-nav-pill text-gray-700"
-          >
-            This Week
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("next")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <p className="text-gray-600 mt-1">Express yourself through art and memories</p>
         </div>
       </div>
 
@@ -101,16 +71,15 @@ export function WeeklyCreativeView() {
         {weekDays.map((day, index) => {
           const isToday = isSameDay(day, new Date());
           const isSelected = isSameDay(day, currentDate);
-          
+
           return (
             <div
               key={day.toISOString()}
-              className={`group relative ${
-                isSelected ? "ring-2 ring-primary-400" : ""
-              }`}
+              className={`group relative ${isSelected ? "ring-2 ring-primary-400" : ""
+                }`}
             >
               {/* Day Card */}
-              <div 
+              <div
                 className="neu-card p-6 min-h-[350px] flex flex-col cursor-pointer hover:shadow-neu-active transition-all"
                 onClick={() => {
                   setCurrentDate(day);
@@ -123,9 +92,8 @@ export function WeeklyCreativeView() {
                   <div className="text-xs text-secondary-500 font-medium uppercase mb-1">
                     {format(day, "EEE")}
                   </div>
-                  <div className={`text-xl font-bold ${
-                    isToday ? "text-primary-600" : "text-secondary-800"
-                  }`}>
+                  <div className={`text-xl font-bold ${isToday ? "text-primary-600" : "text-secondary-800"
+                    }`}>
                     {format(day, "d")}
                   </div>
                   {isToday && (

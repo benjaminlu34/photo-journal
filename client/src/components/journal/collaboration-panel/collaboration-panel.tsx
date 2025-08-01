@@ -204,10 +204,10 @@ export function CollaborationPanel() {
   ];
 
   return (
-    <div className="neu-card w-80 bg-surface-elevated border-l border-purple-100 flex flex-col shadow-xl">
-      {/* Header Tabs */}
-      <div className="border-b border-purple-100 p-6">
-        <div className="flex items-center space-x-4">
+    <div className="w-80 bg-surface flex flex-col h-screen p-4 space-y-4">
+      {/* Header Card */}
+      <div className="neu-card p-6 flex-shrink-0">
+        <div className="flex items-center space-x-4 mb-4">
           <Button
             size="sm"
             className="neu-button text-white font-semibold px-4 py-2 rounded-xl"
@@ -230,7 +230,7 @@ export function CollaborationPanel() {
         </div>
 
         {/* Search */}
-        <div className="mt-6 flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <FloatingInput
             type="text"
@@ -242,8 +242,8 @@ export function CollaborationPanel() {
         </div>
       </div>
 
-      {/* Active Collaborators - Always visible */}
-      <div className="p-6 border-b border-purple-100">
+      {/* Active Collaborators Card */}
+      <div className="neu-card p-6 flex-shrink-0">
         <h3 className="font-bold text-gray-800 mb-4 flex items-center">
           <Users className="w-4 h-4 text-purple-500 mr-2" />
           Active Collaborators ({activeCollaborators.length})
@@ -292,10 +292,8 @@ export function CollaborationPanel() {
         )}
       </div>
 
-
-
-      {/* Content Types */}
-      <div className="p-6 border-b border-purple-100">
+      {/* Add Content Card */}
+      <div className="neu-card p-6 flex-shrink-0">
         <h3 className="font-bold text-gray-800 mb-4 flex items-center">
           <FolderOpen className="w-4 h-4 text-purple-500 mr-2" />
           Add Content
@@ -314,13 +312,13 @@ export function CollaborationPanel() {
         </div>
       </div>
 
-      {/* Media Gallery */}
-      <div className="p-6 flex-1">
+      {/* Media Gallery Card */}
+      <div className="neu-card p-6 flex-1 overflow-hidden flex flex-col">
         <h3 className="font-bold text-gray-800 mb-4 flex items-center">
           <Image className="w-4 h-4 text-purple-500 mr-2" />
           Media Gallery
         </h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 overflow-y-auto">
           {mediaItems.map((item) => (
             <div
               key={item.id}
