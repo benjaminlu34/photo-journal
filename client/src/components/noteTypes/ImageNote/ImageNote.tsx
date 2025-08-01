@@ -268,7 +268,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
         error: error instanceof Error ? error.message : 'Failed to start upload',
       });
     }
-  }, [onChange, user?.id, noteId, currentDate, localPreviewUrl]);
+  }, [onChange, user?.id, noteId, currentDate]);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
