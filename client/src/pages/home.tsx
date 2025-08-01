@@ -14,14 +14,14 @@ import { useUser } from "@/hooks/useUser";
 import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
 function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
-  const { currentDate, currentEntry } = useJournal();
+  const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek } = useJournal();
 
 
   const handleFriendRequest = async (searchUser: UserSearchResult) => {
@@ -102,27 +102,121 @@ function HomeContent() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen">
       <JournalSidebar />
 
-      <div className="neu-card flex-1 flex flex-col">
-        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Daily Pinboard
+      <div className="neu-card flex-1 flex flex-col min-w-0">
+        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center space-x-4 flex-shrink-0">
+              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center">
+                {viewMode === "daily" && "Daily Pinboard"}
+                {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
+                  const startOfWeekDate = new Date(currentWeek);
+                  startOfWeekDate.setDate(currentWeek.getDate() - currentWeek.getDay());
+                  const endOfWeekDate = new Date(startOfWeekDate);
+                  endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
+                  
+                  const startMonth = startOfWeekDate.toLocaleDateString("en-US", { month: "short" });
+                  const startDay = startOfWeekDate.getDate();
+                  const endMonth = endOfWeekDate.toLocaleDateString("en-US", { month: "short" });
+                  const endDay = endOfWeekDate.getDate();
+                  const year = endOfWeekDate.getFullYear();
+                  
+                  if (startMonth === endMonth) {
+                    return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;
+                  } else {
+                    return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+                  }
+                })()}
+                {viewMode === "monthly" && (
+                  <>
+                    <Calendar className="w-7 h-7 text-purple-500 mr-3" />
+                    {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </>
+                )}
               </h2>
-              <p className="text-gray-600">
-                {currentDate.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
+
+              {/* Navigation Controls */}
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="neu"
+                  size="sm"
+                  onClick={() => {
+                    if (viewMode === "daily") {
+                      const prevDay = new Date(currentDate);
+                      prevDay.setDate(currentDate.getDate() - 1);
+                      setCurrentDate(prevDay);
+                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                      const prevWeek = new Date(currentWeek);
+                      prevWeek.setDate(currentWeek.getDate() - 7);
+                      setCurrentWeek(prevWeek);
+                    } else if (viewMode === "monthly") {
+                      const prevMonth = new Date(currentDate);
+                      prevMonth.setMonth(currentDate.getMonth() - 1);
+                      setCurrentDate(prevMonth);
+                    }
+                  }}
+                  className="neu-nav-pill text-gray-700"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+
+                <Button
+                  variant="neu"
+                  size="sm"
+                  onClick={() => {
+                    if (viewMode === "daily") {
+                      setCurrentDate(new Date());
+                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                      setCurrentWeek(new Date());
+                    } else if (viewMode === "monthly") {
+                      setCurrentDate(new Date());
+                    }
+                  }}
+                  className="neu-nav-pill text-gray-700 whitespace-nowrap"
+                >
+                  {viewMode === "daily" && "Today"}
+                  {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
+                    const today = new Date();
+                    const thisWeekStart = new Date(today);
+                    thisWeekStart.setDate(today.getDate() - today.getDay());
+                    thisWeekStart.setHours(0, 0, 0, 0);
+                    const currentWeekStart = new Date(currentWeek);
+                    currentWeekStart.setDate(currentWeek.getDate() - currentWeek.getDay());
+                    currentWeekStart.setHours(0, 0, 0, 0);
+                    return thisWeekStart.getTime() === currentWeekStart.getTime() ? "This Week" : "Go to This Week";
+                  })()}
+                  {viewMode === "monthly" && "This Month"}
+                </Button>
+
+                <Button
+                  variant="neu"
+                  size="sm"
+                  onClick={() => {
+                    if (viewMode === "daily") {
+                      const nextDay = new Date(currentDate);
+                      nextDay.setDate(currentDate.getDate() + 1);
+                      setCurrentDate(nextDay);
+                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                      const nextWeek = new Date(currentWeek);
+                      nextWeek.setDate(currentWeek.getDate() + 7);
+                      setCurrentWeek(nextWeek);
+                    } else if (viewMode === "monthly") {
+                      const nextMonth = new Date(currentDate);
+                      nextMonth.setMonth(currentDate.getMonth() + 1);
+                      setCurrentDate(nextMonth);
+                    }
+                  }}
+                  className="neu-nav-pill text-gray-700"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
-            {/* Friend Search */}
-            <div className="w-80">
+            {/* Center Section */}
+            <div className="flex items-center space-x-4 flex-1 justify-center max-w-md">
               <FriendSearch
                 onFriendRequest={handleFriendRequest}
                 placeholder="Find friends..."
@@ -131,18 +225,18 @@ function HomeContent() {
                 currentUserId={user?.id}
               />
             </div>
-            <ViewToggle />
-
-            <div className="flex items-center space-x-4">
+            
+            {/* Right Section */}
+            <div className="flex items-center space-x-3 flex-shrink-0">
+              <ViewToggle />
               <FriendshipNotifications className="neu-nav-pill" />
               <Button
                 variant="neu"
-                className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill"
+                className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill whitespace-nowrap"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
-
               <Button
                 variant="neu"
                 onClick={async () => {
@@ -157,7 +251,7 @@ function HomeContent() {
                     });
                   }
                 }}
-                className="font-semibold text-gray-700 hover:text-red-500 neu-nav-pill"
+                className="font-semibold text-gray-700 hover:text-red-500 neu-nav-pill whitespace-nowrap"
               >
                 Logout
               </Button>

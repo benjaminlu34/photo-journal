@@ -1,11 +1,6 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
   Heart,
   Camera,
   PenTool,
@@ -17,30 +12,21 @@ import {
   eachDayOfInterval,
   startOfWeek,
   endOfWeek,
-  addMonths,
-  subMonths,
   isSameDay,
   isSameMonth,
 } from "date-fns";
 
 export function MonthlyView() {
   const { currentDate, setCurrentDate, setViewMode } = useJournal();
-  const [currentMonth, setCurrentMonth] = useState(currentDate);
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const calendarDays = eachDayOfInterval({
     start: calendarStart,
     end: calendarEnd,
   });
-
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentMonth((prev) =>
-      direction === "prev" ? subMonths(prev, 1) : addMonths(prev, 1),
-    );
-  };
 
   const getMemoryPreview = (day: Date) => {
     // Mock data - in real app this would come from actual journal entries
@@ -64,39 +50,9 @@ export function MonthlyView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800 flex items-center">
-            <Calendar className="w-8 h-8 text-purple-500 mr-3" />
-            {format(currentMonth, "MMMM yyyy")}
-          </h2>
           <p className="text-gray-600 mt-1">
             Your month of memories and moments
           </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateMonth("prev")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentMonth(new Date())}
-            className="neu-nav-pill text-gray-700"
-          >
-            This Month
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateMonth("next")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
@@ -139,7 +95,7 @@ export function MonthlyView() {
           {calendarDays.map((day) => {
             const isToday = isSameDay(day, new Date());
             const isSelected = isSameDay(day, currentDate);
-            const isCurrentMonth = isSameMonth(day, currentMonth);
+            const isCurrentMonth = isSameMonth(day, currentDate);
             const memory = getMemoryPreview(day);
             const activityCount = getActivityCount(day);
 

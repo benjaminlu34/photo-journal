@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Bell, 
-  UserPlus, 
-  UserCheck, 
-  UserX, 
+import {
+  Bell,
+  UserPlus,
+  UserCheck,
+  UserX,
   Settings,
   X,
   Check,
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ProfilePicture } from '@/components/profile/ProfilePicture/ProfilePicture';
-import { 
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -21,11 +21,11 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  useFriendshipEvents, 
+import {
+  useFriendshipEvents,
   formatFriendshipEventMessage,
   getFriendshipEventNotificationType,
-  type FriendshipEvent 
+  type FriendshipEvent
 } from '@/hooks/useFriendshipEvents';
 import { cn } from '@/lib/utils';
 
@@ -44,7 +44,7 @@ interface FriendshipNotificationsProps {
 const NOTIFICATION_STORAGE_KEY = 'friendship_notifications';
 const MAX_STORED_NOTIFICATIONS = 50;
 
-export function FriendshipNotifications({ 
+export function FriendshipNotifications({
   className,
   maxNotifications = 10,
   autoMarkAsRead = true
@@ -105,7 +105,7 @@ export function FriendshipNotifications({
     // Show toast notification
     const message = formatFriendshipEventMessage(event);
     const type = getFriendshipEventNotificationType(event);
-    
+
     toast({
       title: "Friend Activity",
       description: message,
@@ -116,7 +116,7 @@ export function FriendshipNotifications({
   // Mark notification as read
   const markAsRead = (notificationId: string) => {
     setNotifications(prev => {
-      const updated = prev.map(n => 
+      const updated = prev.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
       );
       saveNotifications(updated);
@@ -142,7 +142,7 @@ export function FriendshipNotifications({
   // Handle popover open/close
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
-    
+
     if (open && autoMarkAsRead) {
       // Mark visible notifications as read after a short delay
       setTimeout(() => {
@@ -150,7 +150,7 @@ export function FriendshipNotifications({
           .slice(0, maxNotifications)
           .filter(n => !n.read)
           .map(n => n.id);
-        
+
         unreadIds.forEach(markAsRead);
       }, 1000);
     }
@@ -180,8 +180,8 @@ export function FriendshipNotifications({
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs flex items-center justify-center"
             >
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -189,7 +189,7 @@ export function FriendshipNotifications({
           )}
         </Button>
       </PopoverTrigger>
-      
+
       <PopoverContent className="w-80 p-0" align="end">
         <Card className="border-0 shadow-none">
           <CardHeader className="pb-3">
@@ -203,7 +203,7 @@ export function FriendshipNotifications({
                   </Badge>
                 )}
               </CardTitle>
-              
+
               {notifications.length > 0 && (
                 <div className="flex gap-1">
                   {unreadCount > 0 && (
@@ -230,7 +230,7 @@ export function FriendshipNotifications({
               )}
             </div>
           </CardHeader>
-          
+
           <CardContent className="p-0">
             {notifications.length === 0 ? (
               <div className="text-center py-8">
@@ -251,7 +251,7 @@ export function FriendshipNotifications({
                       )}
                     </React.Fragment>
                   ))}
-                  
+
                   {notifications.length > maxNotifications && (
                     <div className="text-center py-2">
                       <p className="text-xs text-muted-foreground">
@@ -277,7 +277,7 @@ interface NotificationItemProps {
 function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps) {
   const message = formatFriendshipEventMessage(notification);
   const type = getFriendshipEventNotificationType(notification);
-  
+
   const getIcon = () => {
     switch (notification.type) {
       case 'friend_request_received':
@@ -300,7 +300,7 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
   const timeAgo = getTimeAgo(notification.createdAt);
 
   return (
-    <div 
+    <div
       className={cn(
         "flex items-start gap-3 p-2 rounded-lg transition-colors cursor-pointer",
         !notification.read && "bg-accent/50",
@@ -317,7 +317,7 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
       )}>
         <Icon className="h-3 w-3" />
       </div>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           {notification.metadata?.username && (
@@ -331,17 +331,17 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
             <div className="w-2 h-2 bg-primary rounded-full" />
           )}
         </div>
-        
+
         <p className="text-sm text-foreground leading-tight mt-1">
           {message}
         </p>
-        
+
         <div className="flex items-center gap-2 mt-1">
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {timeAgo}
           </p>
-          
+
           {notification.type === 'friend_role_changed' && notification.metadata && (
             <Badge variant="outline" className="text-xs">
               {notification.metadata.oldRole} → {notification.metadata.newRole}
@@ -364,9 +364,9 @@ function getTimeAgo(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
-  
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric' 
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
   });
 }

@@ -53,11 +53,8 @@ export const StickyBoard: React.FC<StickyBoardProps> = ({
       // minimal default content per type
       const content: NoteData['content'] = (() => {
         switch (type) {
-          case 'text':       return { type: 'text',       text: '' };
           case 'checklist':  return { type: 'checklist',  items: [] };
           case 'image':      return { type: 'image',      imageUrl: '', alt: '' };
-          case 'voice':      return { type: 'voice',      audioUrl: '', duration: 0 };
-          case 'drawing':    return { type: 'drawing',    strokes: [] };
           default:
             throw new Error(`Unknown note type: ${type}`);
         }

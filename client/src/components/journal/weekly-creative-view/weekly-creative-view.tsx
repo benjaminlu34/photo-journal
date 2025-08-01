@@ -1,43 +1,38 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
-import { ChevronLeft, ChevronRight, Plus, Heart, Camera, Music, Palette } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { Plus, Heart, Camera, Palette } from "lucide-react";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
 import type { ContentBlockType } from "@/types/journal";
 
 export function WeeklyCreativeView() {
-  const { currentDate, setCurrentDate, setViewMode, createContentBlock } = useJournal();
-  const [currentWeek, setCurrentWeek] = useState(currentDate);
+  const { currentDate, setCurrentDate, setViewMode, createContentBlock, currentWeek } = useJournal();
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const navigateWeek = (direction: "prev" | "next") => {
-    setCurrentWeek(prev => direction === "prev" ? subWeeks(prev, 1) : addWeeks(prev, 1));
-  };
+
 
   const addCreativeContent = (day: Date, type: ContentBlockType) => {
     setCurrentDate(day);
     const position = {
       x: Math.random() * 300 + 100,
       y: Math.random() * 200 + 100,
-      width: type === "photo" ? 300 : type === "drawing" ? 400 : 240,
-      height: type === "photo" ? 200 : type === "drawing" ? 300 : 180,
+      width: type === "photo" ? 300 : 240,
+      height: type === "photo" ? 200 : 180,
       rotation: Math.random() * 4 - 2
     };
 
-    const defaultContent = {
+    const defaultContent: Record<ContentBlockType, any> = {
       "sticky_note": { text: "Creative thought..." },
       "photo": { url: "", caption: "Capture the moment" },
-      "drawing": { strokes: [] },
-      "audio": { url: "", duration: "0:00" },
-      "text": { text: "Write your story..." },
       "checklist": { items: [{ text: "Creative goal", completed: false }] }
     };
 
-    createContentBlock(type, defaultContent[type], position);
+    // Now type-safe since ContentBlockType only includes the keys we handle
+    const content = defaultContent[type];
+    createContentBlock(type, content, position);
   };
 
   const getMoodEmoji = (dayIndex: number) => {
@@ -63,37 +58,11 @@ export function WeeklyCreativeView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-            <Palette className="w-7 h-7 text-purple-500 mr-3" />
-            Creative Week
+          <h2 className="text-lg font-bold text-gray-800 flex items-center">
+            <Palette className="w-5 h-5 text-purple-500 mr-2" />
+            Creative Mode
           </h2>
-          <p className="text-gray-600 mt-1">{format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("prev")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentWeek(new Date())}
-            className="neu-nav-pill text-gray-700"
-          >
-            This Week
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("next")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <p className="text-gray-600 mt-1">Express yourself through art and memories</p>
         </div>
       </div>
 
@@ -102,16 +71,15 @@ export function WeeklyCreativeView() {
         {weekDays.map((day, index) => {
           const isToday = isSameDay(day, new Date());
           const isSelected = isSameDay(day, currentDate);
-          
+
           return (
             <div
               key={day.toISOString()}
-              className={`group relative ${
-                isSelected ? "ring-2 ring-primary-400" : ""
-              }`}
+              className={`group relative ${isSelected ? "ring-2 ring-primary-400" : ""
+                }`}
             >
               {/* Day Card */}
-              <div 
+              <div
                 className="neu-card p-6 min-h-[350px] flex flex-col cursor-pointer hover:shadow-neu-active transition-all"
                 onClick={() => {
                   setCurrentDate(day);
@@ -124,9 +92,8 @@ export function WeeklyCreativeView() {
                   <div className="text-xs text-secondary-500 font-medium uppercase mb-1">
                     {format(day, "EEE")}
                   </div>
-                  <div className={`text-xl font-bold ${
-                    isToday ? "text-primary-600" : "text-secondary-800"
-                  }`}>
+                  <div className={`text-xl font-bold ${isToday ? "text-primary-600" : "text-secondary-800"
+                    }`}>
                     {format(day, "d")}
                   </div>
                   {isToday && (
@@ -157,25 +124,7 @@ export function WeeklyCreativeView() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => addCreativeContent(day, "drawing")}
-                    className="neu-inset text-xs justify-start text-gray-700"
-                  >
-                    <Palette className="w-3 h-3 mr-2" />
-                    Draw Something
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addCreativeContent(day, "audio")}
-                    className="neu-inset text-xs justify-start text-gray-700"
-                  >
-                    <Music className="w-3 h-3 mr-2" />
-                    Voice Note
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addCreativeContent(day, "sticky_note")}
+                    onClick={() => addCreativeContent(day, "checklist")}
                     className="neu-inset text-xs justify-start text-gray-700"
                   >
                     <Heart className="w-3 h-3 mr-2" />
@@ -222,7 +171,7 @@ export function WeeklyCreativeView() {
           <Heart className="w-5 h-5 text-primary-500 mr-2" />
           This Week's Creative Journey
         </h3>
-        <div className="grid grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center">
           <div className="space-y-1">
             <div className="text-2xl font-bold text-primary-600">3</div>
             <div className="text-xs text-secondary-500">Photos Captured</div>
@@ -230,14 +179,6 @@ export function WeeklyCreativeView() {
           <div className="space-y-1">
             <div className="text-2xl font-bold text-primary-600">7</div>
             <div className="text-xs text-secondary-500">Notes Written</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-primary-600">2</div>
-            <div className="text-xs text-secondary-500">Drawings Created</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-primary-600">5</div>
-            <div className="text-xs text-secondary-500">Voice Memos</div>
           </div>
         </div>
       </div>

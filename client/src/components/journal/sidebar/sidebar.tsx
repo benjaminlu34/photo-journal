@@ -91,86 +91,90 @@ export function JournalSidebar() {
   };
 
   return (
-    <div className="neu-card w-80 bg-surface-elevated border-r border-purple-100 flex flex-col">
-      {/* Header */}
-      <div className="p-6 border-b border-border/20">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl neu-button flex items-center justify-center text-white font-semibold text-lg">
-              <Heart className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
-              <p className="text-sm text-muted-foreground">
-                Express yourself beautifully ✨
-              </p>
-            </div>
+    <div className="no-squish-sidebar bg-surface flex flex-col h-screen p-4 space-y-4">
+      {/* Header Card */}
+      <div className="neu-card p-6 flex-shrink-0">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 rounded-xl neu-button flex items-center justify-center text-white font-semibold text-lg">
+            <Heart className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
+            <p className="text-sm text-muted-foreground">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long", 
+                day: "numeric"
+              })}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Date Navigation */}
-      <div className="p-6 border-b border-border/20">
+      {/* Calendar Card */}
+      <div className="neu-card p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-foreground">
+          <h2 className="calendar-month-header">
             {currentMonth.toLocaleDateString("en-US", {
               month: "long",
               year: "numeric",
             })}
           </h2>
           <div className="flex space-x-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="w-10 h-10 p-0 neu-card text-gray-700"
+            <button
+              className="calendar-nav-button"
               onClick={() => navigateMonth("prev")}
             >
               <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="w-10 h-10 p-0 neu-card text-gray-700"
+            </button>
+            <button
+              className="calendar-nav-button"
               onClick={() => navigateMonth("next")}
             >
               <ChevronRight className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         </div>
 
-        {/* Mini Calendar */}
-        <div className="grid grid-cols-7 gap-2 text-center text-sm mb-4">
-          {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-            <div
-              key={`weekday-${index}`}
-              className="text-muted-foreground font-semibold py-2"
-            >
-              {day}
-            </div>
-          ))}
+        {/* Neumorphic Calendar - Fixed size to prevent squishing */}
+        <div className="calendar-grid">
+          <div className="grid grid-cols-7 gap-2 text-center mb-4">
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day, index) => (
+              <div
+                key={`weekday-${index}`}
+                className="calendar-weekday py-2 flex items-center justify-center"
+              >
+                {day}
+              </div>
+            ))}
 
-          {getDaysInMonth().map((date, index) => (
-            <div
-              key={index}
-              className={`h-10 w-10 mx-auto flex items-center justify-center cursor-pointer rounded-xl transition-all ${
-                !date
-                  ? ""
-                  : isSelected(date)
-                    ? "neu-button active text-white font-bold"
-                    : isToday(date)
-                      ? "neu-card border-2 border-purple-300 text-purple-700 font-semibold"
-                      : "text-muted-foreground hover:neu-card hover:text-purple-700 interactive"
-              }`}
-              onClick={() => date && setCurrentDate(date)}
-            >
-              {date?.getDate() || ""}
-            </div>
-          ))}
+            {getDaysInMonth().map((date, index) => {
+              const hasEvents = date && (date.getDate() === 8 || date.getDate() === 13 || date.getDate() === 16 || date.getDate() === 20 || date.getDate() === 28);
+              
+              return (
+                <div
+                  key={index}
+                  className={`calendar-day-cell ${
+                    !date
+                      ? "calendar-day-empty"
+                      : isSelected(date)
+                        ? "calendar-day-selected"
+                        : isToday(date)
+                          ? "calendar-day-today"
+                          : "calendar-day-default"
+                  } ${hasEvents ? "calendar-day-has-events" : ""}`}
+                  onClick={() => date && setCurrentDate(date)}
+                >
+                  {date?.getDate() || ""}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Your Circle */}
-      <div className="p-6 flex-1">
+      {/* Friends Card */}
+      <div className="neu-card p-6 flex-1 overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold text-foreground">Friends Online</h3>
           <Badge
@@ -181,7 +185,7 @@ export function JournalSidebar() {
           </Badge>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1">
           {getOnlineFriends().map((friend) => (
             <div
               key={friend.id}
@@ -209,50 +213,50 @@ export function JournalSidebar() {
               </div>
             </div>
           ))}
-        </div>
 
-        {/* Week's Happenings */}
-        <div className="mt-8">
-          <h4 className="text-sm font-bold text-foreground mb-4 flex items-center">
-            <CalendarDays className="w-4 h-4 text-primary-400 mr-2" />
-            WEEK'S HAPPENINGS
-          </h4>
-          <div className="text-sm text-muted-foreground space-y-3">
-            <div className="neumorphic-inset p-3 rounded-lg">
-              ✨ You created 3 new journal entries
-            </div>
-            <div className="neumorphic-inset p-3 rounded-lg">
-              💫{" "}
-              {friends.length > 0
-                ? friends[0].firstName || "A friend"
-                : "Someone"}{" "}
-              shared memories about{" "}
-              <span className="text-foreground font-semibold">
-                summer vibes
-              </span>
-            </div>
-            <div className="neumorphic-inset p-3 rounded-lg">
-              🎨 New content blocks added: photos, notes
+          {/* Week's Happenings */}
+          <div className="mt-8">
+            <h4 className="text-sm font-bold text-foreground mb-4 flex items-center">
+              <CalendarDays className="w-4 h-4 text-primary-400 mr-2" />
+              WEEK'S HAPPENINGS
+            </h4>
+            <div className="text-sm text-muted-foreground space-y-3">
+              <div className="neumorphic-inset p-3 rounded-lg">
+                ✨ You created 3 new journal entries
+              </div>
+              <div className="neumorphic-inset p-3 rounded-lg">
+                💫{" "}
+                {friends.length > 0
+                  ? friends[0].firstName || "A friend"
+                  : "Someone"}{" "}
+                shared memories about{" "}
+                <span className="text-foreground font-semibold">
+                  summer vibes
+                </span>
+              </div>
+              <div className="neumorphic-inset p-3 rounded-lg">
+                🎨 New content blocks added: photos, notes
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Profile Section */}
-        <div className="mt-12 border-border/20">
-          <Button
-            variant="ghost"
-            className="neu-card w-full flex items-center justify-center space-x-3 p-3 rounded-lg hover:bg-[var(--secondary)] hover:border-[var(--border)] text-[var(--foreground)]"
-            onClick={() => setLocation('/profile')}
-          >
-            <ProfilePicture userId={user?.id} size="sm" />
-            <div className="text-left">
-              <p className="font-medium text-sm">
-                {user?.firstName || ''} {user?.lastName || ''}
-              </p>
-            </div>
-            <User className="w-9 h-9 text-[var(--muted-foreground)]" />
-          </Button>
-        </div>
+      {/* Profile Card - Fixed at bottom */}
+      <div className="neu-card p-4 flex-shrink-0">
+        <Button
+          variant="ghost"
+          className="neu-card w-full flex items-center justify-center space-x-3 p-3 rounded-lg hover:bg-[var(--secondary)] hover:border-[var(--border)] text-[var(--foreground)]"
+          onClick={() => setLocation('/profile')}
+        >
+          <ProfilePicture userId={user?.id} size="sm" />
+          <div className="text-left">
+            <p className="font-medium text-sm">
+              {user?.firstName || ''} {user?.lastName || ''}
+            </p>
+          </div>
+          <User className="w-9 h-9 text-[var(--muted-foreground)]" />
+        </Button>
       </div>
     </div>
   );

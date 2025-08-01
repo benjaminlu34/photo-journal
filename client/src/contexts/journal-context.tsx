@@ -39,6 +39,7 @@ function formatLocalDate(date: Date): string {
 interface JournalContextType {
   // State
   currentDate: Date;
+  currentWeek: Date;
   viewMode: ViewMode;
   currentEntry: JournalEntryData | null;
   friends: Friend[];
@@ -47,6 +48,7 @@ interface JournalContextType {
 
   // Legacy content block actions
   setCurrentDate: (date: Date) => void;
+  setCurrentWeek: (date: Date) => void;
   setViewMode: (mode: ViewMode) => void;
   createContentBlock: (
     type: ContentBlockType,
@@ -93,6 +95,24 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
   const dateString = formatLocalDate(currentDate);
 
+  // Track current week for weekly views
+  const [currentWeek, setCurrentWeek] = useState(currentDate);
+
+  // Sync currentWeek with currentDate when switching to weekly views
+  useEffect(() => {
+    if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+      setCurrentWeek(currentDate);
+    }
+  }, [viewMode, currentDate]);
+
+  // Update currentDate when currentWeek changes in weekly views
+  useEffect(() => {
+    if ((viewMode === "weekly-calendar" || viewMode === "weekly-creative") && currentWeek !== currentDate) {
+      // Don't update URL when just navigating weeks, only when switching back to daily
+      // setCurrentDate(currentWeek);
+    }
+  }, [currentWeek, viewMode, currentDate]);
+
   // Function to update the current date (updates URL)
   const setCurrentDate = (newDate: Date) => {
     if (urlUsername) {
@@ -106,7 +126,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const apiEndpoint = urlUsername
     ? `/api/journal/user/${urlUsername}/${dateString}`
     : `/api/journal/${dateString}`;
-  
+
   const { data: currentEntry, isLoading } = useQuery<
     JournalEntryData | null,
     Error,
@@ -308,12 +328,14 @@ export function JournalProvider({ children }: JournalProviderProps) {
 
   const value: JournalContextType = {
     currentDate,
+    currentWeek,
     viewMode,
     currentEntry: currentEntry || null,
     friends,
     gridSnap,
     currentUserRole: currentEntry?.permissions?.effectiveRole || (urlUsername ? 'viewer' : 'owner'),
     setCurrentDate,
+    setCurrentWeek,
     setViewMode,
     createContentBlock,
     updateContentBlock,

@@ -10,16 +10,11 @@ import React from "react";
 import TextNote from "@/components/noteTypes/TextNote/TextNote";
 import ChecklistNote from "@/components/noteTypes/ChecklistNote/ChecklistNote";
 import ImageNote from "@/components/noteTypes/ImageNote/ImageNote";
-import VoiceNote from "@/components/noteTypes/VoiceNote/VoiceNote";
-import DrawingNote from "@/components/noteTypes/DrawingNote/DrawingNote";
 
 export const noteRegistry: Record<string, React.ComponentType<any>> = {
-  text: TextNote,
   sticky_note: TextNote,
   checklist: ChecklistNote,
   image: ImageNote,
-  voice: VoiceNote,
-  drawing: DrawingNote,
 };
 
 export type NoteKind = keyof typeof noteRegistry;

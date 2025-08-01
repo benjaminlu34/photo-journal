@@ -6,17 +6,14 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from "date-fns";
 
 export function WeeklyCalendarView() {
-  const { currentDate } = useJournal();
-  const [currentWeek, setCurrentWeek] = useState(currentDate);
+  const { currentWeek, setCurrentWeek } = useJournal();
   const [events, setEvents] = useState<any[]>([]);
 
   const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const navigateWeek = (direction: "prev" | "next") => {
-    setCurrentWeek(prev => direction === "prev" ? subWeeks(prev, 1) : addWeeks(prev, 1));
-  };
+
 
   const addEventToDay = (day: Date) => {
     const newEvent = {
@@ -44,9 +41,6 @@ export function WeeklyCalendarView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">
-            Week of {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
-          </h2>
           <p className="text-gray-600 mt-1">Schedule and calendar view</p>
         </div>
         <div className="flex items-center space-x-2">
@@ -57,30 +51,6 @@ export function WeeklyCalendarView() {
             className="neu-card text-gray-700"
           >
             Import Calendar
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("prev")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentWeek(new Date())}
-            className="neu-nav-pill text-gray-700"
-          >
-            This Week
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateWeek("next")}
-            className="neu-card text-gray-700"
-          >
-            <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       </div>
