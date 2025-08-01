@@ -181,8 +181,10 @@ function HomeContent() {
                     const today = new Date();
                     const thisWeekStart = new Date(today);
                     thisWeekStart.setDate(today.getDate() - today.getDay());
+                    thisWeekStart.setHours(0, 0, 0, 0);
                     const currentWeekStart = new Date(currentWeek);
                     currentWeekStart.setDate(currentWeek.getDate() - currentWeek.getDay());
+                    currentWeekStart.setHours(0, 0, 0, 0);
                     return thisWeekStart.getTime() === currentWeekStart.getTime() ? "This Week" : "Go to This Week";
                   })()}
                   {viewMode === "monthly" && "This Month"}

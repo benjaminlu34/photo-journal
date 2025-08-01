@@ -94,7 +94,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   // Parse date from URL or use today's date (timezone-safe)
   const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
   const dateString = formatLocalDate(currentDate);
-  
+
   // Track current week for weekly views
   const [currentWeek, setCurrentWeek] = useState(currentDate);
 
@@ -111,7 +111,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
       // Don't update URL when just navigating weeks, only when switching back to daily
       // setCurrentDate(currentWeek);
     }
-  }, [currentWeek, viewMode]);
+  }, [currentWeek, viewMode, currentDate]);
 
   // Function to update the current date (updates URL)
   const setCurrentDate = (newDate: Date) => {
@@ -126,7 +126,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
   const apiEndpoint = urlUsername
     ? `/api/journal/user/${urlUsername}/${dateString}`
     : `/api/journal/${dateString}`;
-  
+
   const { data: currentEntry, isLoading } = useQuery<
     JournalEntryData | null,
     Error,
