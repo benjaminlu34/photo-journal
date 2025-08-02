@@ -6,13 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Users, 
-  Calendar, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
+import {
+  Users,
+  Calendar,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
   Clock,
   Eye,
   UserX
@@ -21,6 +21,22 @@ import { format } from "date-fns";
 import type { Friend } from "@/types/journal";
 import { friendCalendarService } from "@/services/friend-calendar.service";
 import { useCalendarStore } from "@/lib/calendar-store";
+
+// Generate a consistent color for a friend's calendar - moved outside component as it's a pure function
+const generateFriendColor = (friendId: string): string => {
+  // Simple hash-based color generation for consistency
+  let hash = 0;
+  for (let i = 0; i < friendId.length; i++) {
+    hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    '#3B82F6', '#8B5CF6', '#EC4899', '#10B981',
+    '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+};
 
 interface FriendCalendarSyncItem {
   friend: Friend;
@@ -121,9 +137,10 @@ export function FriendCalendarSyncModal({
           return;
         }
         
-        // Show consent banner for newly enabled friends
+        // Show consent banner for newly enabled friends (only if not previously dismissed)
+        const hasDismissedConsent = localStorage.getItem('friend-calendar-consent-dismissed') === 'true';
         setRecentlyEnabledFriends(prev => [...prev, friend]);
-        setShowConsentBanner(true);
+        setShowConsentBanner(!hasDismissedConsent);
       }
       
       await onToggleSync(friend.id, enabled);
@@ -177,20 +194,6 @@ export function FriendCalendarSyncModal({
     }
   };
 
-  const generateFriendColor = (friendId: string): string => {
-    // Simple hash-based color generation for consistency
-    let hash = 0;
-    for (let i = 0; i < friendId.length; i++) {
-      hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const colors = [
-      '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', 
-      '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'
-    ];
-    
-    return colors[Math.abs(hash) % colors.length];
-  };
 
   const getSyncStatusIcon = (item: FriendCalendarSyncItem) => {
     if (item.isRefreshing) {
