@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,19 +38,19 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
   const [selectedCalendars, setSelectedCalendars] = useState<Record<string, boolean>>({});
   const { actions } = useCalendarStore();
   
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  }, []);
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     console.log("Calendar feed submitted:", { ...formData, type: feedType });
     onClose();
-  };
+  }, [formData, feedType, onClose]);
   
-  const handleCalendarSelection = (id: string, checked: boolean) => {
+  const handleCalendarSelection = useCallback((id: string, checked: boolean) => {
     setSelectedCalendars(prev => ({ ...prev, [id]: checked }));
-  };
+  }, []);
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

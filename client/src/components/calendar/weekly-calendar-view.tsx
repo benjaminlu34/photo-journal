@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -17,7 +17,17 @@ import { FriendCalendarSyncModal } from './friend-calendar-sync-modal';
 import { CreateEventModal } from './create-event-modal';
 import { DayColumn } from './day-column';
 import { WeekHeader } from './week-header';
+import { CalendarErrorBoundary, useCalendarErrorHandler } from './calendar-error-boundary';
 import type { WeeklyCalendarViewProps } from '@/types/calendar';
+
+// Debounce utility
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: NodeJS.Timeout;
+  return ((...args: any[]) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  }) as T;
+}
 
 export function WeeklyCalendarView({ 
   initialDate = new Date(),
@@ -42,46 +52,75 @@ export function WeeklyCalendarView({
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [isImportCalendarModalOpen, setIsImportCalendarModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const initializationRef = useRef(false);
+  const { throwError } = useCalendarErrorHandler();
+
+  // Debounced friend events loading
+  const debouncedLoadEvents = useMemo(
+    () => debounce(actions.loadFriendEventsForWeek, 300),
+    [actions.loadFriendEventsForWeek]
+  );
 
   // Initialize calendar store
   useEffect(() => {
     const weekId = format(currentWeek, 'yyyy-\'W\'ww');
     actions.init(weekId, username, username, username);
+    initializationRef.current = true;
+
+    return () => {
+      // Cleanup on unmount
+      if (actions.cleanup) {
+        actions.cleanup();
+      }
+    };
   }, [currentWeek, username, actions]);
 
   // Load friend events when week changes or synced friends change
   useEffect(() => {
-    if (storeSyncedFriends.length > 0) {
-      actions.loadFriendEventsForWeek(currentWeek);
+    if (storeSyncedFriends.length > 0 && initializationRef.current) {
+      debouncedLoadEvents(currentWeek);
     }
-  }, [currentWeek, storeSyncedFriends, actions]);
+
+    return () => {
+      // Cancel debounced calls on cleanup
+      debouncedLoadEvents.cancel?.();
+    };
+  }, [currentWeek, storeSyncedFriends, debouncedLoadEvents]);
 
   // Initialize synced friends from props
   useEffect(() => {
-    if (syncedFriends.length > 0) {
-      syncedFriends.forEach(friendUserId => {
-        if (!storeSyncedFriends.includes(friendUserId)) {
-          actions.syncFriendCalendar(friendUserId);
-        }
-      });
+    if (syncedFriends.length > 0 && initializationRef.current) {
+      const friendsToSync = syncedFriends.filter(
+        friendUserId => !storeSyncedFriends.includes(friendUserId)
+      );
+      
+      if (friendsToSync.length > 0) {
+        Promise.all(
+          friendsToSync.map(friendUserId => 
+            actions.syncFriendCalendar(friendUserId).catch(error => 
+              console.error(`Failed to sync friend ${friendUserId}:`, error)
+            )
+          )
+        );
+      }
     }
   }, [syncedFriends, storeSyncedFriends, actions]);
 
-  const handlePreviousWeek = () => {
+  const handlePreviousWeek = useCallback(() => {
     const newWeek = subWeeks(currentWeek, 1);
     actions.setCurrentWeek(newWeek);
-  };
+  }, [currentWeek, actions.setCurrentWeek]);
 
-  const handleNextWeek = () => {
+  const handleNextWeek = useCallback(() => {
     const newWeek = addWeeks(currentWeek, 1);
     actions.setCurrentWeek(newWeek);
-  };
+  }, [currentWeek, actions.setCurrentWeek]);
 
-  const handleTodayClick = () => {
+  const handleTodayClick = useCallback(() => {
     actions.setCurrentWeek(new Date());
-  };
+  }, [actions.setCurrentWeek]);
 
-  const handleToggleFriendSync = async (friendUserId: string, enabled: boolean) => {
+  const handleToggleFriendSync = useCallback(async (friendUserId: string, enabled: boolean) => {
     try {
       if (enabled) {
         await actions.syncFriendCalendar(friendUserId);
@@ -90,38 +129,51 @@ export function WeeklyCalendarView({
       }
     } catch (error) {
       console.error('Error toggling friend sync:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to toggle friend sync';
+      actions.setError(errorMessage);
+      throwError(new Error(errorMessage));
     }
-  };
+  }, [actions, throwError]);
 
-  const handleRefreshFriend = async (friendUserId: string) => {
+  const handleRefreshFriend = useCallback(async (friendUserId: string) => {
     try {
       await actions.refreshFriendEvents(friendUserId);
     } catch (error) {
       console.error('Error refreshing friend events:', error);
+      actions.setError(error instanceof Error ? error.message : 'Failed to refresh friend events');
     }
-  };
+  }, [actions, throwError]);
 
-  // Get all events for the week
-  const getAllEvents = () => {
-    const allEvents = [];
+  // Get all events for the week with proper typing
+  const allEvents = useMemo(() => {
+    type CombinedEvent = {
+      id: string;
+      title: string;
+      startTime: Date;
+      endTime: Date;
+      eventType: 'local' | 'external' | 'friend';
+      [key: string]: any;
+    };
+
+    const events: CombinedEvent[] = [];
     
     // Add local events
     Object.values(localEvents).forEach(event => {
-      allEvents.push({ ...event, eventType: 'local' });
+      events.push({ ...event, eventType: 'local' });
     });
     
     // Add external events
     Object.values(externalEvents).flat().forEach(event => {
-      allEvents.push({ ...event, eventType: 'external' });
+      events.push({ ...event, eventType: 'external' });
     });
     
     // Add friend events
     Object.values(friendEvents).flat().forEach(event => {
-      allEvents.push({ ...event, eventType: 'friend' });
+      events.push({ ...event, eventType: 'friend' });
     });
     
-    return allEvents;
-  };
+    return events;
+  }, [localEvents, externalEvents, friendEvents]);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -134,11 +186,13 @@ export function WeeklyCalendarView({
     weekDays.push(date);
   }
 
-  const allEvents = getAllEvents();
   const syncedFriendCount = storeSyncedFriends.length;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-purple-50/30 via-pink-50/20 to-blue-50/30">
+    <CalendarErrorBoundary>
+      <div className="h-full flex flex-col bg-gradient-to-br from-purple-50/30 via-pink-50/20 to-blue-50/30"
+           role="main"
+           aria-label="Weekly calendar view">
       {/* Header */}
       <div className="flex-none p-4 border-b border-gray-200/50 bg-white/80 backdrop-blur-sm">
         <div className="flex items-center justify-between">
@@ -248,36 +302,39 @@ export function WeeklyCalendarView({
 
       {/* Calendar Grid */}
       <div className="flex-1 overflow-auto">
-        <div className="grid grid-cols-7 h-full min-h-[600px]">
-          {weekDays.map((date, index) => (
-            <DayColumn
-              key={date.toISOString()}
-              date={date}
-              events={allEvents.filter(event => {
-                const eventDate = new Date(event.startTime);
-                return eventDate.toDateString() === date.toDateString();
-              })}
-              localEvents={Object.values(localEvents).filter(event => {
-                const eventDate = new Date(event.startTime);
-                return eventDate.toDateString() === date.toDateString();
-              })}
-              onEventClick={(event) => {
-                // TODO: Implement event click handling
-                console.log('Event clicked:', event);
-              }}
-              onEventDrag={(eventId, newTime, deltaMinutes) => {
-                // TODO: Implement event drag handling
-                console.log('Event dragged:', eventId, newTime, deltaMinutes);
-              }}
-              onEventResize={(eventId, newEndTime) => {
-                // TODO: Implement event resize handling
-                console.log('Event resized:', eventId, newEndTime);
-              }}
-              isToday={isToday(date)}
-              hasJournalEntry={false} // TODO: Implement journal entry checking
-              gridSnapMinutes={15}
-            />
-          ))}
+        <div className="grid grid-cols-7 h-full min-h-[600px]" role="grid" aria-label="Weekly calendar grid">
+          {weekDays.map((date, index) => {
+            const dayEvents = allEvents.filter(event => {
+              const eventDate = new Date(event.startTime);
+              return eventDate.toDateString() === date.toDateString();
+            }) as any[]; // Cast for now to match LocalEvent interface
+
+            return (
+              <DayColumn
+                key={date.toISOString()}
+                date={date}
+                events={dayEvents}
+                isToday={isToday(date)}
+                isWeekend={date.getDay() === 0 || date.getDay() === 6}
+                onEventClick={(event) => {
+                  // TODO: Implement event click handling
+                  console.log('Event clicked:', event);
+                }}
+                onTimeSlotClick={(clickedDate: Date) => {
+                  setSelectedDate(clickedDate);
+                  setIsCreateEventModalOpen(true);
+                }}
+                onEventDragStart={(eventId: string) => {
+                  // TODO: Implement event drag start handling
+                  console.log('Event drag started:', eventId);
+                }}
+                onEventDragEnd={() => {
+                  // TODO: Implement event drag end handling
+                  console.log('Event drag ended');
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -286,7 +343,6 @@ export function WeeklyCalendarView({
         <CreateEventModal
           isOpen={isCreateEventModalOpen}
           onClose={() => setIsCreateEventModalOpen(false)}
-          selectedDate={selectedDate}
         />
       )}
 
@@ -307,6 +363,7 @@ export function WeeklyCalendarView({
           onRefreshFriend={handleRefreshFriend}
         />
       )}
-    </div>
+      </div>
+    </CalendarErrorBoundary>
   );
 }
