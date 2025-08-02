@@ -30,6 +30,7 @@ interface CalendarContextValue {
     addExternalEvents: (feedId: string, events: CalendarEvent[]) => void;
     addFriendEvents: (friendUserId: string, events: FriendCalendarEvent[]) => void;
     setError: (error: string | null) => void;
+    cleanup?: () => void;
   };
 }
 
@@ -48,9 +49,9 @@ interface CalendarProviderProps {
   initialDate?: Date;
 }
 
-export const CalendarProvider: React.FC<CalendarProviderProps> = ({ 
-  children, 
-  initialDate 
+export const CalendarProvider: React.FC<CalendarProviderProps> = ({
+  children,
+  initialDate
 }) => {
   const { data: user } = useUser();
   const {
@@ -66,6 +67,8 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     userId,
     actions
   } = useCalendarStore();
+  
+  const stableActions = actions;
   
   // Get connection status from the SDK
   const [isConnected, setIsConnected] = React.useState(false);
@@ -101,7 +104,15 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     
     // Initialize CRDT with weekId
     actions.init(weekId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
-  }, [initialDate, actions, user]);
+  }, [initialDate, user]);
+
+  // Add cleanup effect
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      actions.cleanup?.();
+    };
+  }, []);
 
   const value = React.useMemo<CalendarContextValue>(() => ({
     isConnected,
@@ -114,7 +125,7 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     selectedEventId,
     isLoading,
     error,
-    actions
+    actions: stableActions
   }), [
     isConnected,
     sdk,
@@ -126,7 +137,7 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     selectedEventId,
     isLoading,
     error,
-    actions
+    stableActions
   ]);
 
   return (
