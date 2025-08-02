@@ -179,10 +179,21 @@ export function createCalendarSDK({
         if (updates.timezone && updates.timezone !== currentEvent.timezone) {
           const userTimezone = timezoneService.getUserTimezone();
           const convertedEvent = timezoneService.convertToLocalTime(
-            updatedEvent as any, 
+            updatedEvent, 
             userTimezone
           );
-          calendarDocument.localEvents.set(id, convertedEvent as LocalEvent);
+          // Type-safe conversion: preserve LocalEvent-specific properties
+          const localEvent: LocalEvent = {
+            ...convertedEvent,
+            createdBy: updatedEvent.createdBy,
+            createdAt: updatedEvent.createdAt,
+            updatedAt: updatedEvent.updatedAt,
+            collaborators: updatedEvent.collaborators,
+            tags: updatedEvent.tags,
+            linkedJournalEntryId: updatedEvent.linkedJournalEntryId,
+            reminderMinutes: updatedEvent.reminderMinutes
+          };
+          calendarDocument.localEvents.set(id, localEvent);
         } else {
           calendarDocument.localEvents.set(id, updatedEvent);
         }

@@ -114,40 +114,7 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     selectedEventId,
     isLoading,
     error,
-    actions: {
-      ...actions,
-      init: (weekId, userId = 'anonymous', userName = 'Anonymous', username?: string) => {
-        const sdk = getCalendarSdk(weekId, userId, userName, username);
-        useCalendarStore.setState({ userId });
-        
-        // Set initial events from SDK
-        useCalendarStore.setState({ 
-          localEvents: Object.fromEntries((sdk.getLocalEvents() as LocalEvent[]).map((event: LocalEvent) => [event.id, event])), 
-          sdk 
-        });
-        
-        // Subscribe to changes from the SDK
-        sdk.onChange((events: LocalEvent[]) => {
-          useCalendarStore.setState({ localEvents: Object.fromEntries(events.map((event: LocalEvent) => [event.id, event])) });
-        });
-        
-        // Expose CRUD operations that proxy to the SDK
-        useCalendarStore.setState((s) => ({
-          actions: {
-            ...s.actions,
-            createLocalEvent: async (event) => {
-              await sdk.createLocalEvent(event);
-            },
-            updateLocalEvent: async (id, updates) => {
-              await sdk.updateLocalEvent(id, updates);
-            },
-            deleteLocalEvent: (id) => {
-              sdk.deleteLocalEvent(id);
-            },
-          },
-        }));
-      }
-    }
+    actions
   }), [
     isConnected,
     sdk,

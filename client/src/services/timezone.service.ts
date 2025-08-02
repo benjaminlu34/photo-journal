@@ -4,6 +4,7 @@
 
 import { format, parseISO, addMinutes } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import type { BaseEvent } from '@/types/calendar';
 
 export interface TimezoneService {
   // Convert event times to user's local timezone
@@ -27,21 +28,6 @@ export interface TimezoneService {
   // Distinguish between absolute vs floating time sources
   isFloatingTime(event: BaseEvent): boolean; // True if timezone is undefined
   isAbsoluteTime(event: BaseEvent): boolean; // True if timezone is specified (Google events)
-}
-
-// Base event interface for timezone service
-interface BaseEvent {
-  id: string;
-  title: string;
-  description?: string;
-  startTime: Date;
-  endTime: Date;
-  timezone?: string; // IANA timezone identifier, undefined for floating times
-  isAllDay: boolean;
-  color: string;
-  pattern?: 'stripe' | 'dot' | 'plain'; // Visual pattern for color-blind accessibility
-  location?: string;
-  attendees?: string[];
 }
 
 export class TimezoneServiceImpl implements TimezoneService {

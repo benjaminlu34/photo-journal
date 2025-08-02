@@ -7,10 +7,19 @@ import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Settings, Lin
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
 // Removed colorPaletteManager import to avoid potential re-render issues
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
-import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
-import type { WeeklyCalendarViewProps, LocalEvent } from "@/types/calendar";
+import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
 import { EventModal, CalendarFeedModal, TimeGrid, CalendarSettings } from "@/components/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
+
+// Calendar configuration constants
+const CALENDAR_CONFIG = {
+  MOBILE: {
+    PAD_SIZE: 3,
+  },
+  TIME_GRID: {
+    HOUR_HEIGHT: 64, // pixels
+  }
+};
 
 // Local interface for calendar events
 interface LocalCalendarEvent {
@@ -21,6 +30,42 @@ interface LocalCalendarEvent {
   color: string;
   location?: string;
   description?: string;
+}
+
+// Helper function to convert external/friend events to LocalEvent format for display
+function convertToLocalEventForDisplay(
+  event: CalendarEvent | FriendCalendarEvent, 
+  type: 'external' | 'friend'
+): LocalEvent {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    timezone: event.timezone,
+    isAllDay: event.isAllDay,
+    color: event.color,
+    pattern: event.pattern || 'plain',
+    location: event.location,
+    attendees: event.attendees,
+    createdBy: type === 'external' ? 'external' : (event as FriendCalendarEvent).friendUserId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    collaborators: [],
+    tags: []
+  };
+}
+
+// Helper function to convert events array to LocalEvent array for a specific day
+function convertEventsForDay(
+  eventsArray: CalendarEvent[] | FriendCalendarEvent[],
+  type: 'external' | 'friend',
+  day: Date
+): LocalEvent[] {
+  return eventsArray
+    .filter(event => isSameDay(event.startTime, day))
+    .map(event => convertToLocalEventForDisplay(event, type));
 }
 
 export function WeeklyCalendarView({
@@ -95,63 +140,22 @@ export function WeeklyCalendarView({
     
     displayDays.forEach(day => {
       const dayKey = day.toDateString();
-      // Filter local events for the day
-      const localEventsForDay = Object.values(localEvents).filter(event => isSameDay(new Date(event.startTime), day));
       
-      // Filter external events for the day
+      // Filter local events for the day
+      const localEventsForDay = Object.values(localEvents).filter(event => 
+        isSameDay(event.startTime, day)
+      );
+      
+      // Filter and convert external events for the day
       const externalEventsForDay: LocalEvent[] = [];
       Object.values(externalEvents).forEach(eventsArray => {
-        eventsArray.forEach(event => {
-          if (isSameDay(new Date(event.startTime), day)) {
-            // Convert CalendarEvent to LocalEvent for display
-            externalEventsForDay.push({
-              id: event.id,
-              title: event.title,
-              description: event.description,
-              startTime: event.startTime,
-              endTime: event.endTime,
-              timezone: event.timezone,
-              isAllDay: event.isAllDay,
-              color: event.color,
-              pattern: event.pattern,
-              location: event.location,
-              attendees: event.attendees,
-              createdBy: 'external',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              collaborators: [],
-              tags: []
-            });
-          }
-        });
+        externalEventsForDay.push(...convertEventsForDay(eventsArray, 'external', day));
       });
       
-      // Filter friend events for the day
+      // Filter and convert friend events for the day
       const friendEventsForDay: LocalEvent[] = [];
       Object.values(friendEvents).forEach(eventsArray => {
-        eventsArray.forEach(event => {
-          if (isSameDay(new Date(event.startTime), day)) {
-            // Convert FriendCalendarEvent to LocalEvent for display
-            friendEventsForDay.push({
-              id: event.id,
-              title: event.title,
-              description: event.description,
-              startTime: event.startTime,
-              endTime: event.endTime,
-              timezone: event.timezone,
-              isAllDay: event.isAllDay,
-              color: event.color,
-              pattern: event.pattern,
-              location: event.location,
-              attendees: event.attendees,
-              createdBy: event.friendUserId,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              collaborators: [],
-              tags: []
-            });
-          }
-        });
+        friendEventsForDay.push(...convertEventsForDay(eventsArray, 'friend', day));
       });
       
       eventsMap[dayKey] = [...localEventsForDay, ...externalEventsForDay, ...friendEventsForDay];
@@ -335,8 +339,8 @@ export function WeeklyCalendarView({
                   {/* Events positioned absolutely */}
                   {dayEvents.map((event) => {
                     // Calculate position based on startTime Date object
-                    const eventHours = new Date(event.startTime).getHours();
-                    const eventMinutes = new Date(event.startTime).getMinutes();
+                    const eventHours = event.startTime.getHours();
+                    const eventMinutes = event.startTime.getMinutes();
                     const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
                     
                     return (
@@ -352,14 +356,14 @@ export function WeeklyCalendarView({
                         }}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${event.title} at ${format(new Date(event.startTime), "h:mm a")}`}
+                        aria-label={`${event.title} at ${format(event.startTime, "h:mm a")}`}
                       >
                         <div className="font-semibold text-gray-800 truncate text-xs">
                           {event.title}
                         </div>
                         <div className="flex items-center text-xs text-gray-600 mt-1">
                           <Clock className="w-3 h-3 mr-1" />
-                          {format(new Date(event.startTime), "h:mm a")}
+                          {format(event.startTime, "h:mm a")}
                         </div>
                         {event.location && (
                           <div className="flex items-center text-xs text-gray-600 mt-1">

@@ -63,25 +63,25 @@ describe('Friend Management Components', () => {
   describe('FriendshipStatusIndicator', () => {
     it('renders correct status for none', () => {
       render(
-        <FriendshipStatusIndicator 
-          status="none" 
+        <FriendshipStatusIndicator
+          status="none"
           variant="badge"
         />
       );
-      
+
       expect(screen.getByText('Add Friend')).toBeInTheDocument();
     });
 
     it('renders correct status for accepted with role', () => {
       render(
-        <FriendshipStatusIndicator 
-          status="accepted" 
+        <FriendshipStatusIndicator
+          status="accepted"
           role="editor"
           variant="badge"
           showRole={true}
         />
       );
-      
+
       expect(screen.getByText('Friends')).toBeInTheDocument();
       expect(screen.getByText('Editor')).toBeInTheDocument();
     });
@@ -89,13 +89,13 @@ describe('Friend Management Components', () => {
     it('handles click events', () => {
       const handleClick = vi.fn();
       render(
-        <FriendshipStatusIndicator 
-          status="none" 
+        <FriendshipStatusIndicator
+          status="none"
           variant="button"
           onClick={handleClick}
         />
       );
-      
+
       fireEvent.click(screen.getByRole('button'));
       expect(handleClick).toHaveBeenCalled();
     });
@@ -116,7 +116,7 @@ describe('Friend Management Components', () => {
         roleUserToFriend: 'viewer',
         roleFriendToUser: 'viewer'
       };
-      
+
       const result = getFriendshipStatus(friendship, 'user1');
       expect(result.status).toBe('pending_sent');
       expect(result.role).toBe('viewer');
@@ -131,7 +131,7 @@ describe('Friend Management Components', () => {
         roleUserToFriend: 'viewer',
         roleFriendToUser: 'viewer'
       };
-      
+
       const result = getFriendshipStatus(friendship, 'user1');
       expect(result.status).toBe('pending_received');
     });
@@ -145,7 +145,7 @@ describe('Friend Management Components', () => {
         roleUserToFriend: 'editor',
         roleFriendToUser: 'viewer'
       };
-      
+
       const result = getFriendshipStatus(friendship, 'user1');
       expect(result.status).toBe('accepted');
       expect(result.role).toBe('viewer'); // roleFriendToUser for userId
@@ -178,39 +178,39 @@ describe('Friend Management Components', () => {
 
     it('renders friends list', async () => {
       renderWithQueryClient(<FriendList />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Friends (1)')).toBeInTheDocument();
       });
-      
+
       expect(screen.getByText('John Doe')).toBeInTheDocument();
       expect(screen.getByText('@friend1')).toBeInTheDocument();
     });
 
     it('handles search functionality', async () => {
       renderWithQueryClient(<FriendList />);
-      
+
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Search friends...')).toBeInTheDocument();
       });
-      
+
       const searchInput = screen.getByPlaceholderText('Search friends...');
       fireEvent.change(searchInput, { target: { value: 'John' } });
-      
+
       expect(searchInput).toHaveValue('John');
     });
 
     it('handles role filtering', async () => {
       renderWithQueryClient(<FriendList />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('All Roles')).toBeInTheDocument();
       });
-      
+
       // Test role filter interaction
       const filterButton = screen.getByRole('combobox');
       fireEvent.click(filterButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Viewers')).toBeInTheDocument();
       });
@@ -219,11 +219,11 @@ describe('Friend Management Components', () => {
     it('calls onFriendSelect when friend is clicked', async () => {
       const onFriendSelect = vi.fn();
       renderWithQueryClient(<FriendList onFriendSelect={onFriendSelect} />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('John Doe')).toBeInTheDocument();
       });
-      
+
       fireEvent.click(screen.getByText('John Doe'));
       expect(onFriendSelect).toHaveBeenCalledWith(expect.objectContaining({
         id: 'friend1',
@@ -269,7 +269,7 @@ describe('Friend Management Components', () => {
 
     it('renders friend requests tabs', async () => {
       renderWithQueryClient(<FriendRequests />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Received (1)')).toBeInTheDocument();
         expect(screen.getByText('Sent (1)')).toBeInTheDocument();
@@ -278,45 +278,45 @@ describe('Friend Management Components', () => {
 
     it('shows received requests with action buttons', async () => {
       renderWithQueryClient(<FriendRequests />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Bob Johnson')).toBeInTheDocument();
       });
-      
+
       expect(screen.getByText('Accept')).toBeInTheDocument();
       expect(screen.getByText('Decline')).toBeInTheDocument();
     });
 
     it('shows sent requests with pending status', async () => {
       renderWithQueryClient(<FriendRequests />);
-      
+
       // Click on sent tab
       fireEvent.click(screen.getByText('Sent (1)'));
-      
+
       await waitFor(() => {
         expect(screen.getByText('Jane Smith')).toBeInTheDocument();
       });
-      
+
       expect(screen.getByText('Pending')).toBeInTheDocument();
     });
 
     it('handles accept request', async () => {
       const onRequestHandled = vi.fn();
-      
+
       // Mock successful accept response
       (global.fetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ success: true })
       });
-      
+
       renderWithQueryClient(<FriendRequests onRequestHandled={onRequestHandled} />);
-      
+
       await waitFor(() => {
         expect(screen.getByText('Accept')).toBeInTheDocument();
       });
-      
+
       fireEvent.click(screen.getByText('Accept'));
-      
+
       await waitFor(() => {
         expect(onRequestHandled).toHaveBeenCalledWith('req2', 'accepted');
       });
@@ -341,7 +341,7 @@ describe('Friend Management Components', () => {
           onClose={vi.fn()}
         />
       );
-      
+
       expect(screen.getByText('Manage Friend Permissions')).toBeInTheDocument();
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
@@ -354,7 +354,7 @@ describe('Friend Management Components', () => {
           onClose={vi.fn()}
         />
       );
-      
+
       expect(screen.getByText('Your Content → John Doe')).toBeInTheDocument();
       expect(screen.getByText('John Doe\'s Content → You')).toBeInTheDocument();
     });
@@ -367,11 +367,11 @@ describe('Friend Management Components', () => {
           onClose={vi.fn()}
         />
       );
-      
+
       // Find and click on editor role for "Your Content → Friend"
       const editorRadios = screen.getAllByLabelText(/Editor/);
       fireEvent.click(editorRadios[0]);
-      
+
       // Check that save button becomes enabled (has changes)
       const saveButton = screen.getByText('Save Changes');
       expect(saveButton).not.toBeDisabled();
@@ -403,10 +403,10 @@ describe('Friend Management Components', () => {
 
     it('renders friends page with tabs', async () => {
       renderWithQueryClient(<FriendsPage />);
-      
+
       expect(screen.getByText('Friends')).toBeInTheDocument();
       expect(screen.getByText('Manage your friendships and sharing permissions')).toBeInTheDocument();
-      
+
       // Check tabs
       expect(screen.getByRole('tab', { name: /Friends/ })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /Requests/ })).toBeInTheDocument();
@@ -414,7 +414,7 @@ describe('Friend Management Components', () => {
 
     it('shows add friends button', () => {
       renderWithQueryClient(<FriendsPage />);
-      
+
       expect(screen.getByText('Add Friends')).toBeInTheDocument();
     });
 
@@ -428,18 +428,18 @@ describe('Friend Management Components', () => {
           username: 'testuser'
         }
       };
-      
+
       renderWithQueryClient(<FriendsPage selectedEntry={mockEntry} />);
-      
+
       expect(screen.getByText('Share Entry')).toBeInTheDocument();
     });
 
     it('switches between tabs', async () => {
       renderWithQueryClient(<FriendsPage />);
-      
+
       // Click on requests tab
       fireEvent.click(screen.getByRole('tab', { name: /Requests/ }));
-      
+
       // Should show request guidelines
       await waitFor(() => {
         expect(screen.getByText('Request Guidelines')).toBeInTheDocument();
@@ -448,9 +448,9 @@ describe('Friend Management Components', () => {
 
     it('opens friend search modal', () => {
       renderWithQueryClient(<FriendsPage />);
-      
+
       fireEvent.click(screen.getByText('Add Friends'));
-      
+
       // Modal should be rendered (though content might be mocked)
       expect(screen.getByText('Add Friends')).toBeInTheDocument();
     });
@@ -497,15 +497,15 @@ describe('Friend Management Components', () => {
 
       const onRequestHandled = vi.fn();
       renderWithQueryClient(<FriendRequests onRequestHandled={onRequestHandled} />);
-      
+
       // Wait for initial load
       await waitFor(() => {
         expect(screen.getByText('New User')).toBeInTheDocument();
       });
-      
+
       // Accept the request
       fireEvent.click(screen.getByText('Accept'));
-      
+
       await waitFor(() => {
         expect(onRequestHandled).toHaveBeenCalledWith('req1', 'accepted');
       });
@@ -522,7 +522,7 @@ describe('Friend Management Components', () => {
       };
 
       const onRoleUpdated = vi.fn();
-      
+
       // Mock successful role update
       (global.fetch as any).mockResolvedValue({
         ok: true,
@@ -534,17 +534,16 @@ describe('Friend Management Components', () => {
           friend={mockFriend}
           isOpen={true}
           onClose={vi.fn()}
-          onRoleUpdated={onRoleUpdated}
         />
       );
-      
+
       // Change role to editor
       const editorRadios = screen.getAllByLabelText(/Editor/);
       fireEvent.click(editorRadios[0]);
-      
+
       // Save changes
       fireEvent.click(screen.getByText('Save Changes'));
-      
+
       await waitFor(() => {
         expect(onRoleUpdated).toHaveBeenCalledWith('friend1', {
           toFriend: 'editor',

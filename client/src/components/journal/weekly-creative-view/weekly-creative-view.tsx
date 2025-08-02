@@ -27,7 +27,10 @@ export function WeeklyCreativeView() {
     const defaultContent: Record<ContentBlockType, any> = {
       "sticky_note": { text: "Creative thought..." },
       "photo": { url: "", caption: "Capture the moment" },
-      "checklist": { items: [{ text: "Creative goal", completed: false }] }
+      "checklist": { items: [{ text: "Creative goal", completed: false }] },
+      "text": { text: "Text note..." },
+      "audio": { url: "", duration: 0 },
+      "drawing": { strokes: [] }
     };
 
     // Now type-safe since ContentBlockType only includes the keys we handle
