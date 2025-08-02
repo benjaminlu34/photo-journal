@@ -10,7 +10,7 @@ import { Calendar, Clock, MapPin, Tag } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
 
-const getAvailableColors = () => [
+const availableColors = [
   { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
   { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
   { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
@@ -218,7 +218,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
           <div>
             <Label className="text-sm font-medium text-gray-700">Color</Label>
             <div className="mt-2 flex flex-wrap gap-2">
-              {getAvailableColors().map((color: { value: string; label: string; bgClass: string }) => (
+              {availableColors.map((color: { value: string; label: string; bgClass: string }) => (
                 <button
                   key={color.value}
                   type="button"
@@ -297,6 +297,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
                       className="ml-1 text-purple-600 hover:text-purple-900"
+                      aria-label={`Remove tag ${tag}`}
                     >
                       ×
                     </button>

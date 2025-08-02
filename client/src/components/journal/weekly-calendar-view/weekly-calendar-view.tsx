@@ -15,7 +15,7 @@ interface LocalCalendarEvent {
   id: string;
   title: string;
   date: Date;
-  time: string;
+  startTime: Date;
   color: string;
   location?: string;
   description?: string;
@@ -121,7 +121,7 @@ export function WeeklyCalendarView({
       id: crypto.randomUUID(),
       title: eventData.title,
       date: selectedDateForEvent || new Date(),
-      time: format(eventData.startTime, "h:mm a"),
+      startTime: eventData.startTime,
       color: eventData.color || randomColor,
       location: eventData.location,
       description: eventData.description
@@ -256,9 +256,10 @@ export function WeeklyCalendarView({
                   
                   {/* Events positioned absolutely */}
                   {dayEvents.map((event) => {
-                    const hour = parseInt(event.time.split(':')[0]);
-                    const isPM = event.time.includes('PM');
-                    const hour24 = hour === 12 ? (isPM ? 12 : 0) : (isPM ? hour + 12 : hour);
+                    // Calculate position based on startTime Date object
+                    const eventHours = event.startTime.getHours();
+                    const eventMinutes = event.startTime.getMinutes();
+                    const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
                     
                     return (
                       <div
@@ -268,19 +269,19 @@ export function WeeklyCalendarView({
                         style={{
                           backgroundColor: event.color + '15',
                           borderLeft: `4px solid ${event.color}`,
-                          top: `${hour24 * 64}px`, // 64px per hour (h-16)
+                          top: `${positionTop}px`,
                           height: '60px',
                         }}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${event.title} at ${event.time}`}
+                        aria-label={`${event.title} at ${format(event.startTime, "h:mm a")}`}
                       >
                         <div className="font-semibold text-gray-800 truncate text-xs">
                           {event.title}
                         </div>
                         <div className="flex items-center text-xs text-gray-600 mt-1">
                           <Clock className="w-3 h-3 mr-1" />
-                          {event.time}
+                          {format(event.startTime, "h:mm a")}
                         </div>
                         {event.location && (
                           <div className="flex items-center text-xs text-gray-600 mt-1">
@@ -326,15 +327,10 @@ export function WeeklyCalendarView({
 
 // Helper function to convert our local event to the LocalEvent type
 function convertToLocalEvent(event: LocalCalendarEvent): LocalEvent {
-  const hour = parseInt(event.time.split(':')[0]);
-  const isPM = event.time.includes('PM');
-  const hour24 = hour === 12 ? (isPM ? 12 : 0) : (isPM ? hour + 12 : hour);
+  const startDate = new Date(event.startTime);
   
-  const startDate = new Date(event.date);
-  startDate.setHours(hour24, 0, 0, 0);
-  
-  const endDate = new Date(event.date);
-  endDate.setHours(hour24 + 1, 0, 0, 0);
+  const endDate = new Date(event.startTime);
+  endDate.setHours(endDate.getHours() + 1);
   
   return {
     id: event.id,

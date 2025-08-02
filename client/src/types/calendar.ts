@@ -146,17 +146,4 @@ export interface DragState {
 }
 
 // Constants
-export const RESPONSIVE_BREAKPOINTS: ResponsiveBreakpoints = {
-  full: 1024,
-  scroll: 640,
-  pads: 0,
-} as const;
-
-export const TOUCH_INTERACTION_CONFIG: TouchInteractionConfig = {
-  swipeThreshold: 0.3, // 30% of viewport width
-  swipeVelocity: 0.5, // px/ms
-  dragStartDelay: 150, // ms
-  dragStartDistance: 10, // px
-  enableHaptics: true,
-  hapticIntensity: 'light',
-} as const;
+// To use constants RESPONSIVE_BREAKPOINTS and TOUCH_INTERACTION_CONFIG go to shared/calendar-config.ts

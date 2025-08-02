@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
-import { format, addHours, startOfDay, isSameDay, isWithinInterval, parseISO } from "date-fns";
-import { Clock, Plus } from "lucide-react";
+import { format, addHours, startOfDay, isSameDay, isWithinInterval } from "date-fns";
+import { Clock, MapPin, Plus } from "lucide-react";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
 
 interface TimeGridProps {
@@ -174,7 +174,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
                     <div className="font-medium text-sm truncate">{event.title}</div>
                     {event.location && (
                       <div className="text-xs opacity-90 truncate flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
+                        <MapPin className="w-3 h-3" />
                         {event.location}
                       </div>
                     )}
