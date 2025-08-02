@@ -7,10 +7,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Plus, Settings, Trash2, Chrome, Link, RefreshCw } from "lucide-react";
+import { Calendar, Plus, Settings, Trash2, Chrome, Link, RefreshCw, Users } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarFeed } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { useCalendarStore } from "@/lib/calendar-store";
 
 const mockGoogleCalendars = [
   { id: "primary", name: "Personal Calendar", description: "Your main calendar" },
@@ -35,6 +36,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
   });
   
   const [selectedCalendars, setSelectedCalendars] = useState<Record<string, boolean>>({});
+  const { actions } = useCalendarStore();
   
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -64,10 +66,14 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
         </DialogHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 neu-card">
+          <TabsList className="grid w-full grid-cols-3 neu-card">
             <TabsTrigger value="add" className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               Add Feed
+            </TabsTrigger>
+            <TabsTrigger value="friends" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Friends
             </TabsTrigger>
             <TabsTrigger value="manage" className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
@@ -209,6 +215,26 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                 )}
               </DialogFooter>
             </form>
+          </TabsContent>
+          
+          <TabsContent value="friends" className="space-y-4">
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-700 font-medium mb-2">Friend Calendar Sync</p>
+              <p className="text-gray-600 mb-4">
+                Sync calendars from friends who have granted you access.
+              </p>
+              <Button
+                onClick={() => {
+                  actions.setFriendSyncModalOpen(true);
+                  onClose();
+                }}
+                className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Manage Friend Sync
+              </Button>
+            </div>
           </TabsContent>
           
           <TabsContent value="manage" className="space-y-4">
