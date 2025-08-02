@@ -22,7 +22,7 @@ import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendar
 
 // Debounce utility with cancel method
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T & { cancel: () => void } {
-  let timeout: NodeJS.Timeout;
+  let timeout: ReturnType<typeof setTimeout>;
   const debounced = ((...args: any[]) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
@@ -98,10 +98,12 @@ export function WeeklyCalendarView({
       
       if (friendsToSync.length > 0) {
         Promise.all(
-          friendsToSync.map(friendUserId => 
-            actions.syncFriendCalendar(friendUserId).catch(error => 
-              console.error(`Failed to sync friend ${friendUserId}:`, error)
-            )
+          friendsToSync.map(friendUserId =>
+            actions.syncFriendCalendar(friendUserId).catch(error => {
+              const errorMessage = `Failed to sync friend ${friendUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+              console.error(errorMessage, error);
+              actions.setError(errorMessage);
+            })
           )
         );
       }
@@ -327,8 +329,8 @@ export function WeeklyCalendarView({
               location: event.location,
               attendees: event.attendees || [],
               createdBy: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdBy : '',
-              createdAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdAt : new Date(),
-              updatedAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).updatedAt : new Date(),
+              createdAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdAt : event.startTime,
+              updatedAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).updatedAt : event.startTime,
               linkedJournalEntryId: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).linkedJournalEntryId : undefined,
               reminderMinutes: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).reminderMinutes : undefined,
               collaborators: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).collaborators : [],

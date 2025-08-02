@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { LocalEvent, CalendarEvent, FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import { getCalendarSdk } from './calendar-sdk';
 import { friendCalendarService } from '@/services/friend-calendar.service';
+import { startOfWeek, sub, add } from 'date-fns';
 
 interface CalendarState {
   // Data state
@@ -259,12 +260,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
           return;
         }
         
-        // Calculate week range (±2 weeks for expansion window)
-        const weekStart = new Date(weekDate);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay() - 14); // Start of week minus 2 weeks
-        
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 35); // End of week plus 2 weeks
+        // Calculate week range (±2 weeks for expansion window) using date-fns
+        const weekStart = sub(startOfWeek(weekDate), { weeks: 2 });
+        const weekEnd = add(weekStart, { weeks: 5 });
         
         const dateRange: DateRange = {
           start: weekStart,

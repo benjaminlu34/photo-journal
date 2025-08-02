@@ -458,6 +458,10 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         const store = transaction.objectStore('friendEvents');
         store.delete(friendId);
       };
+      
+      request.onerror = (event) => {
+        console.error('Error opening IndexedDB for cache clearing:', event);
+      };
     } catch (error) {
       console.error('Error clearing IndexedDB cache:', error);
     }

@@ -41,8 +41,8 @@ function convertToLocalEventForDisplay(
     location: event.location,
     attendees: event.attendees,
     createdBy: type === 'external' ? 'external' : (event as FriendCalendarEvent).friendUserId,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: event.startTime, // Use stable value instead of creating new Date
+    updatedAt: event.startTime, // Use stable value instead of creating new Date
     collaborators: [],
     tags: []
   };
