@@ -8,8 +8,8 @@ import { LRUCache } from 'lru-cache';
 import DOMPurify from 'dompurify';
 import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
-import { recurrenceExpansionService, type RecurrenceExpansionService } from './recurrence-expansion.service';
-import { duplicateEventResolver, type DuplicateEventResolver } from './duplicate-event-resolver.service';
+import { recurrenceExpansionService } from './recurrence-expansion.service';
+import { duplicateEventResolver } from './duplicate-event-resolver.service';
 // Type-only import to avoid circular dependency
 import type { OfflineCalendarService } from './offline-calendar.service';
 
@@ -157,85 +157,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
 
     try {
-      let events: CalendarEvent[];
-
-      switch (feed.type) {
-        case 'google':
-          events = await this.fetchGoogleCalendarEvents(feed, dateRange);
-          break;
-        case 'ical':
-          events = await this.fetchICalEvents(feed, dateRange);
-          break;
-        default:
-          throw new CalendarFeedError(
-            `Unsupported feed type: ${feed.type}`,
-            'UNSUPPORTED_FEED_TYPE',
-            feed.id
-          );
-      }
-
-      // Cache the results in memory
-      this.feedCache.set(cacheKey, {
-        events,
-        lastFetch: new Date(),
-      });
-
-      // Cache the results in IndexedDB for offline access (if offline service is available)
-      if (this.offlineService) {
-        try {
-          await this.offlineService.cacheEvents(feed.id, feed.name, events);
-        } catch (error) {
-          console.warn('Failed to cache events offline:', error);
-        }
-      }
-
-      // Update rate limiting
-      this.updateRateLimit(feed.id);
-
+      const events = await this.fetchEventsFromSource(feed, dateRange);
+      await this.cacheAndReturnEvents(feed, cacheKey, events);
       return events;
     } catch (error) {
       console.error(`Failed to fetch events for feed ${feed.id}:`, error);
-
-      // Try to get cached events as fallback (if offline service is available)
-      if (this.offlineService) {
-        try {
-          const cachedEvents = await this.offlineService.handleNetworkFailure(
-            feed.id,
-            error instanceof Error ? error : new Error('Unknown fetch error')
-          );
-
-          console.log(`Using ${cachedEvents.length} cached events for feed ${feed.id}`);
-          return cachedEvents;
-        } catch (cacheError) {
-          console.warn('Failed to get cached events:', cacheError);
-        }
-      }
-
-      // Try to retry the fetch operation
-      try {
-        const retriedEvents = await this.retryFeedFetch(feed, dateRange, error);
-
-        // Cache the retried results
-        this.feedCache.set(cacheKey, {
-          events: retriedEvents,
-          lastFetch: new Date(),
-        });
-
-        if (this.offlineService) {
-          try {
-            await this.offlineService.cacheEvents(feed.id, feed.name, retriedEvents);
-          } catch (cacheError) {
-            console.warn('Failed to cache retried events offline:', cacheError);
-          }
-        }
-
-        this.updateRateLimit(feed.id);
-        return retriedEvents;
-
-      } catch (retryError) {
-        // All retries failed, throw the final error
-        throw retryError;
-      }
+      return await this.handleFetchError(feed, dateRange, cacheKey, error);
     }
   }
 
@@ -260,7 +187,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       );
 
       // Convert recurrence instances back to CalendarEvent format
-      for (const [eventId, instances] of expansionResults) {
+      for (const [, instances] of expansionResults) {
         for (const instance of instances) {
           const expandedEvent: CalendarEvent = {
             ...instance.originalEvent,
@@ -548,11 +475,17 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   // Cache management
   clearCache(feedId?: string): void {
     if (feedId) {
-      // Clear cache entries for specific feed (both exact match and prefixed)
+      // FIXED: More efficient cache clearing - collect keys first to avoid iterator issues
+      const keysToDelete: string[] = [];
       for (const key of this.feedCache.keys()) {
         if (key === feedId || key.startsWith(`${feedId}:`)) {
-          this.feedCache.delete(key);
+          keysToDelete.push(key);
         }
+      }
+      
+      // Delete collected keys
+      for (const key of keysToDelete) {
+        this.feedCache.delete(key);
       }
     } else {
       // Clear all cache
@@ -568,6 +501,96 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   }
 
   // Private helper methods
+  private async fetchEventsFromSource(
+    feed: CalendarFeed,
+    dateRange?: { start: Date; end: Date }
+  ): Promise<CalendarEvent[]> {
+    switch (feed.type) {
+      case 'google':
+        return await this.fetchGoogleCalendarEvents(feed, dateRange);
+      case 'ical':
+        return await this.fetchICalEvents(feed, dateRange);
+      default:
+        throw new CalendarFeedError(
+          `Unsupported feed type: ${feed.type}`,
+          'UNSUPPORTED_FEED_TYPE',
+          feed.id
+        );
+    }
+  }
+
+  private async cacheAndReturnEvents(
+    feed: CalendarFeed,
+    cacheKey: string,
+    events: CalendarEvent[]
+  ): Promise<void> {
+    // Cache the results in memory
+    this.feedCache.set(cacheKey, {
+      events,
+      lastFetch: new Date(),
+    });
+
+    // Cache the results in IndexedDB for offline access (if offline service is available)
+    if (this.offlineService) {
+      try {
+        await this.offlineService.cacheEvents(feed.id, feed.name, events);
+      } catch (error) {
+        console.warn('Failed to cache events offline:', error);
+      }
+    }
+
+    // Update rate limiting
+    this.updateRateLimit(feed.id);
+  }
+
+  private async handleFetchError(
+    feed: CalendarFeed,
+    dateRange: { start: Date; end: Date } | undefined,
+    cacheKey: string,
+    error: unknown
+  ): Promise<CalendarEvent[]> {
+    // Try to get cached events as fallback (if offline service is available)
+    if (this.offlineService) {
+      try {
+        const cachedEvents = await this.offlineService.handleNetworkFailure(
+          feed.id,
+          error instanceof Error ? error : new Error('Unknown fetch error')
+        );
+
+        console.log(`Using ${cachedEvents.length} cached events for feed ${feed.id}`);
+        return cachedEvents;
+      } catch (cacheError) {
+        console.warn('Failed to get cached events:', cacheError);
+      }
+    }
+
+    // Try to retry the fetch operation
+    try {
+      const retriedEvents = await this.retryFeedFetch(feed, dateRange, error);
+
+      // Cache the retried results
+      this.feedCache.set(cacheKey, {
+        events: retriedEvents,
+        lastFetch: new Date(),
+      });
+
+      if (this.offlineService) {
+        try {
+          await this.offlineService.cacheEvents(feed.id, feed.name, retriedEvents);
+        } catch (cacheError) {
+          console.warn('Failed to cache retried events offline:', cacheError);
+        }
+      }
+
+      this.updateRateLimit(feed.id);
+      return retriedEvents;
+
+    } catch (retryError) {
+      // All retries failed, throw the final error
+      throw retryError;
+    }
+  }
+
   private async fetchGoogleCalendarEvents(
     feed: CalendarFeed,
     dateRange?: { start: Date; end: Date }
@@ -642,10 +665,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     const content = await this.fetchICalFeed(feed.url);
     const events = this.parseICalContent(content, feed.id, feed.name);
 
-    // Filter by date range if provided
+    // Filter by date range if provided - check for interval overlap
     if (dateRange) {
       return events.filter(event =>
-        event.startTime >= dateRange.start && event.startTime <= dateRange.end
+        event.startTime <= dateRange.end && event.endTime >= dateRange.start
       );
     }
 
@@ -657,12 +680,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
 
-    // FIXED: Handle all-day events correctly - end.date is exclusive
+    // FIXED: Handle all-day events correctly - parse end.date consistently as local date
     const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
       : item.end.date
-        ? new Date(new Date(item.end.date).getTime() - 1) // Subtract 1ms from exclusive end date
-        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000 - 1); // Fallback: end of start day
+        ? new Date(item.end.date + 'T00:00:00') // Parse as local date consistently with startTime
+        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // Fallback: end of start day
 
     return {
       id: `${feed.id}:${item.id}`,
@@ -760,23 +783,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       await new Promise(resolve => setTimeout(resolve, delay));
 
       try {
-        // Retry the actual fetch operation
-        let events: CalendarEvent[];
-
-        switch (feed.type) {
-          case 'google':
-            events = await this.fetchGoogleCalendarEvents(feed, dateRange);
-            break;
-          case 'ical':
-            events = await this.fetchICalEvents(feed, dateRange);
-            break;
-          default:
-            throw new CalendarFeedError(
-              `Unsupported feed type: ${feed.type}`,
-              'UNSUPPORTED_FEED_TYPE',
-              feed.id
-            );
-        }
+        // Retry the actual fetch operation using the common helper
+        const events = await this.fetchEventsFromSource(feed, dateRange);
 
         // Success - reset retry state and return events
         this.retryState.delete(feed.id);
