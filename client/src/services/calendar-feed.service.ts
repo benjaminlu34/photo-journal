@@ -96,7 +96,7 @@ export interface CalendarFeedService {
 
   // Cache management
   clearCache(feedId?: string): void;
-  getCacheStats(): { size: number; maxSize: number; hits: number; misses: number };
+  getCacheStats(): { size: number; maxSize: number };
 }
 
 export class CalendarFeedServiceImpl implements CalendarFeedService {
@@ -560,12 +560,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
   }
 
-  getCacheStats(): { size: number; maxSize: number; hits: number; misses: number } {
+  getCacheStats(): { size: number; maxSize: number } {
     return {
       size: this.feedCache.size,
       maxSize: this.feedCache.max,
-      hits: this.feedCache.calculatedSize, // Approximation
-      misses: 0, // LRU cache doesn't track misses directly
     };
   }
 

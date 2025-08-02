@@ -144,20 +144,26 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
     const colorAssignments = new Map<string, string>();
     const usedColors = new Set<string>();
     
-    // First pass: preserve existing colors where possible
+    // First pass: use cached and existing colors where possible
     for (const event of events) {
-      if (event.color && !usedColors.has(event.color)) {
+      const cachedColor = this.colorAssignmentCache.get(event.id);
+      if (cachedColor && !usedColors.has(cachedColor)) {
+        colorAssignments.set(event.id, cachedColor);
+        usedColors.add(cachedColor);
+      } else if (event.color && !usedColors.has(event.color)) {
         colorAssignments.set(event.id, event.color);
         usedColors.add(event.color);
+        this.colorAssignmentCache.set(event.id, event.color);
       }
     }
     
-    // Second pass: assign new colors to events with collisions
+    // Second pass: assign new colors to events with collisions or no color
     for (const event of events) {
       if (!colorAssignments.has(event.id)) {
         const newColor = this.getNextAvailableColor(usedColors);
         colorAssignments.set(event.id, newColor);
         usedColors.add(newColor);
+        this.colorAssignmentCache.set(event.id, newColor);
       }
     }
     
@@ -370,29 +376,15 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
       }
     }
     
-    // If all colors are used, start over with a slight variation
+    // If all colors are used, cycle through them again
+    // This is more predictable than generating variations
     const baseColor = availableColors[this.colorIndex % availableColors.length].value;
     this.colorIndex = (this.colorIndex + 1) % availableColors.length;
     
-    // Add slight opacity variation to create a unique color
-    return this.addColorVariation(baseColor, usedColors.size);
+    return baseColor;
   }
   
-  private addColorVariation(baseColor: string, variation: number): string {
-    // Convert hex to RGB, add variation, convert back
-    const hex = baseColor.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    // Add small variation based on the number of used colors
-    const variationAmount = (variation % 20) * 5; // 0-95 variation
-    const newR = Math.min(255, Math.max(0, r + variationAmount));
-    const newG = Math.min(255, Math.max(0, g + variationAmount));
-    const newB = Math.min(255, Math.max(0, b + variationAmount));
-    
-    return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-  }
+
 }
 
 // Create a singleton instance
