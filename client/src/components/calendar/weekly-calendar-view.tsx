@@ -18,15 +18,18 @@ import { CreateEventModal } from './create-event-modal';
 import { DayColumn } from './day-column';
 import { WeekHeader } from './week-header';
 import { CalendarErrorBoundary, useCalendarErrorHandler } from './calendar-error-boundary';
-import type { WeeklyCalendarViewProps } from '@/types/calendar';
+import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 
-// Debounce utility
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+// Debounce utility with cancel method
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T & { cancel: () => void } {
   let timeout: NodeJS.Timeout;
-  return ((...args: any[]) => {
+  const debounced = ((...args: any[]) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
-  }) as T;
+  }) as T & { cancel: () => void };
+  
+  debounced.cancel = () => clearTimeout(timeout);
+  return debounced;
 }
 
 export function WeeklyCalendarView({ 
@@ -56,10 +59,9 @@ export function WeeklyCalendarView({
   const { throwError } = useCalendarErrorHandler();
 
   // Debounced friend events loading
-  const debouncedLoadEvents = useMemo(
-    () => debounce(actions.loadFriendEventsForWeek, 300),
-    [actions.loadFriendEventsForWeek]
-  );
+  const debouncedLoadEvents = useMemo(() => {
+    return debounce(actions.loadFriendEventsForWeek, 300);
+  }, [actions.loadFriendEventsForWeek]);
 
   // Initialize calendar store
   useEffect(() => {
@@ -83,7 +85,7 @@ export function WeeklyCalendarView({
 
     return () => {
       // Cancel debounced calls on cleanup
-      debouncedLoadEvents.cancel?.();
+      (debouncedLoadEvents as any).cancel?.();
     };
   }, [currentWeek, storeSyncedFriends, debouncedLoadEvents]);
 
@@ -146,30 +148,25 @@ export function WeeklyCalendarView({
 
   // Get all events for the week with proper typing
   const allEvents = useMemo(() => {
-    type CombinedEvent = {
-      id: string;
-      title: string;
-      startTime: Date;
-      endTime: Date;
+    type CombinedEvent = (LocalEvent | CalendarEvent | FriendCalendarEvent) & {
       eventType: 'local' | 'external' | 'friend';
-      [key: string]: any;
     };
 
     const events: CombinedEvent[] = [];
     
     // Add local events
     Object.values(localEvents).forEach(event => {
-      events.push({ ...event, eventType: 'local' });
+      events.push({ ...event, eventType: 'local' as const });
     });
     
     // Add external events
     Object.values(externalEvents).flat().forEach(event => {
-      events.push({ ...event, eventType: 'external' });
+      events.push({ ...event, eventType: 'external' as const });
     });
     
     // Add friend events
     Object.values(friendEvents).flat().forEach(event => {
-      events.push({ ...event, eventType: 'friend' });
+      events.push({ ...event, eventType: 'friend' as const });
     });
     
     return events;
@@ -305,15 +302,44 @@ export function WeeklyCalendarView({
         <div className="grid grid-cols-7 h-full min-h-[600px]" role="grid" aria-label="Weekly calendar grid">
           {weekDays.map((date, index) => {
             const dayEvents = allEvents.filter(event => {
-              const eventDate = new Date(event.startTime);
-              return eventDate.toDateString() === date.toDateString();
-            }) as any[]; // Cast for now to match LocalEvent interface
+              const eventStart = new Date(event.startTime);
+              const eventEnd = new Date(event.endTime);
+              const dayStart = new Date(date);
+              dayStart.setHours(0, 0, 0, 0);
+              const dayEnd = new Date(date);
+              dayEnd.setHours(23, 59, 59, 999);
+              
+              // Check for event overlap with the day (handles multi-day events)
+              return eventStart < dayEnd && eventEnd > dayStart;
+            });
+
+            // Convert to LocalEvent format for DayColumn compatibility
+            const localEventFormat = dayEvents.map(event => ({
+              id: event.id,
+              title: event.title,
+              description: event.description,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              timezone: event.timezone,
+              isAllDay: event.isAllDay,
+              color: event.color,
+              pattern: event.pattern,
+              location: event.location,
+              attendees: event.attendees || [],
+              createdBy: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdBy : '',
+              createdAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdAt : new Date(),
+              updatedAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).updatedAt : new Date(),
+              linkedJournalEntryId: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).linkedJournalEntryId : undefined,
+              reminderMinutes: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).reminderMinutes : undefined,
+              collaborators: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).collaborators : [],
+              tags: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).tags : []
+            }));
 
             return (
               <DayColumn
                 key={date.toISOString()}
                 date={date}
-                events={dayEvents}
+                events={localEventFormat}
                 isToday={isToday(date)}
                 isWeekend={date.getDay() === 0 || date.getDay() === 6}
                 onEventClick={(event) => {
@@ -343,6 +369,16 @@ export function WeeklyCalendarView({
         <CreateEventModal
           isOpen={isCreateEventModalOpen}
           onClose={() => setIsCreateEventModalOpen(false)}
+          onSubmit={async (eventData) => {
+            try {
+              await actions.createLocalEvent(eventData);
+              setIsCreateEventModalOpen(false);
+            } catch (error) {
+              console.error('Error creating event:', error);
+              throwError(new Error('Failed to create event'));
+            }
+          }}
+          initialDate={selectedDate || new Date()}
         />
       )}
 

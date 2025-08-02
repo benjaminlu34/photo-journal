@@ -7,6 +7,7 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  onRetry?: () => void;
 }
 
 interface State {
@@ -41,6 +42,11 @@ export class CalendarErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = () => {
+    // Call the onRetry prop if provided to allow parent components to reset state
+    if (this.props.onRetry) {
+      this.props.onRetry();
+    }
+    
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 

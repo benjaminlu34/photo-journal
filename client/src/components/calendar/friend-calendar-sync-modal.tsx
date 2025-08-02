@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -66,10 +66,30 @@ export function FriendCalendarSyncModal({
     }
   }, [isOpen]);
 
-  // Update sync items when friends or syncedFriends change
+  // Memoize updateSyncItems to include all dependencies
+  const updateSyncItems = useCallback(() => {
+    const items: FriendCalendarSyncItem[] = friends.map(friend => {
+      const isSynced = syncedFriends.includes(friend.id);
+      
+      return {
+        friend,
+        isSynced,
+        lastSyncAt: isSynced ? new Date() : undefined, // In real implementation, get from cache
+        syncError: undefined, // In real implementation, get from service
+        eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
+        canSync: true, // In real implementation, check permissions
+        assignedColor: generateFriendColor(friend.id),
+        isRefreshing: refreshingFriends.has(friend.id)
+      };
+    });
+    
+    setSyncItems(items);
+  }, [friends, syncedFriends, refreshingFriends]);
+
+  // Update sync items when dependencies change
   useEffect(() => {
     updateSyncItems();
-  }, [friends, syncedFriends]);
+  }, [updateSyncItems]);
 
   const loadFriendsWithCalendarAccess = async () => {
     try {
@@ -87,24 +107,7 @@ export function FriendCalendarSyncModal({
     }
   };
 
-  const updateSyncItems = () => {
-    const items: FriendCalendarSyncItem[] = friends.map(friend => {
-      const isSynced = syncedFriends.includes(friend.id);
-      
-      return {
-        friend,
-        isSynced,
-        lastSyncAt: isSynced ? new Date() : undefined, // In real implementation, get from cache
-        syncError: undefined, // In real implementation, get from service
-        eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
-        canSync: true, // In real implementation, check permissions
-        assignedColor: generateFriendColor(friend.id),
-        isRefreshing: refreshingFriends.has(friend.id)
-      };
-    });
-    
-    setSyncItems(items);
-  };
+
 
   const handleToggleSync = async (friend: Friend, enabled: boolean) => {
     try {
