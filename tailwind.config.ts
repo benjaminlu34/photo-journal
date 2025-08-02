@@ -20,6 +20,8 @@ export default {
         'neu-inset': 'inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light)',
         'neu-sm': '4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light)',
         'neu-lg': '12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light)',
+        'neu-active': 'inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light)',
+        'shadow-neu-active': 'inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light)',
         // Pastel note shadows
         'note': '0 6px 22px rgba(0,0,0,.08)',
         'noteHover': '0 10px 34px rgba(0,0,0,.12)',

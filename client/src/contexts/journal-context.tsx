@@ -4,6 +4,8 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useMemo,
+  useCallback,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -84,43 +86,54 @@ interface JournalProviderProps {
 
 export function JournalProvider({ children }: JournalProviderProps) {
   const { date: urlDate, username: urlUsername } = useParams();
-  const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [gridSnap, setGridSnap] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { navigateToUserBoard, navigateToMyBoard } = useUsernameNavigation();
 
-  // Parse date from URL or use today's date (timezone-safe)
-  const currentDate = urlDate ? parseLocalDate(urlDate) : new Date();
-  const dateString = formatLocalDate(currentDate);
+  // Get today's date string for stable comparison
+  const todayString = useMemo(() => {
+    const today = new Date();
+    return formatLocalDate(today);
+  }, []); // Empty dependency array means this only runs once
 
-  // Track current week for weekly views
-  const [currentWeek, setCurrentWeek] = useState(currentDate);
+  // Parse date from URL or use today's date (timezone-safe) - memoized to prevent re-renders
+  const currentDate = useMemo(() => {
+    return urlDate ? parseLocalDate(urlDate) : parseLocalDate(todayString);
+  }, [urlDate, todayString]);
+  
+  const dateString = useMemo(() => formatLocalDate(currentDate), [currentDate]);
 
-  // Sync currentWeek with currentDate when switching to weekly views
+  // Track current week for weekly views - initialize based on current date
+  const [currentWeek, setCurrentWeek] = useState(() => currentDate);
+
+  // Update currentWeek when currentDate changes, but only if we're not in a weekly view
+  // This prevents the circular dependency
   useEffect(() => {
-    if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+    if (viewMode !== "weekly-calendar" && viewMode !== "weekly-creative") {
       setCurrentWeek(currentDate);
     }
-  }, [viewMode, currentDate]);
+  }, [currentDate, viewMode]);
 
-  // Update currentDate when currentWeek changes in weekly views
-  useEffect(() => {
-    if ((viewMode === "weekly-calendar" || viewMode === "weekly-creative") && currentWeek !== currentDate) {
-      // Don't update URL when just navigating weeks, only when switching back to daily
-      // setCurrentDate(currentWeek);
-    }
-  }, [currentWeek, viewMode, currentDate]);
-
-  // Function to update the current date (updates URL)
-  const setCurrentDate = (newDate: Date) => {
+  // Function to update the current date (updates URL) - memoized to prevent re-renders
+  const setCurrentDate = useCallback((newDate: Date) => {
     if (urlUsername) {
       navigateToUserBoard(urlUsername, newDate);
     } else {
       navigateToMyBoard(newDate);
     }
-  };
+  }, [urlUsername, navigateToUserBoard, navigateToMyBoard]);
+
+  // Function to update the current week - memoized
+  const setCurrentWeekMemo = useCallback((newWeek: Date) => {
+    setCurrentWeek(newWeek);
+  }, []);
+
+  // Function to update view mode - memoized
+  const setViewModeMemo = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+  }, []);
 
   // Fetch current journal entry - use username-based API if in username route
   const apiEndpoint = urlUsername
@@ -301,32 +314,33 @@ export function JournalProvider({ children }: JournalProviderProps) {
     },
   });
 
-  const createContentBlock = (
+  const createContentBlock = useCallback((
     type: ContentBlockType,
     content: any,
     position: Position,
   ) => {
     createBlockMutation.mutate({ type, content, position });
-  };
+  }, [createBlockMutation]);
 
-  const updateContentBlock = (
+  const updateContentBlock = useCallback((
     id: string,
     updates: Partial<ContentBlockData>,
   ) => {
     updateBlockMutation.mutate({ id, updates });
-  };
+  }, [updateBlockMutation]);
 
-  const deleteContentBlock = (id: string) => {
+  const deleteContentBlock = useCallback((id: string) => {
     deleteBlockMutation.mutate(id);
-  };
+  }, [deleteBlockMutation]);
 
-  const updateBlockPosition = (id: string, position: Position) => {
+  const updateBlockPosition = useCallback((id: string, position: Position) => {
     updateBlockMutation.mutate({ id, updates: { position } });
-  };
+  }, [updateBlockMutation]);
 
   // Removed: legacyNotes, updateNote, deleteNote, and their usages
 
-  const value: JournalContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value: JournalContextType = useMemo(() => ({
     currentDate,
     currentWeek,
     viewMode,
@@ -335,8 +349,8 @@ export function JournalProvider({ children }: JournalProviderProps) {
     gridSnap,
     currentUserRole: currentEntry?.permissions?.effectiveRole || (urlUsername ? 'viewer' : 'owner'),
     setCurrentDate,
-    setCurrentWeek,
-    setViewMode,
+    setCurrentWeek: setCurrentWeekMemo,
+    setViewMode: setViewModeMemo,
     createContentBlock,
     updateContentBlock,
     deleteContentBlock,
@@ -344,7 +358,25 @@ export function JournalProvider({ children }: JournalProviderProps) {
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,
-  };
+  }), [
+    currentDate,
+    currentWeek,
+    viewMode,
+    currentEntry,
+    friends,
+    gridSnap,
+    urlUsername,
+    setCurrentDate,
+    setCurrentWeekMemo,
+    setViewModeMemo,
+    createContentBlock,
+    updateContentBlock,
+    deleteContentBlock,
+    updateBlockPosition,
+    createBlockMutation.isPending,
+    updateBlockMutation.isPending,
+    isLoading
+  ]);
 
   return (
     <JournalContext.Provider value={value}>{children}</JournalContext.Provider>

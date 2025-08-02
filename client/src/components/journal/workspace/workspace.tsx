@@ -68,7 +68,7 @@ export function JournalWorkspace() {
       </div>
 
       <div className={viewMode === "weekly-calendar" ? "flex-1" : "hidden"}>
-        <WeeklyCalendarView />
+        <WeeklyCalendarView username={user?.username || ''} />
       </div>
 
       <div className={viewMode === "weekly-creative" ? "flex-1" : "hidden"}>

@@ -7,7 +7,7 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "dev": "nodemon --exec tsx server/index.ts",
+    "dev": "dotenv -e .env.supabase -- nodemon --exec tsx server/index.ts",
     "dev:local": "dotenv -e .env.local -- nodemon --exec tsx server/index.ts",
     "dev:supabase": "dotenv -e .env.supabase -- nodemon --exec tsx server/index.ts",
     "db:init": "dotenv -e .env -- bash ./scripts/db-init.sh",
@@ -75,6 +75,7 @@
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.2.0",
     "dompurify": "^3.2.6",
     "drizzle-orm": "^0.39.3",
     "drizzle-zod": "^0.7.1",

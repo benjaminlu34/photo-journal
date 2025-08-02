@@ -61,7 +61,7 @@ function HomeContent() {
       });
     } catch (error) {
       console.error('Failed to send friend request:', error);
-      
+
       toast({
         title: "Failed to send friend request",
         description: error instanceof Error ? error.message : "Please try again",
@@ -98,7 +98,7 @@ function HomeContent() {
   }
 
   if (!user) {
-    return null; 
+    return null;
   }
 
   return (
@@ -109,20 +109,20 @@ function HomeContent() {
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4 flex-shrink-0">
-              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center">
+              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center min-w-80 max-w-96 flex-shrink-0">
                 {viewMode === "daily" && "Daily Pinboard"}
                 {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
                   const startOfWeekDate = new Date(currentWeek);
                   startOfWeekDate.setDate(currentWeek.getDate() - currentWeek.getDay());
                   const endOfWeekDate = new Date(startOfWeekDate);
                   endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
-                  
+
                   const startMonth = startOfWeekDate.toLocaleDateString("en-US", { month: "short" });
                   const startDay = startOfWeekDate.getDate();
                   const endMonth = endOfWeekDate.toLocaleDateString("en-US", { month: "short" });
                   const endDay = endOfWeekDate.getDate();
                   const year = endOfWeekDate.getFullYear();
-                  
+
                   if (startMonth === endMonth) {
                     return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;
                   } else {
@@ -140,7 +140,7 @@ function HomeContent() {
               {/* Navigation Controls */}
               <div className="flex items-center space-x-1">
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -163,7 +163,7 @@ function HomeContent() {
                 </Button>
 
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -191,7 +191,7 @@ function HomeContent() {
                 </Button>
 
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -225,20 +225,20 @@ function HomeContent() {
                 currentUserId={user?.id}
               />
             </div>
-            
+
             {/* Right Section */}
             <div className="flex items-center space-x-3 flex-shrink-0">
               <ViewToggle />
               <FriendshipNotifications className="neu-nav-pill" />
               <Button
-                variant="neu"
+                variant="default"
                 className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill whitespace-nowrap"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
               <Button
-                variant="neu"
+                variant="default"
                 onClick={async () => {
                   try {
                     await signOut();
