@@ -500,7 +500,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           recurrenceRule: event.component.getFirstPropertyValue('rrule')?.toString(),
           isRecurring: !!event.component.getFirstPropertyValue('rrule'),
           source: 'ical',
-          lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || new Date(),
+          lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
 
         events.push(calendarEvent);
@@ -548,9 +548,9 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   // Cache management
   clearCache(feedId?: string): void {
     if (feedId) {
-      // Clear cache entries for specific feed
+      // Clear cache entries for specific feed (both exact match and prefixed)
       for (const key of this.feedCache.keys()) {
-        if (key.startsWith(`${feedId}:`)) {
+        if (key === feedId || key.startsWith(`${feedId}:`)) {
           this.feedCache.delete(key);
         }
       }

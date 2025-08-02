@@ -66,6 +66,9 @@ export interface OfflineCalendarService {
   // Utility methods
   isCacheValid(feedId: string, maxAge?: number): Promise<boolean>;
   getFeedSyncStatus(feedId: string): Promise<SyncStatus | null>;
+  
+  // Lifecycle management
+  destroy(): void;
 }
 
 export class OfflineCalendarServiceImpl implements OfflineCalendarService {
@@ -75,6 +78,18 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
   private readonly SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
   private readonly MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
   private readonly MAX_RETRY_ATTEMPTS = 3;
+  
+  // Store the event listener to prevent memory leaks
+  private readonly visibilityChangeHandler = () => {
+    if (!document.hidden && this.backgroundSyncEnabled) {
+      // Tab regained focus, trigger sync
+      setTimeout(() => {
+        this.triggerBackgroundSync().catch(error => {
+          console.error('Focus sync failed:', error);
+        });
+      }, 1000); // Small delay to avoid immediate sync on tab switch
+    }
+  };
   
   constructor() {
     // FIXED: Remove async call from constructor to avoid unhandled promise rejections
@@ -463,16 +478,7 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
   }
   
   private setupVisibilityChangeHandler(): void {
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && this.backgroundSyncEnabled) {
-        // Tab regained focus, trigger sync
-        setTimeout(() => {
-          this.triggerBackgroundSync().catch(error => {
-            console.error('Focus sync failed:', error);
-          });
-        }, 1000); // Small delay to avoid immediate sync on tab switch
-      }
-    });
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
   }
   
   private chunkArray<T>(array: T[], chunkSize: number): T[][] {
@@ -481,6 +487,23 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
       chunks.push(array.slice(i, i + chunkSize));
     }
     return chunks;
+  }
+  
+  // Lifecycle management
+  destroy(): void {
+    // Clean up background sync
+    this.disableBackgroundSync();
+    
+    // Remove event listener to prevent memory leaks
+    document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    
+    // Close database connection if open
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
+    
+    console.log('OfflineCalendarService destroyed and cleaned up');
   }
 }
 
