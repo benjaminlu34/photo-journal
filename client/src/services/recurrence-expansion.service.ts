@@ -373,9 +373,9 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     }
     
     try {
-      // Check if we're crossing a DST boundary
-      const originalOffset = originalStart.getTimezoneOffset();
-      const instanceOffset = instanceStart.getTimezoneOffset();
+      // FIXED: Use timezone-aware offset calculation instead of browser's local timezone
+      const originalOffset = this.getTimezoneOffset(originalStart, timezone);
+      const instanceOffset = this.getTimezoneOffset(instanceStart, timezone);
       
       if (originalOffset !== instanceOffset) {
         // DST transition detected - adjust times to maintain the same local time
@@ -391,6 +391,59 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     } catch (error) {
       console.warn('Failed to handle DST transition:', error);
       return { start: instanceStart, end: instanceEnd };
+    }
+  }
+
+  /**
+   * Get timezone offset for a specific date in a given timezone
+   * Uses Intl.DateTimeFormat to get accurate timezone-specific offset
+   */
+  private getTimezoneOffset(date: Date, timezone: string): number {
+    try {
+      // Create a date formatter for the specific timezone
+      const formatter = new Intl.DateTimeFormat('en', {
+        timeZone: timezone,
+        timeZoneName: 'longOffset'
+      });
+      
+      // Get the timezone offset string (e.g., "GMT+05:30" or "GMT-08:00")
+      const parts = formatter.formatToParts(date);
+      const offsetPart = parts.find(part => part.type === 'timeZoneName');
+      
+      if (!offsetPart || !offsetPart.value.startsWith('GMT')) {
+        // Fallback to UTC offset calculation
+        return this.calculateUTCOffset(date, timezone);
+      }
+      
+      // Parse the offset string (e.g., "GMT+05:30" -> +330 minutes)
+      const offsetString = offsetPart.value.slice(3); // Remove "GMT"
+      const sign = offsetString.startsWith('+') ? 1 : -1;
+      const [hours, minutes = '0'] = offsetString.slice(1).split(':');
+      
+      return sign * (parseInt(hours, 10) * 60 + parseInt(minutes, 10));
+    } catch (error) {
+      console.warn(`Failed to get timezone offset for ${timezone}:`, error);
+      // Fallback to browser's local timezone offset
+      return -date.getTimezoneOffset();
+    }
+  }
+
+  /**
+   * Fallback method to calculate UTC offset using date comparison
+   */
+  private calculateUTCOffset(date: Date, timezone: string): number {
+    try {
+      // Create dates in both UTC and the target timezone
+      const utcDate = new Date(date.toISOString());
+      const zonedDate = toZonedTime(utcDate, timezone);
+      
+      // Calculate the difference in minutes
+      const offsetMs = zonedDate.getTime() - utcDate.getTime();
+      return Math.round(offsetMs / (60 * 1000));
+    } catch (error) {
+      console.warn(`Failed to calculate UTC offset for ${timezone}:`, error);
+      // Final fallback to browser's local timezone
+      return -date.getTimezoneOffset();
     }
   }
   

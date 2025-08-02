@@ -3,16 +3,11 @@
  * Implements event key generation, sequence handling, and canonical ID assignment
  */
 
+import { LRUCache } from 'lru-cache';
 import type { CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 import { availableColors } from '@shared/config/calendar-config';
 
 // Interfaces
-interface EventKey {
-  externalId: string;
-  sequence: number;
-  sourceId: string;
-}
-
 interface DeduplicationResult {
   canonicalEvents: Map<string, CalendarEvent>;
   duplicateGroups: Map<string, CalendarEvent[]>;
@@ -58,10 +53,17 @@ export interface DuplicateEventResolver {
   // Utility methods
   areEventsEquivalent(event1: CalendarEvent, event2: CalendarEvent): boolean;
   getEventSourceId(event: CalendarEvent): string;
+
+  // Cache management
+  getCacheStats(): { size: number; maxSize: number };
 }
 
 export class DuplicateEventResolverImpl implements DuplicateEventResolver {
-  private readonly colorAssignmentCache = new Map<string, string>();
+  // FIXED: Use LRUCache with max size to prevent memory leaks
+  private readonly colorAssignmentCache = new LRUCache<string, string>({
+    max: 1000, // Limit to 1000 color assignments
+    ttl: 24 * 60 * 60 * 1000, // 24 hour TTL to allow cache refresh
+  });
   private colorIndex = 0;
 
   // Core deduplication methods
@@ -292,7 +294,7 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
   private assignCanonicalIds(resolvedGroups: Map<string, EventGroup>): Map<string, CalendarEvent> {
     const canonicalEvents = new Map<string, CalendarEvent>();
 
-    for (const [baseId, group] of resolvedGroups) {
+    for (const [, group] of resolvedGroups) {
       // Use the primary event as the canonical event
       const canonicalEvent: CalendarEvent = {
         ...group.primaryEvent,
@@ -313,7 +315,7 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
   private buildDuplicateGroups(resolvedGroups: Map<string, EventGroup>): Map<string, CalendarEvent[]> {
     const duplicateGroups = new Map<string, CalendarEvent[]>();
 
-    for (const [baseId, group] of resolvedGroups) {
+    for (const [, group] of resolvedGroups) {
       if (group.events.length > 1) {
         duplicateGroups.set(group.canonicalId, group.events);
       }
@@ -384,7 +386,13 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
     return baseColor;
   }
 
-
+  // Cache management
+  getCacheStats(): { size: number; maxSize: number } {
+    return {
+      size: this.colorAssignmentCache.size,
+      maxSize: this.colorAssignmentCache.max,
+    };
+  }
 }
 
 // Create a singleton instance
