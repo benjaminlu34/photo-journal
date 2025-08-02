@@ -177,7 +177,7 @@ export function WeeklyCalendarView({
     setSelectedDateForEvent(null);
   };
   
-  const handleCreateEvent = async (eventData: any) => {
+  const handleCreateEvent = async (eventData: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => {
     const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
     

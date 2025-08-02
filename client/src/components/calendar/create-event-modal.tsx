@@ -51,7 +51,7 @@ export function CreateEventModal({
     }
   }, [initialDate]);
   
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
   

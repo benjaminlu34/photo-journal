@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { DateRange } from "@/types/calendar";
-
+import { subWeeks, addWeeks } from 'date-fns';
 interface WeekHeaderProps {
   currentWeek: Date;
   onWeekChange: (date: Date) => void;
@@ -25,15 +25,11 @@ export function WeekHeader({
   const weekRange = format(startDate, CALENDAR_CONFIG.DATE_FORMATS.WEEK_HEADER);
   
   const goToPreviousWeek = () => {
-    const previousWeek = new Date(currentWeek);
-    previousWeek.setDate(previousWeek.getDate() - 7);
-    onWeekChange(previousWeek);
+    onWeekChange(subWeeks(currentWeek, 1));
   };
   
   const goToNextWeek = () => {
-    const nextWeek = new Date(currentWeek);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    onWeekChange(nextWeek);
+    onWeekChange(addWeeks(currentWeek, 1));
   };
   
   return (

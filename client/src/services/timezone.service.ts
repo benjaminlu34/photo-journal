@@ -68,7 +68,7 @@ export class TimezoneServiceImpl implements TimezoneService {
   handleFloatingTime(dateTime: Date, userTimezone: string): Date {
     // Treat the dateTime as if it's already in the user's timezone
     // This means we don't need to convert it, just ensure it's properly formatted
-    return new Date(dateTime);
+    return toZonedTime(dateTime, userTimezone);
   }
   
   // DST transition handling
