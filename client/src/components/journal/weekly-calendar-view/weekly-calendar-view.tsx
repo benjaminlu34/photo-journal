@@ -2,14 +2,15 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
+import { useCalendar } from "@/contexts/calendar-context";
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Settings, Link } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
 // Removed colorPaletteManager import to avoid potential re-render issues
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
-import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
-import type { WeeklyCalendarViewProps, LocalEvent } from "@/types/calendar";
+import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
 import { EventModal, CalendarFeedModal, TimeGrid, CalendarSettings } from "@/components/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
+import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 // Local interface for calendar events
 interface LocalCalendarEvent {
@@ -20,6 +21,42 @@ interface LocalCalendarEvent {
   color: string;
   location?: string;
   description?: string;
+}
+
+// Helper function to convert external/friend events to LocalEvent format for display
+function convertToLocalEventForDisplay(
+  event: CalendarEvent | FriendCalendarEvent, 
+  type: 'external' | 'friend'
+): LocalEvent {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    timezone: event.timezone,
+    isAllDay: event.isAllDay,
+    color: event.color,
+    pattern: event.pattern || 'plain',
+    location: event.location,
+    attendees: event.attendees,
+    createdBy: type === 'external' ? 'external' : (event as FriendCalendarEvent).friendUserId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    collaborators: [],
+    tags: []
+  };
+}
+
+// Helper function to convert events array to LocalEvent array for a specific day
+function convertEventsForDay(
+  eventsArray: CalendarEvent[] | FriendCalendarEvent[],
+  type: 'external' | 'friend',
+  day: Date
+): LocalEvent[] {
+  return eventsArray
+    .filter(event => isSameDay(event.startTime, day))
+    .map(event => convertToLocalEventForDisplay(event, type));
 }
 
 export function WeeklyCalendarView({
@@ -35,8 +72,15 @@ export function WeeklyCalendarView({
   void feedsEnabled;
   void syncedFriends;
   const { currentWeek, setCurrentWeek } = useJournal();
-  const [events, setEvents] = useState<LocalCalendarEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<LocalCalendarEvent | null>(null);
+  const { 
+    localEvents, 
+    externalEvents, 
+    friendEvents, 
+    currentWeek: calendarCurrentWeek,
+    actions: calendarActions 
+  } = useCalendar();
+  
+  const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isFeedModalOpen, setIsFeedModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -54,15 +98,16 @@ export function WeeklyCalendarView({
   useEffect(() => {
     if (initialDate && initialDate.getTime() !== currentWeek.getTime()) {
       setCurrentWeek(initialDate);
+      calendarActions.setCurrentWeek(initialDate);
     }
-  }, [initialDate, currentWeek, setCurrentWeek]);
+  }, [initialDate, currentWeek, setCurrentWeek, calendarActions]);
 
   // Memoize week days calculation to prevent unnecessary re-computations
   const weekDays = useMemo(() => {
-    const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
-    const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
+    const startDate = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
+    const endDate = endOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
     return eachDayOfInterval({ start: startDate, end: endDate });
-  }, [currentWeek]);
+  }, [calendarCurrentWeek]);
 
   // Memoize display days calculation for pad view optimization
   const displayDays = useMemo(() => {
@@ -82,15 +127,33 @@ export function WeeklyCalendarView({
 
   // Memoize events by day to prevent filtering on every render
   const eventsByDay = useMemo(() => {
-    const eventsMap: Record<string, LocalCalendarEvent[]> = {};
+    const eventsMap: Record<string, LocalEvent[]> = {};
     
     displayDays.forEach(day => {
       const dayKey = day.toDateString();
-      eventsMap[dayKey] = events.filter(event => isSameDay(event.date, day));
+      
+      // Filter local events for the day
+      const localEventsForDay = Object.values(localEvents).filter(event => 
+        isSameDay(event.startTime, day)
+      );
+      
+      // Filter and convert external events for the day
+      const externalEventsForDay: LocalEvent[] = [];
+      Object.values(externalEvents).forEach(eventsArray => {
+        externalEventsForDay.push(...convertEventsForDay(eventsArray, 'external', day));
+      });
+      
+      // Filter and convert friend events for the day
+      const friendEventsForDay: LocalEvent[] = [];
+      Object.values(friendEvents).forEach(eventsArray => {
+        friendEventsForDay.push(...convertEventsForDay(eventsArray, 'friend', day));
+      });
+      
+      eventsMap[dayKey] = [...localEventsForDay, ...externalEventsForDay, ...friendEventsForDay];
     });
     
     return eventsMap;
-  }, [events, displayDays]);
+  }, [displayDays, localEvents, externalEvents, friendEvents]);
 
   // Create responsive grid template based on display days
   const gridTemplate = useMemo(() => {
@@ -103,7 +166,7 @@ export function WeeklyCalendarView({
     setIsEventModalOpen(true);
   };
   
-  const handleEventClick = (event: LocalCalendarEvent) => {
+  const handleEventClick = (event: LocalEvent) => {
     setSelectedEvent(event);
     setIsEventModalOpen(true);
   };
@@ -114,21 +177,30 @@ export function WeeklyCalendarView({
     setSelectedDateForEvent(null);
   };
   
-  const handleCreateEvent = (eventData: any) => {
+  const handleCreateEvent = async (eventData: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => {
     const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
     
-    const newEvent: LocalCalendarEvent = {
-      id: crypto.randomUUID(),
-      title: eventData.title,
-      date: selectedDateForEvent || new Date(),
-      startTime: eventData.startTime,
-      color: eventData.color || randomColor,
-      location: eventData.location,
-      description: eventData.description
-    };
-    setEvents(prev => [...prev, newEvent]);
-    handleEventModalClose();
+    try {
+      await calendarActions.createLocalEvent({
+        title: eventData.title,
+        description: eventData.description,
+        startTime: eventData.startTime,
+        endTime: eventData.endTime,
+        timezone: undefined,
+        isAllDay: eventData.isAllDay,
+        color: eventData.color || randomColor,
+        location: eventData.location,
+        attendees: [],
+        linkedJournalEntryId: eventData.linkedJournalEntryId,
+        reminderMinutes: eventData.reminderMinutes,
+        tags: eventData.tags || [],
+        pattern: undefined
+      });
+      handleEventModalClose();
+    } catch (error) {
+      console.error('Failed to create event:', error);
+    }
   };
 
   // Render mobile pad navigation
@@ -262,6 +334,11 @@ export function WeeklyCalendarView({
                     const eventMinutes = event.startTime.getMinutes();
                     const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
                     
+                    // Calculate duration in hours for dynamic height
+                    const durationMs = event.endTime.getTime() - event.startTime.getTime();
+                    const durationHours = durationMs / (1000 * 60 * 60);
+                    const height = durationHours * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+                    
                     return (
                       <div
                         key={event.id}
@@ -271,7 +348,7 @@ export function WeeklyCalendarView({
                           backgroundColor: applyOpacityToColor(event.color, 0.1),
                           borderLeft: `4px solid ${event.color}`,
                           top: `${positionTop}px`,
-                          height: '60px',
+                          height: `${height}px`,
                         }}
                         role="button"
                         tabIndex={0}
@@ -304,7 +381,7 @@ export function WeeklyCalendarView({
       <EventModal
         isOpen={isEventModalOpen}
         onClose={handleEventModalClose}
-        event={selectedEvent ? convertToLocalEvent(selectedEvent) : undefined}
+        event={selectedEvent || undefined}
         initialDate={selectedDateForEvent || undefined}
       />
       
@@ -324,29 +401,4 @@ export function WeeklyCalendarView({
       )}
     </div>
   );
-}
-
-// Helper function to convert our local event to the LocalEvent type
-function convertToLocalEvent(event: LocalCalendarEvent): LocalEvent {
-  const startDate = new Date(event.startTime);
-  
-  const endDate = new Date(event.startTime);
-  endDate.setHours(endDate.getHours() + 1);
-  
-  return {
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    startTime: startDate,
-    endTime: endDate,
-    timezone: undefined,
-    isAllDay: false,
-    color: event.color,
-    location: event.location,
-    createdBy: 'user',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    collaborators: [],
-    tags: [],
-  };
 }

@@ -57,17 +57,17 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
   const getEventsForHour = useCallback((hour: number) => {
     const hourStart = addHours(startOfDay(date), hour);
     const hourEnd = addHours(hourStart, 1);
-    
+
     return events.filter(event => {
       const normalizedEvent = normalizeEventDates(event);
       const eventStart = normalizedEvent.startTime;
       const eventEnd = normalizedEvent.endTime;
-      
+
       // Only show events that are on the same day as the grid
       if (!isSameDay(eventStart, date)) {
         return false;
       }
-      
+
       // Check if there's any overlap between the event and the hour
       // An overlap exists if:
       // 1. The event starts before the hour ends AND
@@ -81,13 +81,13 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
     const eventStart = normalizedEvent.startTime;
     const eventEnd = normalizedEvent.endTime;
     const dayStart = startOfDay(date);
-    
+
     const startMinutes = (eventStart.getTime() - dayStart.getTime()) / (1000 * 60);
     const endMinutes = (eventEnd.getTime() - dayStart.getTime()) / (1000 * 60);
-    
+
     const top = (startMinutes / (24 * 60)) * 100;
     const height = ((endMinutes - startMinutes) / (24 * 60)) * 100;
-    
+
     return { top, height };
   }, [date]);
 
@@ -95,19 +95,19 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
     if (!dragState.isDragging || !dragState.startTime || !dragState.endTime) {
       return false;
     }
-    
+
     const hourStart = addHours(startOfDay(date), hour);
     const hourEnd = addHours(hourStart, 1);
-    
+
     const dragStart = dragState.startTime;
     const dragEnd = dragState.endTime;
-    
+
     const selectionStart = dragStart < dragEnd ? dragStart : dragEnd;
     const selectionEnd = dragStart < dragEnd ? dragEnd : dragStart;
-    
+
     return isWithinInterval(hourStart, { start: selectionStart, end: selectionEnd }) ||
-           isWithinInterval(hourEnd, { start: selectionStart, end: selectionEnd }) ||
-           (hourStart <= selectionStart && hourEnd >= selectionEnd);
+      isWithinInterval(hourEnd, { start: selectionStart, end: selectionEnd }) ||
+      (hourStart <= selectionStart && hourEnd >= selectionEnd);
   }, [dragState, date]);
 
   // Get current date and time once at the beginning of the render block
@@ -128,7 +128,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
           </div>
         ))}
       </div>
-      
+
       {/* Time slots */}
       <div
         className="ml-16 relative"
@@ -138,20 +138,19 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
         {HOURS.map(hour => {
           const hourEvents = getEventsForHour(hour);
           const isSelected = isWithinDragSelection(hour);
-          
+
           return (
             <div
               key={hour}
-              className={`h-16 border-b border-gray-200 relative cursor-pointer hover:bg-gray-50 transition-colors ${
-                isSelected ? "bg-purple-50" : ""
-              }`}
+              className={`h-16 border-b border-gray-200 relative cursor-pointer hover:bg-gray-50 transition-colors ${isSelected ? "bg-purple-50" : ""
+                }`}
               onMouseDown={() => handleMouseDown(hour)}
               onMouseEnter={() => handleMouseEnter(hour)}
               onClick={() => onTimeSlotClick?.(addHours(startOfDay(date), hour))}
             >
               {/* Half-hour mark */}
               <div className="absolute top-1/2 left-0 right-0 border-t border-gray-100" />
-              
+
               {/* Quick add button */}
               <button
                 className="absolute top-1/2 left-2 transform -translate-y-1/2 opacity-0 hover:opacity-100 transition-opacity"
@@ -162,7 +161,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
               >
                 <Plus className="w-4 h-4 text-gray-400" />
               </button>
-              
+
               {/* Events for this hour */}
               {hourEvents.map(event => {
                 const position = calculateEventPosition(event);
@@ -197,7 +196,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
             </div>
           );
         })}
-        
+
         {/* Current time indicator */}
         {isSameDay(date, now) && (
           <div

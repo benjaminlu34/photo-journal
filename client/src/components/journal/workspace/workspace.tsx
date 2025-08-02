@@ -8,6 +8,7 @@ import { CollaborationCursor, FloatingCollaborationCursors } from "@/components/
 import { useJournal } from "@/contexts/journal-context";
 import { useCRDT } from "@/contexts/crdt-context";
 import { useUser } from "@/hooks/useUser";
+import { CalendarProvider } from "@/contexts/calendar-context";
 import type { Position } from "@/types/journal";
 import { Plus, Loader2 } from "lucide-react";
 
@@ -68,7 +69,9 @@ export function JournalWorkspace() {
       </div>
 
       <div className={viewMode === "weekly-calendar" ? "flex-1" : "hidden"}>
-        <WeeklyCalendarView username={user?.username || ''} />
+        <CalendarProvider initialDate={currentEntry?.createdAt ? new Date(currentEntry.createdAt) : new Date()}>
+          <WeeklyCalendarView username={user?.username || ''} />
+        </CalendarProvider>
       </div>
 
       <div className={viewMode === "weekly-creative" ? "flex-1" : "hidden"}>
