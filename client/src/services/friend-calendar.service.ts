@@ -142,9 +142,12 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       
       // Use cache if recent (within configured TTL)
       if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < CACHE_TTL_MS) {
-        return cachedEvents.filter(event => 
-          event.startTime >= startDate && event.startTime <= endDate
-        );
+        return cachedEvents.filter(event => {
+          // Check for event overlap with date range (handles multi-day events)
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+          return eventStart < endDate && eventEnd > startDate;
+        });
       }
       
       // Fetch fresh events from API
@@ -305,22 +308,29 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   // Get list of friends with calendar access
   async getFriendsWithCalendarAccess(): Promise<Friend[]> {
     try {
+      const signal = this.createAbortController('friends-list');
+
       const response = await fetch('/api/friends/with-calendar-access', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch friends with calendar access');
+        throw new Error(`Failed to fetch friends with calendar access: ${response.statusText}`);
       }
       
       return await response.json();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friends list fetch cancelled');
+        return [];
+      }
       console.error('Error fetching friends with calendar access:', error);
-      return [];
+      throw error;
+    } finally {
+      this.abortControllers.delete('friends-list');
     }
   }
   
@@ -410,22 +420,29 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   
   private async getFriendById(friendUserId: string): Promise<Friend | null> {
     try {
+      const signal = this.createAbortController(`friend-${friendUserId}`);
+
       const response = await fetch(`/api/friends/${friendUserId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
       });
       
       if (!response.ok) {
-        return null;
+        throw new Error(`Failed to fetch friend: ${response.statusText}`);
       }
       
       return await response.json();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend fetch cancelled');
+        return null;
+      }
       console.error('Error fetching friend by ID:', error);
-      return null;
+      throw error;
+    } finally {
+      this.abortControllers.delete(`friend-${friendUserId}`);
     }
   }
   
