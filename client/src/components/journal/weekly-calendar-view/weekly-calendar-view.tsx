@@ -10,16 +10,7 @@ import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
 import { EventModal, CalendarFeedModal, TimeGrid, CalendarSettings } from "@/components/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
-
-// Calendar configuration constants
-const CALENDAR_CONFIG = {
-  MOBILE: {
-    PAD_SIZE: 3,
-  },
-  TIME_GRID: {
-    HOUR_HEIGHT: 64, // pixels
-  }
-};
+import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 // Local interface for calendar events
 interface LocalCalendarEvent {
@@ -343,6 +334,11 @@ export function WeeklyCalendarView({
                     const eventMinutes = event.startTime.getMinutes();
                     const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
                     
+                    // Calculate duration in hours for dynamic height
+                    const durationMs = event.endTime.getTime() - event.startTime.getTime();
+                    const durationHours = durationMs / (1000 * 60 * 60);
+                    const height = durationHours * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+                    
                     return (
                       <div
                         key={event.id}
@@ -352,7 +348,7 @@ export function WeeklyCalendarView({
                           backgroundColor: applyOpacityToColor(event.color, 0.1),
                           borderLeft: `4px solid ${event.color}`,
                           top: `${positionTop}px`,
-                          height: '60px',
+                          height: `${height}px`,
                         }}
                         role="button"
                         tabIndex={0}

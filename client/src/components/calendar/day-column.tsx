@@ -43,13 +43,20 @@ export function DayColumn({
   
   // Calculate event positions
   const calculateEventPosition = (event: LocalEvent) => {
-    const eventHours = new Date(event.startTime).getHours();
-    const eventMinutes = new Date(event.startTime).getMinutes();
+    const startTime = new Date(event.startTime);
+    const endTime = new Date(event.endTime);
+    const eventHours = startTime.getHours();
+    const eventMinutes = startTime.getMinutes();
     const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+    
+    // Calculate duration in hours
+    const durationMs = endTime.getTime() - startTime.getTime();
+    const durationHours = durationMs / (1000 * 60 * 60);
+    const height = durationHours * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
     
     return {
       top: `${positionTop}px`,
-      height: '60px'
+      height: `${height}px`
     };
   };
   
