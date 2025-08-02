@@ -30,7 +30,7 @@ export function CreateEventModal({
     title: "",
     description: "",
     startTime: initialDate ? new Date(initialDate.getTime()) : new Date(),
-    endTime: initialDate ? new Date(initialDate.getTime() + 60 * 60 * 1000) : new Date(Date.now() + 60 * 60 * 1000),
+    endTime: initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1),
     isAllDay: false,
     location: "",
     color: "#3B82F6",
@@ -40,16 +40,6 @@ export function CreateEventModal({
   });
   
   const [tagInput, setTagInput] = useState("");
-  
-  useEffect(() => {
-    if (initialDate) {
-      setFormData(prev => ({
-        ...prev,
-        startTime: new Date(initialDate.getTime()),
-        endTime: new Date(initialDate.getTime() + 60 * 60 * 1000),
-      }));
-    }
-  }, [initialDate]);
   
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));

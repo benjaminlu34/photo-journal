@@ -54,7 +54,7 @@ export function EditEventModal({
     });
   }, [event.id]); // Only reset form when the event ID changes, not on every re-render
   
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
   

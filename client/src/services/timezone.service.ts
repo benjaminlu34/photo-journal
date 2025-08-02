@@ -8,7 +8,7 @@ import type { BaseEvent } from '@/types/calendar';
 
 export interface TimezoneService {
   // Convert event times to user's local timezone
-  convertToLocalTime(event: BaseEvent, userTimezone: string): BaseEvent;
+  convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T;
   
   // Handle floating times (no timezone specified)
   // Rule: If TZID missing, treat as floating and render in viewer's zone
@@ -16,7 +16,7 @@ export interface TimezoneService {
   handleFloatingTime(dateTime: Date, userTimezone: string): Date;
   
   // DST transition handling
-  adjustForDSTTransition(events: BaseEvent[], userTimezone: string): BaseEvent[];
+  adjustForDSTTransition<T extends BaseEvent[]>(events: T, userTimezone: string): T;
   
   // DST gap handling (e.g., 2:00 AM → 3:00 AM spring forward)
   // Rule: Skip missing hour slots in time grid rendering, don't shift events
@@ -37,7 +37,7 @@ export class TimezoneServiceImpl implements TimezoneService {
   }
   
   // Convert event times to user's local timezone
-  convertToLocalTime(event: BaseEvent, userTimezone: string): BaseEvent {
+  convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T {
     // If event has no timezone, treat as floating time
     if (!event.timezone) {
       return {
@@ -72,7 +72,7 @@ export class TimezoneServiceImpl implements TimezoneService {
   }
   
   // DST transition handling
-  adjustForDSTTransition(events: BaseEvent[], userTimezone: string): BaseEvent[] {
+  adjustForDSTTransition<T extends BaseEvent[]>(events: T, userTimezone: string): T {
     // For now, we'll just return the events as-is
     // In a more sophisticated implementation, we would:
     // 1. Detect when DST transitions occur in the user's timezone

@@ -171,29 +171,17 @@ export function createCalendarSDK({
           ...currentEvent, 
           ...updates, 
           updatedAt: now,
-          // Ensure collaborators field is preserved
           collaborators: updates.collaborators || currentEvent.collaborators
         };
         
-        // Handle timezone conversion if needed
         if (updates.timezone && updates.timezone !== currentEvent.timezone) {
           const userTimezone = timezoneService.getUserTimezone();
+          // The convertToLocalTime method is already generic, so it will preserve the LocalEvent type
           const convertedEvent = timezoneService.convertToLocalTime(
-            updatedEvent, 
+            updatedEvent,
             userTimezone
           );
-          // Type-safe conversion: preserve LocalEvent-specific properties
-          const localEvent: LocalEvent = {
-            ...convertedEvent,
-            createdBy: updatedEvent.createdBy,
-            createdAt: updatedEvent.createdAt,
-            updatedAt: updatedEvent.updatedAt,
-            collaborators: updatedEvent.collaborators,
-            tags: updatedEvent.tags,
-            linkedJournalEntryId: updatedEvent.linkedJournalEntryId,
-            reminderMinutes: updatedEvent.reminderMinutes
-          };
-          calendarDocument.localEvents.set(id, localEvent);
+          calendarDocument.localEvents.set(id, convertedEvent);
         } else {
           calendarDocument.localEvents.set(id, updatedEvent);
         }
