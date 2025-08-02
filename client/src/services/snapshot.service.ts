@@ -22,12 +22,15 @@ export interface SnapshotService {
 
 export class SnapshotServiceImpl implements SnapshotService {
   private snapshotInterval: NodeJS.Timeout | null = null;
+  private debounceTimeout: NodeJS.Timeout | null = null;
   private lastSnapshotTime: number = 0;
   private pendingChanges: boolean = false;
   private currentDoc: Y.Doc | null = null;
   private currentWeekId: string | null = null;
+  private lastSnapshotSize: number = 0;
   private readonly SNAPSHOT_DEBOUNCE_DELAY = 10000; // 10 seconds
   private readonly SNAPSHOT_BATCH_SIZE = 1024; // 1KB in bytes
+  private readonly MAX_DEBOUNCE_DELAY = 30000; // Maximum 30 seconds before forced snapshot
   
   // Start snapshot batching
   startSnapshotBatching(weekId: string, doc: Y.Doc): void {
@@ -52,8 +55,20 @@ export class SnapshotServiceImpl implements SnapshotService {
       clearInterval(this.snapshotInterval);
       this.snapshotInterval = null;
     }
+    
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    
+    // Take final snapshot if there are pending changes
+    if (this.pendingChanges && this.currentWeekId && this.currentDoc) {
+      this.takeSnapshot(this.currentWeekId, this.currentDoc);
+    }
+    
     this.currentDoc = null;
     this.currentWeekId = null;
+    this.pendingChanges = false;
   }
   
   // Force immediate snapshot
@@ -64,19 +79,43 @@ export class SnapshotServiceImpl implements SnapshotService {
   // Mark that there are pending changes that need to be snapshotted
   markPendingChanges(): void {
     this.pendingChanges = true;
+    
+    // Clear existing debounce timeout
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+    }
+    
+    // Set up debounced snapshot
+    this.debounceTimeout = setTimeout(() => {
+      this.checkAndSnapshot();
+    }, this.SNAPSHOT_DEBOUNCE_DELAY);
   }
   
   // Check if a snapshot should be taken and take it if needed
   private async checkAndSnapshot(): Promise<void> {
+    if (!this.currentWeekId || !this.currentDoc) {
+      return;
+    }
+    
     const now = Date.now();
     const timeSinceLastSnapshot = now - this.lastSnapshotTime;
     
-    // Check if we should take a snapshot based on time or batch size
-    if ((timeSinceLastSnapshot >= this.SNAPSHOT_DEBOUNCE_DELAY && this.pendingChanges) || 
-        timeSinceLastSnapshot >= 30000) { // Force snapshot every 30 seconds
-      if (this.currentWeekId && this.currentDoc) {
-        await this.takeSnapshot(this.currentWeekId, this.currentDoc);
-      }
+    // Calculate current document size
+    const currentState = Y.encodeStateAsUpdate(this.currentDoc);
+    const currentSize = currentState.byteLength;
+    const sizeDelta = currentSize - this.lastSnapshotSize;
+    
+    // Determine if snapshot should be taken based on:
+    // 1. Debounce delay has passed AND there are pending changes
+    // 2. Batch size threshold exceeded (1KB of changes)
+    // 3. Maximum debounce delay exceeded (force snapshot)
+    const shouldSnapshot = 
+      (timeSinceLastSnapshot >= this.SNAPSHOT_DEBOUNCE_DELAY && this.pendingChanges) ||
+      (sizeDelta >= this.SNAPSHOT_BATCH_SIZE) ||
+      (timeSinceLastSnapshot >= this.MAX_DEBOUNCE_DELAY);
+    
+    if (shouldSnapshot) {
+      await this.takeSnapshot(this.currentWeekId, this.currentDoc);
     }
   }
   
@@ -89,9 +128,7 @@ export class SnapshotServiceImpl implements SnapshotService {
       // Calculate size of the update
       const size = state.byteLength;
       
-      // In a real implementation, we would send this to the server
-      // For now, we'll just log that a snapshot would be taken
-      console.log(`Taking snapshot for week ${weekId}, size: ${size} bytes`);
+      console.log(`Taking snapshot for week ${weekId}, size: ${size} bytes, debounce: ${this.SNAPSHOT_DEBOUNCE_DELAY}ms, batch: ${this.SNAPSHOT_BATCH_SIZE} bytes`);
       
       // In a production implementation, this would be:
       /*
@@ -99,6 +136,8 @@ export class SnapshotServiceImpl implements SnapshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
+          'X-Week-Id': weekId,
+          'X-Snapshot-Size': size.toString(),
         },
         body: state
       });
@@ -108,17 +147,34 @@ export class SnapshotServiceImpl implements SnapshotService {
       }
       */
       
-      // Update last snapshot time
+      // Update tracking variables
       this.lastSnapshotTime = Date.now();
+      this.lastSnapshotSize = size;
       this.pendingChanges = false;
       
-      // In a real implementation, we would:
-      // 1. Serialize the Yjs document state
-      // 2. Send it to the server via an API call
-      // 3. Handle any errors and retry if needed
+      // Clear debounce timeout since we just took a snapshot
+      if (this.debounceTimeout) {
+        clearTimeout(this.debounceTimeout);
+        this.debounceTimeout = null;
+      }
+      
+      console.debug(`Snapshot completed for week ${weekId} at ${new Date().toISOString()}`);
+      
     } catch (error) {
       console.error('Failed to take snapshot:', error);
-      // In a real implementation, we would handle errors and possibly retry
+      
+      // In a real implementation, we would:
+      // 1. Implement exponential backoff retry logic
+      // 2. Queue failed snapshots for retry
+      // 3. Emit error events for monitoring
+      // 4. Fallback to local storage if server is unavailable
+      
+      // For now, we'll retry after a delay
+      setTimeout(() => {
+        if (this.currentWeekId && this.currentDoc) {
+          this.takeSnapshot(this.currentWeekId, this.currentDoc);
+        }
+      }, 5000); // Retry after 5 seconds
     }
   }
 }

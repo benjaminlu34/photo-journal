@@ -8,6 +8,13 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 import type { LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 import { timezoneService } from '@/services/timezone.service';
 import { snapshotService } from '@/services/snapshot.service';
+import { 
+  createWeeklyCalendarDocument, 
+  CRDTConflictResolver, 
+  WeeklyCalendarDocumentUtils,
+  type WeeklyCalendarDocument 
+} from './weekly-calendar-document';
+import { validateCRDTEvent, createCRDTCompatibleEvent } from './calendar-validation';
 
 export type CalendarSDK = ReturnType<typeof createCalendarSDK>;
 
@@ -41,14 +48,28 @@ export function createCalendarSDK({
   });
   const indexeddbProvider = new IndexeddbPersistence(`journal-calendar-${weekId}`, doc);
 
-  // Local events map (CRDT-synced)
-  const localEventsMap = doc.getMap<LocalEvent>('localEvents');
-  
-  // Metadata for the week
-  const metadata = doc.getMap<any>('metadata');
+  // Create WeeklyCalendarDocument structure
+  const calendarDocument: WeeklyCalendarDocument = {
+    weekId,
+    localEvents: doc.getMap<LocalEvent>('localEvents'),
+    metadata: doc.getMap<any>('metadata'),
+  };
+
+  // Initialize metadata if not exists
+  if (!calendarDocument.metadata.has('weekId')) {
+    calendarDocument.metadata.set('weekId', weekId);
+    calendarDocument.metadata.set('lastModified', new Date());
+    calendarDocument.metadata.set('collaborators', [userId]);
+    calendarDocument.metadata.set('permissions', { [userId]: 'owner' });
+  }
+
+  // Add current user as collaborator if not already present
+  if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'viewer')) {
+    WeeklyCalendarDocumentUtils.addCollaborator(calendarDocument, userId, 'editor');
+  }
 
   // Undo manager for events
-  const undoManager = new Y.UndoManager([localEventsMap]);
+  const undoManager = new Y.UndoManager([calendarDocument.localEvents]);
 
   // Presence (awareness)
   const awareness = provider.awareness;
@@ -63,103 +84,159 @@ export function createCalendarSDK({
 
   // Change listeners
   let changeListeners: Array<(events: LocalEvent[]) => void> = [];
-  localEventsMap.observe(() => {
-    const events = Array.from(localEventsMap.values());
+  calendarDocument.localEvents.observe(() => {
+    const events = Array.from(calendarDocument.localEvents.values());
     changeListeners.forEach(cb => cb(events));
+    
+    // Update last modified timestamp
+    WeeklyCalendarDocumentUtils.updateMetadata(calendarDocument, {
+      lastModified: new Date(),
+    });
     
     // Mark pending changes for snapshot service
     snapshotService.markPendingChanges();
   });
 
-  // Conflict resolution strategy (last-writer-wins with timestamps)
-  const resolveConflict = <T>(localValue: T, remoteValue: T, localTimestamp: Date, remoteTimestamp: Date): T => {
-    return remoteTimestamp > localTimestamp ? remoteValue : localValue;
-  };
-
-  // Start snapshot batching
+  // Start snapshot batching with proper debounce and batch size
   snapshotService.startSnapshotBatching(weekId, doc);
 
   // API
   return {
     // Get all local events
     getLocalEvents(): LocalEvent[] {
-      return Array.from(localEventsMap.values());
+      return Array.from(calendarDocument.localEvents.values());
     },
     
-    // Create a new local event
+    // Get events for a specific date
+    getEventsForDate(date: Date): LocalEvent[] {
+      return WeeklyCalendarDocumentUtils.getEventsForDate(calendarDocument, date);
+    },
+    
+    // Get events in a date range
+    getEventsInRange(startDate: Date, endDate: Date): LocalEvent[] {
+      return WeeklyCalendarDocumentUtils.getEventsInRange(calendarDocument, startDate, endDate);
+    },
+    
+    // Create a new local event with proper validation
     async createLocalEvent(event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) {
+      // Check permissions
+      if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor')) {
+        throw new Error('User does not have permission to create events');
+      }
+      
       const eventId = crypto.randomUUID();
-      const now = new Date();
       
-      const newEvent: LocalEvent = {
-        id: eventId,
-        title: event.title,
-        description: event.description,
-        startTime: event.startTime,
-        endTime: event.endTime,
-        timezone: event.timezone || timezoneService.getUserTimezone(),
-        isAllDay: event.isAllDay,
-        color: event.color,
-        pattern: event.pattern,
-        location: event.location,
-        attendees: event.attendees,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-        linkedJournalEntryId: event.linkedJournalEntryId,
-        reminderMinutes: event.reminderMinutes,
-        collaborators: [userId], // Initially only the creator
-        tags: event.tags || [],
-      };
+      // Create CRDT-compatible event with validation
+      const newEvent = createCRDTCompatibleEvent(event, userId);
+      const eventWithId = { ...newEvent, id: eventId };
       
-      localEventsMap.set(eventId, newEvent);
+      // Validate the event
+      const validation = validateCRDTEvent(eventWithId);
+      if (!validation.isValid) {
+        throw new Error(`Invalid event data: ${validation.errors.join(', ')}`);
+      }
+      
+      // Check for duplicate creation
+      const existingEvent = calendarDocument.localEvents.get(eventId);
+      if (existingEvent) {
+        CRDTConflictResolver.handleDuplicateCreation(
+          existingEvent,
+          eventWithId,
+          calendarDocument.localEvents
+        );
+      } else {
+        calendarDocument.localEvents.set(eventId, eventWithId);
+      }
     },
     
     // Update a local event with conflict resolution
     async updateLocalEvent(id: string, updates: Partial<LocalEvent>) {
-      const event = localEventsMap.get(id);
-      if (event) {
+      const currentEvent = calendarDocument.localEvents.get(id);
+      
+      // Validate the update
+      const validation = CRDTConflictResolver.validateEventUpdate(
+        id,
+        updates,
+        currentEvent,
+        userId
+      );
+      
+      if (!validation.isValid) {
+        throw new Error(`Invalid event update: ${validation.errors.join(', ')}`);
+      }
+      
+      if (currentEvent) {
         const now = new Date();
         const updatedEvent = { 
-          ...event, 
+          ...currentEvent, 
           ...updates, 
           updatedAt: now,
           // Ensure collaborators field is preserved
-          collaborators: updates.collaborators || event.collaborators
+          collaborators: updates.collaborators || currentEvent.collaborators
         };
         
         // Handle timezone conversion if needed
-        if (updates.timezone && updates.timezone !== event.timezone) {
+        if (updates.timezone && updates.timezone !== currentEvent.timezone) {
           const userTimezone = timezoneService.getUserTimezone();
           const convertedEvent = timezoneService.convertToLocalTime(
             updatedEvent as any, 
             userTimezone
           );
-          localEventsMap.set(id, convertedEvent as LocalEvent);
+          calendarDocument.localEvents.set(id, convertedEvent as LocalEvent);
         } else {
-          localEventsMap.set(id, updatedEvent);
+          calendarDocument.localEvents.set(id, updatedEvent);
         }
       }
     },
     
-    // Delete a local event
+    // Delete a local event with proper conflict handling
     deleteLocalEvent(id: string) {
-      const event = localEventsMap.get(id);
+      // Check permissions
+      if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor')) {
+        throw new Error('User does not have permission to delete events');
+      }
+      
+      const event = calendarDocument.localEvents.get(id);
       if (event) {
-        localEventsMap.delete(id);
+        // Handle deletion with timestamp for conflict resolution
+        CRDTConflictResolver.handleEventDeletion(
+          id,
+          userId,
+          new Date(),
+          calendarDocument.localEvents
+        );
       }
     },
     
-    // Get metadata
+    // Get document metadata
     getMetadata(): any {
-      return Object.fromEntries(metadata.entries());
+      return Object.fromEntries(calendarDocument.metadata.entries());
     },
     
-    // Update metadata
-    updateMetadata(updates: Record<string, any>) {
-      Object.entries(updates).forEach(([key, value]) => {
-        metadata.set(key, value);
-      });
+    // Get document statistics
+    getDocumentStats() {
+      return WeeklyCalendarDocumentUtils.getDocumentStats(calendarDocument);
+    },
+    
+    // Add collaborator
+    addCollaborator(collaboratorId: string, permission: 'viewer' | 'editor' | 'owner' = 'editor') {
+      if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'owner')) {
+        throw new Error('Only owners can add collaborators');
+      }
+      WeeklyCalendarDocumentUtils.addCollaborator(calendarDocument, collaboratorId, permission);
+    },
+    
+    // Remove collaborator
+    removeCollaborator(collaboratorId: string) {
+      if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'owner')) {
+        throw new Error('Only owners can remove collaborators');
+      }
+      WeeklyCalendarDocumentUtils.removeCollaborator(calendarDocument, collaboratorId);
+    },
+    
+    // Check user permissions
+    hasPermission(requiredPermission: 'viewer' | 'editor' | 'owner'): boolean {
+      return WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, requiredPermission);
     },
     
     // Presence information
