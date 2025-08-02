@@ -69,7 +69,7 @@ export function CreateEventModal({
     }));
   };
   
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.title.trim()) {

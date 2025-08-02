@@ -34,7 +34,7 @@ export function EditEventModal({
     isAllDay: event.isAllDay,
     location: event.location || "",
     color: event.color,
-    reminderMinutes: 'reminderMinutes' in event ? event.reminderMinutes || 30 : 30,
+    reminderMinutes: event.reminderMinutes ?? 30,
     tags: 'tags' in event ? event.tags || [] : [],
   });
   
@@ -49,7 +49,7 @@ export function EditEventModal({
       isAllDay: event.isAllDay,
       location: event.location || "",
       color: event.color,
-      reminderMinutes: 'reminderMinutes' in event ? event.reminderMinutes || 30 : 30,
+      reminderMinutes: event.reminderMinutes ?? 30,
       tags: 'tags' in event ? event.tags || [] : [],
     });
   }, [event.id]); // Only reset form when the event ID changes, not on every re-render
