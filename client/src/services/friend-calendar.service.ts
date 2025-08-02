@@ -5,6 +5,41 @@
 import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
 
+// Configuration constants
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const EVENT_WINDOW_WEEKS = 2; // ±2 weeks for event expansion
+
+// Auth utilities (should be imported from auth service in real implementation)
+const getAuthToken = (): string => {
+  // In real implementation, get from auth service/context
+  return localStorage.getItem('auth_token') || '';
+};
+
+const getCsrfToken = (): string => {
+  // In real implementation, get from meta tag or auth service
+  return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+};
+
+// API response interfaces
+interface FriendCalendarAccessResponse {
+  hasAccess: boolean;
+  permission: 'viewer' | 'contributor' | 'editor' | 'owner';
+}
+
+interface FriendEventsResponse {
+  events: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    startTime: string;
+    endTime: string;
+    isAllDay: boolean;
+    color: string;
+    location?: string;
+    attendees?: string[];
+  }>;
+}
+
 export interface FriendCalendarService {
   // Create a friend calendar feed
   createFriendFeed(friend: Friend): CalendarFeed;
@@ -45,6 +80,33 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   private friendFeeds: Map<string, CalendarFeed> = new Map();
   private lastSyncTimestamps: Map<string, Date> = new Map();
   private syncErrors: Map<string, string> = new Map();
+  private abortControllers: Map<string, AbortController> = new Map();
+
+  // Create secure headers for API calls
+  private getSecureHeaders(): HeadersInit {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getAuthToken()}`,
+      'X-CSRF-Token': getCsrfToken(),
+    };
+  }
+
+  // Cancel ongoing requests for a friend
+  private cancelFriendRequests(friendId: string): void {
+    const controller = this.abortControllers.get(friendId);
+    if (controller) {
+      controller.abort();
+      this.abortControllers.delete(friendId);
+    }
+  }
+
+  // Create abort controller for request cancellation
+  private createAbortController(friendId: string): AbortSignal {
+    this.cancelFriendRequests(friendId);
+    const controller = new AbortController();
+    this.abortControllers.set(friendId, controller);
+    return controller.signal;
+  }
   
   // Create a friend calendar feed
   createFriendFeed(friend: Friend): CalendarFeed {
@@ -78,8 +140,8 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       const cachedEvents = this.friendCaches.get(cacheKey);
       const lastSync = this.lastSyncTimestamps.get(cacheKey);
       
-      // Use cache if recent (within 15 minutes)
-      if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < 15 * 60 * 1000) {
+      // Use cache if recent (within configured TTL)
+      if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < CACHE_TTL_MS) {
         return cachedEvents.filter(event => 
           event.startTime >= startDate && event.startTime <= endDate
         );
@@ -105,52 +167,60 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   // Validate friend calendar access (viewer+ permissions required)
   async validateFriendAccess(friend: Friend): Promise<boolean> {
     try {
-      // In a real implementation, this would:
-      // 1. Check friend relationship status
-      // 2. Check permission level (viewer+ required)
-      // 3. Verify friend hasn't blocked calendar access
-      
-      // Make API call to check permissions
+      const signal = this.createAbortController(friend.id);
+
       const response = await fetch(`/api/friends/${friend.id}/calendar-access`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
       });
       
       if (!response.ok) {
-        return false;
+        throw new Error(`Failed to validate access: ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const data: FriendCalendarAccessResponse = await response.json();
       return data.hasAccess && ['viewer', 'contributor', 'editor', 'owner'].includes(data.permission);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend access validation cancelled');
+        return false;
+      }
       console.error('Error validating friend access:', error);
       return false;
+    } finally {
+      this.abortControllers.delete(friend.id);
     }
   }
   
   // Check if user can view friend's calendar
   async canViewFriendCalendar(friendUserId: string): Promise<boolean> {
     try {
+      const signal = this.createAbortController(friendUserId);
+
       const response = await fetch(`/api/friends/${friendUserId}/calendar-access`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
       });
       
       if (!response.ok) {
-        return false;
+        throw new Error(`Failed to check calendar access: ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const data: FriendCalendarAccessResponse = await response.json();
       return data.hasAccess;
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Calendar access check cancelled');
+        return false;
+      }
       console.error('Error checking calendar access:', error);
       return false;
+    } finally {
+      this.abortControllers.delete(friendUserId);
     }
   }
   
@@ -282,35 +352,60 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   
   // Private helper methods
   private async fetchFriendEventsFromAPI(friendUserId: string, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
-    const response = await fetch(`/api/friends/${friendUserId}/calendar/events`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch friend events: ${response.statusText}`);
+    try {
+      const signal = this.createAbortController(friendUserId);
+
+      const response = await fetch(`/api/friends/${friendUserId}/calendar/events`, {
+        method: 'POST',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal,
+        body: JSON.stringify({
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friend events: ${response.statusText}`);
+      }
+      
+      const data: FriendEventsResponse = await response.json();
+      
+      // Transform API response to FriendCalendarEvent format
+      return data.events.map((event): FriendCalendarEvent => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: new Date(event.startTime),
+        endTime: new Date(event.endTime),
+        isAllDay: event.isAllDay,
+        color: event.color,
+        location: event.location,
+        attendees: event.attendees,
+        feedId: `friend-${friendUserId}`,
+        feedName: `Friend's Calendar`,
+        externalId: event.id,
+        sequence: 0,
+        source: 'ical' as const,
+        lastModified: new Date(),
+        friendUserId,
+        friendUsername: friendUserId, // Should be resolved from friend data
+        isFromFriend: true,
+        sourceId: friendUserId,
+        canonicalEventId: event.id,
+        originalEventId: event.id,
+        isRecurring: false
+      }));
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend events fetch cancelled');
+        return [];
+      }
+      throw error;
+    } finally {
+      this.abortControllers.delete(friendUserId);
     }
-    
-    const data = await response.json();
-    
-    // Transform API response to FriendCalendarEvent format
-    return data.events.map((event: any): FriendCalendarEvent => ({
-      ...event,
-      startTime: new Date(event.startTime),
-      endTime: new Date(event.endTime),
-      friendUserId,
-      isFromFriend: true,
-      sourceId: friendUserId,
-      canonicalEventId: event.id,
-      originalEventId: event.id
-    }));
   }
   
   private async getFriendById(friendUserId: string): Promise<Friend | null> {
