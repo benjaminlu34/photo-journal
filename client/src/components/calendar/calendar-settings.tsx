@@ -56,7 +56,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
     selectedTimezone: "America/New_York",
   });
   
-  const handleSettingChange = (key: string, value: any) => {
+  const handleSettingChange = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
   

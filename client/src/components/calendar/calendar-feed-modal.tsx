@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Plus, Settings, Trash2, Chrome, Link, RefreshCw } from "lucide-react";
+import { format } from "date-fns";
 import type { CalendarFeed } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
 
@@ -236,7 +237,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                               </Badge>
                               {feed.lastSyncAt && (
                                 <span className="text-xs text-gray-500">
-                                  Last synced: {new Date(feed.lastSyncAt).toLocaleDateString()}
+                                  Last synced: {format(new Date(feed.lastSyncAt), 'P')}
                                 </span>
                               )}
                             </div>

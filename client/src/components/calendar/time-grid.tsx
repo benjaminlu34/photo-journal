@@ -63,12 +63,16 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
       const eventStart = normalizedEvent.startTime;
       const eventEnd = normalizedEvent.endTime;
       
-      return (
-        isSameDay(eventStart, date) &&
-        isWithinInterval(eventStart, { start: hourStart, end: hourEnd }) ||
-        isWithinInterval(hourStart, { start: eventStart, end: eventEnd }) ||
-        (eventStart <= hourStart && eventEnd >= hourEnd)
-      );
+      // Only show events that are on the same day as the grid
+      if (!isSameDay(eventStart, date)) {
+        return false;
+      }
+      
+      // Check if there's any overlap between the event and the hour
+      // An overlap exists if:
+      // 1. The event starts before the hour ends AND
+      // 2. The event ends after the hour starts
+      return eventStart < hourEnd && eventEnd > hourStart;
     });
   }, [date, events]);
 

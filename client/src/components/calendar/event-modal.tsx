@@ -201,14 +201,14 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               value={formData.location}
               onChange={(e) => handleInputChange("location", e.target.value)}
               className="mt-1 neu-inset"
-              placeholder="Add location"
+            placeholder="Add location"
             />
           </div>
           
           <div>
             <Label className="text-sm font-medium text-gray-700">Color</Label>
             <div className="mt-2 flex flex-wrap gap-2">
-              {availableColors.map((color: { value: string; label: string; bgClass: string }) => (
+              {availableColors.map((color) => (
                 <button
                   key={color.value}
                   type="button"
