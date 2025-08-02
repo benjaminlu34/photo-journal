@@ -140,7 +140,7 @@ function HomeContent() {
               {/* Navigation Controls */}
               <div className="flex items-center space-x-1">
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -163,7 +163,7 @@ function HomeContent() {
                 </Button>
 
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -191,7 +191,7 @@ function HomeContent() {
                 </Button>
 
                 <Button
-                  variant="neu"
+                  variant="default"
                   size="sm"
                   onClick={() => {
                     if (viewMode === "daily") {
@@ -231,14 +231,14 @@ function HomeContent() {
               <ViewToggle />
               <FriendshipNotifications className="neu-nav-pill" />
               <Button
-                variant="neu"
+                variant="default"
                 className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill whitespace-nowrap"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
               <Button
-                variant="neu"
+                variant="default"
                 onClick={async () => {
                   try {
                     await signOut();

@@ -9,6 +9,7 @@ import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { WeeklyCalendarViewProps, LocalEvent } from "@/types/calendar";
 import { EventModal, CalendarFeedModal, TimeGrid, CalendarSettings } from "@/components/calendar";
+import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
 
 // Local interface for calendar events
 interface LocalCalendarEvent {
@@ -267,7 +268,7 @@ export function WeeklyCalendarView({
                         onClick={() => handleEventClick(event)}
                         className="absolute left-1 right-1 p-2 rounded-lg text-sm neu-inset hover:shadow-neu-active transition-all duration-300 cursor-pointer transform hover:scale-[1.02] z-10"
                         style={{
-                          backgroundColor: event.color + '15',
+                          backgroundColor: applyOpacityToColor(event.color, 0.1),
                           borderLeft: `4px solid ${event.color}`,
                           top: `${positionTop}px`,
                           height: '60px',

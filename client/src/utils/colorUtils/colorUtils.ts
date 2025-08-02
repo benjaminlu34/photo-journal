@@ -215,3 +215,56 @@ export function safeColor(color: string | undefined, fallbackColor: string = '#F
   const validation = validateHexColor(color);
   return validation.isValid ? color : fallbackColor;
 }
+
+/**
+ * Converts a hex color to rgba with specified opacity
+ * @param hexColor - Hex color string (e.g., "#FF0000")
+ * @param opacity - Opacity value between 0 and 1
+ * @returns RGBA color string (e.g., "rgba(255, 0, 0, 0.2)")
+ */
+export function hexToRgba(hexColor: string, opacity: number): string {
+  // Remove # if present
+  const hex = hexColor.replace('#', '');
+  
+  // Parse hex values
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+/**
+ * Ensures a color string has proper opacity
+ * Accepts both hex and rgba colors
+ * @param color - Color string
+ * @param opacity - Desired opacity (0-1)
+ * @returns Color string with applied opacity
+ */
+export function applyOpacityToColor(color: string, opacity: number): string {
+  if (color.startsWith('#')) {
+    return hexToRgba(color, opacity);
+  } else if (color.startsWith('rgb(')) {
+    // Convert rgb to rgba
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${opacity})`);
+  } else if (color.startsWith('rgba(')) {
+    // Replace existing opacity
+    return color.replace(/,\s*[\d.]+\)$/, `, ${opacity})`);
+  }
+  
+  // Fallback: treat as hex
+  return hexToRgba(color, opacity);
+}
+
+/**
+ * Normalizes event data to ensure all date properties are Date objects
+ * @param event - Calendar event object
+ * @returns Normalized event with proper Date objects
+ */
+export function normalizeEventDates<T extends { startTime: Date | string; endTime: Date | string }>(event: T): T {
+  return {
+    ...event,
+    startTime: event.startTime instanceof Date ? event.startTime : new Date(event.startTime),
+    endTime: event.endTime instanceof Date ? event.endTime : new Date(event.endTime)
+  };
+}

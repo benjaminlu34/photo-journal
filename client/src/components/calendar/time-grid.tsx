@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { format, addHours, startOfDay, isSameDay, isWithinInterval } from "date-fns";
 import { Clock, MapPin, Plus } from "lucide-react";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
+import { normalizeEventDates } from "@/utils/colorUtils/colorUtils";
 
 interface TimeGridProps {
   date: Date;
@@ -58,8 +59,9 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
     const hourEnd = addHours(hourStart, 1);
     
     return events.filter(event => {
-      const eventStart = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-      const eventEnd = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+      const normalizedEvent = normalizeEventDates(event);
+      const eventStart = normalizedEvent.startTime;
+      const eventEnd = normalizedEvent.endTime;
       
       return (
         isSameDay(eventStart, date) &&
@@ -71,8 +73,9 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
   }, [date, events]);
 
   const calculateEventPosition = useCallback((event: CalendarEvent | LocalEvent) => {
-    const eventStart = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-    const eventEnd = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+    const normalizedEvent = normalizeEventDates(event);
+    const eventStart = normalizedEvent.startTime;
+    const eventEnd = normalizedEvent.endTime;
     const dayStart = startOfDay(date);
     
     const startMinutes = (eventStart.getTime() - dayStart.getTime()) / (1000 * 60);
@@ -103,6 +106,9 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
            (hourStart <= selectionStart && hourEnd >= selectionEnd);
   }, [dragState, date]);
 
+  // Get current date and time once at the beginning of the render block
+  const now = new Date();
+
   return (
     <div className={`relative ${className}`}>
       {/* Time labels */}
@@ -120,7 +126,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
       </div>
       
       {/* Time slots */}
-      <div 
+      <div
         className="ml-16 relative"
         onMouseLeave={handleMouseUp}
         onMouseUp={handleMouseUp}
@@ -179,7 +185,7 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
                       </div>
                     )}
                     <div className="text-xs opacity-90 mt-1">
-                      {format(event.startTime instanceof Date ? event.startTime : new Date(event.startTime), "h:mm a")} - {format(event.endTime instanceof Date ? event.endTime : new Date(event.endTime), "h:mm a")}
+                      {format(normalizeEventDates(event).startTime, "h:mm a")} - {format(normalizeEventDates(event).endTime, "h:mm a")}
                     </div>
                   </div>
                 );
@@ -189,11 +195,11 @@ export function TimeGrid({ date, events, onEventClick, onTimeSlotClick, classNam
         })}
         
         {/* Current time indicator */}
-        {isSameDay(date, new Date()) && (
+        {isSameDay(date, now) && (
           <div
             className="absolute left-0 right-0 h-0.5 bg-red-500 z-10"
             style={{
-              top: `${((new Date().getHours() * 60 + new Date().getMinutes()) / (24 * 60)) * 100}%`,
+              top: `${((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100}%`,
             }}
           >
             <div className="absolute -left-1 -top-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />

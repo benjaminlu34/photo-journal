@@ -9,17 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Calendar, Clock, MapPin, Tag } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
-
-const availableColors = [
-  { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
-  { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
-  { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
-  { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
-  { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
-  { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
-  { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
-  { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
-];
+import { availableColors } from "@shared/config/calendar-config";
 
 interface EventModalProps {
   isOpen: boolean;

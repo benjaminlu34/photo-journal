@@ -104,3 +104,13 @@ export const CALENDAR_CONFIG = {
 export type CalendarConfig = typeof CALENDAR_CONFIG;
 export type BreakpointKey = keyof typeof CALENDAR_CONFIG.BREAKPOINTS;
 export type FeatureFlag = keyof typeof CALENDAR_CONFIG.FEATURES;
+export const availableColors = [
+  { value: "#3B82F6", label: "Blue", bgClass: "bg-blue-500" },
+  { value: "#8B5CF6", label: "Purple", bgClass: "bg-purple-500" },
+  { value: "#EC4899", label: "Pink", bgClass: "bg-pink-500" },
+  { value: "#10B981", label: "Green", bgClass: "bg-green-500" },
+  { value: "#F59E0B", label: "Amber", bgClass: "bg-amber-500" },
+  { value: "#EF4444", label: "Red", bgClass: "bg-red-500" },
+  { value: "#06B6D4", label: "Cyan", bgClass: "bg-cyan-500" },
+  { value: "#84CC16", label: "Lime", bgClass: "bg-lime-500" },
+];
