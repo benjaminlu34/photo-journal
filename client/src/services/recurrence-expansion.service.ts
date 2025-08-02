@@ -140,7 +140,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
       }
       
       // Expand the recurrence within the window
-      const instances = await this.expandRRule(
+      const instances = this.expandRRule(
         event,
         rrule,
         windowStart,
@@ -154,16 +154,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
         ? this.applyExceptions(instances, event)
         : instances;
       
-      // Check for truncation
+      // Check for truncation (instances were limited to maxInstances)
       const truncated = instances.length >= maxInstances;
-      if (truncated && instances.length > 5000) {
-        console.warn(`Event ${event.id} has >5k instances, aborting expansion`);
-        throw new RecurrenceExpansionError(
-          'Too many recurrence instances',
-          'TOO_MANY_INSTANCES',
-          event.id
-        );
-      }
       
       // Cache the results
       const expandedRecurrence: ExpandedRecurrence = {
@@ -292,14 +284,14 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   }
   
   // Private helper methods
-  private async expandRRule(
+  private expandRRule(
     event: CalendarEvent,
     rrule: RRule,
     windowStart: Date,
     windowEnd: Date,
     maxInstances: number,
     timezone?: string
-  ): Promise<RecurrenceInstance[]> {
+  ): RecurrenceInstance[] {
     const instances: RecurrenceInstance[] = [];
     
     // Get the original event duration
@@ -315,6 +307,16 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     
     // Get occurrences within the window
     const occurrences = rrule.between(expandStart, expandEnd, true);
+    
+    // FIXED: Check for excessive instances before processing
+    if (occurrences.length > 5000) {
+      console.warn(`Event ${event.id} has ${occurrences.length} instances, aborting expansion`);
+      throw new RecurrenceExpansionError(
+        'Too many recurrence instances',
+        'TOO_MANY_INSTANCES',
+        event.id
+      );
+    }
     
     // Limit the number of instances to prevent memory issues
     const limitedOccurrences = occurrences.slice(0, maxInstances);

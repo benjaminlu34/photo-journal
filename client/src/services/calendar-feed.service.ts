@@ -10,7 +10,8 @@ import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService, type RecurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver, type DuplicateEventResolver } from './duplicate-event-resolver.service';
-// Removed direct import to avoid circular dependency
+// Type-only import to avoid circular dependency
+import type { OfflineCalendarService } from './offline-calendar.service';
 
 // Google Calendar API types
 interface GoogleCalendarEvent {
@@ -66,33 +67,33 @@ export class CalendarFeedError extends Error {
 export interface CalendarFeedService {
   // Core feed operations
   fetchFeedEvents(feed: CalendarFeed, dateRange?: { start: Date; end: Date }): Promise<CalendarEvent[]>;
-  
+
   // Recurrence expansion
   expandRecurringEvents(events: CalendarEvent[], referenceDate: Date): Promise<CalendarEvent[]>;
-  
+
   // Duplicate resolution
   resolveEventDuplicates(events: CalendarEvent[]): CalendarEvent[];
-  
+
   // Offline support
   enableOfflineMode(): void;
   disableOfflineMode(): void;
   getCachedEvents(feedId: string): Promise<CalendarEvent[]>;
-  
+
   // Google Calendar OAuth
   getGoogleAuthUrl(redirectUri: string): string;
   exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials>;
   refreshGoogleToken(credentials: EncryptedCredentials): Promise<EncryptedCredentials>;
-  
+
   // iCal operations
   fetchICalFeed(url: string): Promise<string>;
   parseICalContent(content: string, feedId: string, feedName: string): CalendarEvent[];
-  
+
   // Validation and sanitization
   validateICalUrl(url: string): boolean;
   validateICalContent(content: string): boolean;
   sanitizeDescription(description: string): string;
   validateDateRange(start: Date, end: Date): boolean;
-  
+
   // Cache management
   clearCache(feedId?: string): void;
   getCacheStats(): { size: number; maxSize: number; hits: number; misses: number };
@@ -102,7 +103,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   private readonly MAX_FEED_SIZE = CALENDAR_CONFIG.FEEDS.MAX_FEED_SIZE;
   private readonly CACHE_TTL = CALENDAR_CONFIG.FEEDS.CACHE_TTL;
   private readonly VALID_URL_PATTERN = /^https?:\/\/.+/;
-  
+
   // LRU cache for feed data with 15-minute TTL
   private readonly feedCache = new LRUCache<string, CachedFeedData>({
     max: 100, // Maximum 100 feeds cached
@@ -110,42 +111,42 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     updateAgeOnGet: true,
     updateAgeOnHas: true,
   });
-  
+
   // Rate limiting state per feed
   private readonly rateLimitState = new Map<string, RateLimitState>();
-  
+
   // Retry tracking per feed
   private readonly retryState = new Map<string, { count: number; lastAttempt: number }>();
-  
+
   // Google OAuth configuration (client-side only)
   private readonly GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
   private readonly GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
-  
+
   // Optional offline service dependency (injected to avoid circular dependency)
-  private offlineService: any = null;
-  
+  private offlineService: OfflineCalendarService | null = null;
+
   constructor() {
     // Validate Google OAuth configuration
     if (!this.GOOGLE_CLIENT_ID) {
       console.warn('Google Calendar integration not configured - client ID missing');
     }
   }
-  
+
   // Dependency injection method to set offline service
-  setOfflineService(offlineService: any): void {
+  setOfflineService(offlineService: OfflineCalendarService): void {
     this.offlineService = offlineService;
   }
-  
+
   // Core feed operations
   async fetchFeedEvents(feed: CalendarFeed, dateRange?: { start: Date; end: Date }): Promise<CalendarEvent[]> {
     const cacheKey = this.generateCacheKey(feed.id, dateRange);
-    
+
     // Check cache first
     const cached = this.feedCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) {
       return cached.events;
     }
-    
+
     // Check rate limiting
     if (this.isRateLimited(feed.id)) {
       throw new CalendarFeedError(
@@ -154,10 +155,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         feed.id
       );
     }
-    
+
     try {
       let events: CalendarEvent[];
-      
+
       switch (feed.type) {
         case 'google':
           events = await this.fetchGoogleCalendarEvents(feed, dateRange);
@@ -172,13 +173,13 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
             feed.id
           );
       }
-      
+
       // Cache the results in memory
       this.feedCache.set(cacheKey, {
         events,
         lastFetch: new Date(),
       });
-      
+
       // Cache the results in IndexedDB for offline access (if offline service is available)
       if (this.offlineService) {
         try {
@@ -187,44 +188,66 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           console.warn('Failed to cache events offline:', error);
         }
       }
-      
+
       // Update rate limiting
       this.updateRateLimit(feed.id);
-      
+
       return events;
     } catch (error) {
       console.error(`Failed to fetch events for feed ${feed.id}:`, error);
-      
+
       // Try to get cached events as fallback (if offline service is available)
       if (this.offlineService) {
         try {
           const cachedEvents = await this.offlineService.handleNetworkFailure(
-            feed.id, 
+            feed.id,
             error instanceof Error ? error : new Error('Unknown fetch error')
           );
-          
+
           console.log(`Using ${cachedEvents.length} cached events for feed ${feed.id}`);
           return cachedEvents;
         } catch (cacheError) {
           console.warn('Failed to get cached events:', cacheError);
         }
       }
-      
-      // Both network and cache failed
-      await this.handleFetchError(error, feed.id);
-      throw error;
+
+      // Try to retry the fetch operation
+      try {
+        const retriedEvents = await this.retryFeedFetch(feed, dateRange, error);
+
+        // Cache the retried results
+        this.feedCache.set(cacheKey, {
+          events: retriedEvents,
+          lastFetch: new Date(),
+        });
+
+        if (this.offlineService) {
+          try {
+            await this.offlineService.cacheEvents(feed.id, feed.name, retriedEvents);
+          } catch (cacheError) {
+            console.warn('Failed to cache retried events offline:', cacheError);
+          }
+        }
+
+        this.updateRateLimit(feed.id);
+        return retriedEvents;
+
+      } catch (retryError) {
+        // All retries failed, throw the final error
+        throw retryError;
+      }
     }
   }
-  
+
   // Recurrence expansion
   async expandRecurringEvents(events: CalendarEvent[], referenceDate: Date): Promise<CalendarEvent[]> {
     const expandedEvents: CalendarEvent[] = [];
     const nonRecurringEvents = events.filter(event => !event.isRecurring);
     const recurringEvents = events.filter(event => event.isRecurring);
-    
+
     // Add non-recurring events as-is
     expandedEvents.push(...nonRecurringEvents);
-    
+
     // Expand recurring events
     try {
       const expansionResults = await recurrenceExpansionService.expandMultipleEvents(
@@ -235,7 +258,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           maxInstances: CALENDAR_CONFIG.FEEDS.MAX_RECURRENCE_INSTANCES,
         }
       );
-      
+
       // Convert recurrence instances back to CalendarEvent format
       for (const [eventId, instances] of expansionResults) {
         for (const instance of instances) {
@@ -246,11 +269,11 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
             endTime: instance.instanceEnd,
             originalEvent: instance.originalEvent.id,
           };
-          
+
           expandedEvents.push(expandedEvent);
         }
       }
-      
+
       return expandedEvents;
     } catch (error) {
       console.error('Failed to expand recurring events:', error);
@@ -258,12 +281,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       return nonRecurringEvents;
     }
   }
-  
+
   // Duplicate resolution
   resolveEventDuplicates(events: CalendarEvent[]): CalendarEvent[] {
     try {
       const deduplicationResult = duplicateEventResolver.resolveEvents(events);
-      
+
       // Apply color assignments
       const resolvedEvents = Array.from(deduplicationResult.canonicalEvents.values());
       for (const event of resolvedEvents) {
@@ -272,12 +295,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           event.color = assignedColor;
         }
       }
-      
+
       // Log deduplication stats for debugging
       if (deduplicationResult.resolvedCount > 0) {
         console.log(`Resolved ${deduplicationResult.resolvedCount} duplicate events from ${events.length} total events`);
       }
-      
+
       return resolvedEvents;
     } catch (error) {
       console.error('Failed to resolve event duplicates:', error);
@@ -285,7 +308,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       return events;
     }
   }
-  
+
   // Offline support
   enableOfflineMode(): void {
     if (this.offlineService) {
@@ -295,7 +318,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       console.warn('Offline service not available');
     }
   }
-  
+
   disableOfflineMode(): void {
     if (this.offlineService) {
       this.offlineService.disableBackgroundSync();
@@ -304,20 +327,20 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       console.warn('Offline service not available');
     }
   }
-  
+
   async getCachedEvents(feedId: string): Promise<CalendarEvent[]> {
     if (this.offlineService) {
       return this.offlineService.getCachedEvents(feedId);
     }
     return [];
   }
-  
+
   // Google Calendar OAuth implementation
   getGoogleAuthUrl(redirectUri: string): string {
     if (!this.GOOGLE_CLIENT_ID) {
       throw new CalendarFeedError('Google OAuth not configured', 'OAUTH_NOT_CONFIGURED');
     }
-    
+
     const params = new URLSearchParams({
       client_id: this.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
@@ -326,10 +349,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       access_type: 'offline',
       prompt: 'consent',
     });
-    
+
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
-  
+
   async exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials> {
     // SECURITY: OAuth token exchange must happen on the server to protect client secret
     const response = await fetch('/api/calendar/google/exchange-token', {
@@ -342,25 +365,25 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         redirectUri,
       }),
     });
-    
+
     if (!response.ok) {
       throw new CalendarFeedError('Failed to exchange auth code', 'OAUTH_EXCHANGE_FAILED');
     }
-    
+
     const data = await response.json();
-    
+
     return {
       encryptedToken: data.encryptedToken, // Server returns properly encrypted token
       refreshToken: data.refreshToken,
       expiresAt: new Date(data.expiresAt),
     };
   }
-  
+
   async refreshGoogleToken(credentials: EncryptedCredentials): Promise<EncryptedCredentials> {
     if (!credentials.refreshToken) {
       throw new CalendarFeedError('No refresh token available', 'NO_REFRESH_TOKEN');
     }
-    
+
     // SECURITY: Token refresh must happen on the server to protect client secret
     const response = await fetch('/api/calendar/google/refresh-token', {
       method: 'POST',
@@ -371,29 +394,29 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         refreshToken: credentials.refreshToken,
       }),
     });
-    
+
     if (!response.ok) {
       throw new CalendarFeedError('Failed to refresh token', 'TOKEN_REFRESH_FAILED');
     }
-    
+
     const data = await response.json();
-    
+
     return {
       encryptedToken: data.encryptedToken, // Server returns properly encrypted token
       refreshToken: data.refreshToken || credentials.refreshToken,
       expiresAt: new Date(data.expiresAt),
     };
   }
-  
+
   // iCal operations
   async fetchICalFeed(url: string): Promise<string> {
     if (!this.validateICalUrl(url)) {
       throw new CalendarFeedError('Invalid iCal URL', 'INVALID_URL');
     }
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-    
+
     try {
       const response = await fetch(url, {
         signal: controller.signal,
@@ -402,30 +425,30 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           'Accept': 'text/calendar, application/ics, text/plain',
         },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         throw new CalendarFeedError(
           `HTTP ${response.status}: ${response.statusText}`,
           'HTTP_ERROR'
         );
       }
-      
+
       const contentLength = response.headers.get('content-length');
-      if (contentLength && parseInt(contentLength) > this.MAX_FEED_SIZE) {
+      if (contentLength && parseInt(contentLength, 10) > this.MAX_FEED_SIZE) {
         throw new CalendarFeedError(
           'Feed size exceeds maximum limit',
           'FEED_TOO_LARGE'
         );
       }
-      
+
       const content = await response.text();
-      
+
       if (!this.validateICalContent(content)) {
         throw new CalendarFeedError('Invalid iCal content', 'INVALID_ICAL_CONTENT');
       }
-      
+
       return content;
     } catch (error) {
       clearTimeout(timeoutId);
@@ -438,27 +461,27 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       );
     }
   }
-  
+
   parseICalContent(content: string, feedId: string, feedName: string): CalendarEvent[] {
     try {
       const jcalData = ICAL.parse(content);
       const comp = new ICAL.Component(jcalData);
       const vevents = comp.getAllSubcomponents('vevent');
-      
+
       const events: CalendarEvent[] = [];
-      
+
       for (const vevent of vevents) {
         const event = new ICAL.Event(vevent);
-        
+
         // Extract basic event data
         const startTime = event.startDate.toJSDate();
         const endTime = event.endDate.toJSDate();
-        
+
         if (!this.validateDateRange(startTime, endTime)) {
           console.warn(`Skipping event with invalid date range: ${event.uid}`);
           continue;
         }
-        
+
         const calendarEvent: CalendarEvent = {
           id: `${feedId}:${event.uid}`,
           title: event.summary || 'Untitled Event',
@@ -479,10 +502,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           source: 'ical',
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || new Date(),
         };
-        
+
         events.push(calendarEvent);
       }
-      
+
       return events;
     } catch (error) {
       throw new CalendarFeedError(
@@ -491,23 +514,21 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       );
     }
   }
-  
+
   // Validation and sanitization
   validateICalUrl(url: string): boolean {
-    return this.VALID_URL_PATTERN.test(url) && 
-           url.length <= 2048 && 
-           (url.startsWith('https://') || url.startsWith('http://'));
+    return this.VALID_URL_PATTERN.test(url) && url.length <= 2048;
   }
-  
+
   validateICalContent(content: string): boolean {
-    return content.length <= this.MAX_FEED_SIZE && 
-           content.includes('BEGIN:VCALENDAR') && 
-           content.includes('END:VCALENDAR');
+    return content.length <= this.MAX_FEED_SIZE &&
+      content.includes('BEGIN:VCALENDAR') &&
+      content.includes('END:VCALENDAR');
   }
-  
+
   sanitizeDescription(description: string): string {
     if (!description) return '';
-    
+
     // Use DOMPurify to sanitize HTML content
     return DOMPurify.sanitize(description, {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a'],
@@ -515,15 +536,15 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ALLOW_DATA_ATTR: false,
     });
   }
-  
+
   validateDateRange(start: Date, end: Date): boolean {
-    return start instanceof Date && 
-           end instanceof Date && 
-           !isNaN(start.getTime()) && 
-           !isNaN(end.getTime()) && 
-           start <= end;
+    return start instanceof Date &&
+      end instanceof Date &&
+      !isNaN(start.getTime()) &&
+      !isNaN(end.getTime()) &&
+      start <= end;
   }
-  
+
   // Cache management
   clearCache(feedId?: string): void {
     if (feedId) {
@@ -538,7 +559,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       this.feedCache.clear();
     }
   }
-  
+
   getCacheStats(): { size: number; maxSize: number; hits: number; misses: number } {
     return {
       size: this.feedCache.size,
@@ -547,16 +568,16 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       misses: 0, // LRU cache doesn't track misses directly
     };
   }
-  
+
   // Private helper methods
   private async fetchGoogleCalendarEvents(
-    feed: CalendarFeed, 
+    feed: CalendarFeed,
     dateRange?: { start: Date; end: Date }
   ): Promise<CalendarEvent[]> {
     if (!feed.credentials || !feed.googleCalendarId) {
       throw new CalendarFeedError('Google Calendar credentials missing', 'MISSING_CREDENTIALS', feed.id);
     }
-    
+
     // SECURITY: Token decryption should happen server-side
     // For now, we'll call the server to get a decrypted token for API calls
     const tokenResponse = await fetch('/api/calendar/google/decrypt-token', {
@@ -568,24 +589,24 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         encryptedToken: feed.credentials.encryptedToken,
       }),
     });
-    
+
     if (!tokenResponse.ok) {
       throw new CalendarFeedError('Failed to decrypt access token', 'TOKEN_DECRYPT_FAILED', feed.id);
     }
-    
+
     const { accessToken } = await tokenResponse.json();
-    
+
     const params = new URLSearchParams({
       maxResults: '2500',
       singleEvents: 'true',
       orderBy: 'startTime',
     });
-    
+
     if (dateRange) {
       params.set('timeMin', dateRange.start.toISOString());
       params.set('timeMax', dateRange.end.toISOString());
     }
-    
+
     const response = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(feed.googleCalendarId)}/events?${params}`,
       {
@@ -595,7 +616,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         },
       }
     );
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         throw new CalendarFeedError('Google Calendar access token expired', 'TOKEN_EXPIRED', feed.id);
@@ -606,43 +627,45 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         feed.id
       );
     }
-    
+
     const data: GoogleCalendarResponse = await response.json();
-    
+
     return data.items.map(item => this.convertGoogleEventToCalendarEvent(item, feed));
   }
-  
+
   private async fetchICalEvents(
-    feed: CalendarFeed, 
+    feed: CalendarFeed,
     dateRange?: { start: Date; end: Date }
   ): Promise<CalendarEvent[]> {
     if (!feed.url) {
       throw new CalendarFeedError('iCal URL missing', 'MISSING_URL', feed.id);
     }
-    
+
     const content = await this.fetchICalFeed(feed.url);
     const events = this.parseICalContent(content, feed.id, feed.name);
-    
+
     // Filter by date range if provided
     if (dateRange) {
-      return events.filter(event => 
+      return events.filter(event =>
         event.startTime >= dateRange.start && event.startTime <= dateRange.end
       );
     }
-    
+
     return events;
   }
-  
+
   private convertGoogleEventToCalendarEvent(item: GoogleCalendarEvent, feed: CalendarFeed): CalendarEvent {
-    const startTime = item.start.dateTime 
+    const startTime = item.start.dateTime
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
-    
+
     // FIXED: Handle all-day events correctly - end.date is exclusive
-    const endTime = item.end.dateTime 
+    const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
-      : new Date(new Date(item.end.date!).getTime() - 1); // Subtract 1ms from exclusive end date
-    
+      : item.end.date
+        ? new Date(new Date(item.end.date).getTime() - 1) // Subtract 1ms from exclusive end date
+        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000 - 1); // Fallback: end of start day
+
     return {
       id: `${feed.id}:${item.id}`,
       title: item.summary || 'Untitled Event',
@@ -664,36 +687,36 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       lastModified: new Date(item.updated),
     };
   }
-  
+
   private generateCacheKey(feedId: string, dateRange?: { start: Date; end: Date }): string {
     if (dateRange) {
       return `${feedId}:${dateRange.start.toISOString()}:${dateRange.end.toISOString()}`;
     }
     return feedId;
   }
-  
+
   private isCacheValid(cached: CachedFeedData): boolean {
     const age = Date.now() - cached.lastFetch.getTime();
     return age < this.CACHE_TTL;
   }
-  
+
   private isRateLimited(feedId: string): boolean {
     const state = this.rateLimitState.get(feedId);
     if (!state) return false;
-    
+
     const now = Date.now();
     if (now > state.resetTime) {
       this.rateLimitState.delete(feedId);
       return false;
     }
-    
+
     return state.requests >= 60; // 60 requests per hour
   }
-  
+
   private updateRateLimit(feedId: string): void {
     const now = Date.now();
     const hourFromNow = now + 60 * 60 * 1000;
-    
+
     const state = this.rateLimitState.get(feedId);
     if (!state || now > state.resetTime) {
       this.rateLimitState.set(feedId, {
@@ -704,54 +727,90 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       state.requests++;
     }
   }
-  
-  private async handleFetchError(error: unknown, feedId: string): Promise<void> {
+
+  private async retryFeedFetch(
+    feed: CalendarFeed,
+    dateRange: { start: Date; end: Date } | undefined,
+    originalError: unknown
+  ): Promise<CalendarEvent[]> {
     const baseDelay = CALENDAR_CONFIG.ERROR_HANDLING.RETRY_DELAY_BASE;
     const maxDelay = CALENDAR_CONFIG.ERROR_HANDLING.RETRY_DELAY_MAX;
     const maxRetries = CALENDAR_CONFIG.ERROR_HANDLING.MAX_RETRY_ATTEMPTS;
-    
+
     // Get or initialize retry state for this feed
     const now = Date.now();
-    let retryState = this.retryState.get(feedId);
-    
+    let retryState = this.retryState.get(feed.id);
+
     if (!retryState || (now - retryState.lastAttempt) > 60000) { // Reset after 1 minute
       retryState = { count: 0, lastAttempt: now };
     }
-    
-    retryState.count++;
-    retryState.lastAttempt = now;
-    this.retryState.set(feedId, retryState);
-    
-    if (retryState.count > maxRetries) {
-      console.error(`Max retries exceeded for feed ${feedId}, giving up`);
-      return;
+
+    for (let attempt = retryState.count; attempt < maxRetries; attempt++) {
+      retryState.count = attempt + 1;
+      retryState.lastAttempt = now;
+      this.retryState.set(feed.id, retryState);
+
+      // Exponential backoff with jitter
+      const delay = Math.min(
+        baseDelay * Math.pow(2, attempt) + Math.random() * 1000,
+        maxDelay
+      );
+
+      console.warn(`Feed fetch failed for ${feed.id} (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms:`, originalError);
+
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      try {
+        // Retry the actual fetch operation
+        let events: CalendarEvent[];
+
+        switch (feed.type) {
+          case 'google':
+            events = await this.fetchGoogleCalendarEvents(feed, dateRange);
+            break;
+          case 'ical':
+            events = await this.fetchICalEvents(feed, dateRange);
+            break;
+          default:
+            throw new CalendarFeedError(
+              `Unsupported feed type: ${feed.type}`,
+              'UNSUPPORTED_FEED_TYPE',
+              feed.id
+            );
+        }
+
+        // Success - reset retry state and return events
+        this.retryState.delete(feed.id);
+        return events;
+
+      } catch (retryError) {
+        console.warn(`Retry ${attempt + 1} failed for feed ${feed.id}:`, retryError);
+
+        // If this was the last attempt, throw the error
+        if (attempt === maxRetries - 1) {
+          console.error(`All retries exhausted for feed ${feed.id}`);
+          throw retryError;
+        }
+      }
     }
-    
-    // Exponential backoff with jitter
-    const delay = Math.min(
-      baseDelay * Math.pow(2, retryState.count) + Math.random() * 1000,
-      maxDelay
-    );
-    
-    console.warn(`Feed fetch failed for ${feedId} (attempt ${retryState.count}/${maxRetries}), retrying in ${delay}ms:`, error);
-    
-    // In a real implementation, you might want to schedule a retry
-    // For now, we just log the error and delay
-    await new Promise(resolve => setTimeout(resolve, Math.min(delay, 1000)));
+
+    // This should never be reached, but TypeScript requires it
+    throw originalError;
   }
 }
 
 // Factory function to create properly wired service instances
 export function createCalendarFeedService(): CalendarFeedServiceImpl {
   const feedService = new CalendarFeedServiceImpl();
-  
+
   // Lazy load offline service to avoid circular dependency
   import('./offline-calendar.service').then(({ offlineCalendarService }) => {
     feedService.setOfflineService(offlineCalendarService);
   }).catch(error => {
     console.warn('Failed to load offline calendar service:', error);
   });
-  
+
   return feedService;
 }
 
