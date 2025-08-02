@@ -10,7 +10,7 @@ import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService, type RecurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver, type DuplicateEventResolver } from './duplicate-event-resolver.service';
-import { offlineCalendarService, type OfflineCalendarService } from './offline-calendar.service';
+// Removed direct import to avoid circular dependency
 
 // Google Calendar API types
 interface GoogleCalendarEvent {
@@ -114,16 +114,26 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   // Rate limiting state per feed
   private readonly rateLimitState = new Map<string, RateLimitState>();
   
-  // Google OAuth configuration
+  // Retry tracking per feed
+  private readonly retryState = new Map<string, { count: number; lastAttempt: number }>();
+  
+  // Google OAuth configuration (client-side only)
   private readonly GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
-  private readonly GOOGLE_CLIENT_SECRET = process.env.VITE_GOOGLE_CLIENT_SECRET;
   private readonly GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+  
+  // Optional offline service dependency (injected to avoid circular dependency)
+  private offlineService: any = null;
   
   constructor() {
     // Validate Google OAuth configuration
-    if (!this.GOOGLE_CLIENT_ID || !this.GOOGLE_CLIENT_SECRET) {
-      console.warn('Google Calendar integration not configured - OAuth credentials missing');
+    if (!this.GOOGLE_CLIENT_ID) {
+      console.warn('Google Calendar integration not configured - client ID missing');
     }
+  }
+  
+  // Dependency injection method to set offline service
+  setOfflineService(offlineService: any): void {
+    this.offlineService = offlineService;
   }
   
   // Core feed operations
@@ -169,8 +179,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         lastFetch: new Date(),
       });
       
-      // Cache the results in IndexedDB for offline access
-      await offlineCalendarService.cacheEvents(feed.id, feed.name, events);
+      // Cache the results in IndexedDB for offline access (if offline service is available)
+      if (this.offlineService) {
+        try {
+          await this.offlineService.cacheEvents(feed.id, feed.name, events);
+        } catch (error) {
+          console.warn('Failed to cache events offline:', error);
+        }
+      }
       
       // Update rate limiting
       this.updateRateLimit(feed.id);
@@ -179,20 +195,24 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     } catch (error) {
       console.error(`Failed to fetch events for feed ${feed.id}:`, error);
       
-      // Try to get cached events as fallback
-      try {
-        const cachedEvents = await offlineCalendarService.handleNetworkFailure(
-          feed.id, 
-          error instanceof Error ? error : new Error('Unknown fetch error')
-        );
-        
-        console.log(`Using ${cachedEvents.length} cached events for feed ${feed.id}`);
-        return cachedEvents;
-      } catch (cacheError) {
-        // Both network and cache failed
-        await this.handleFetchError(error, feed.id);
-        throw error;
+      // Try to get cached events as fallback (if offline service is available)
+      if (this.offlineService) {
+        try {
+          const cachedEvents = await this.offlineService.handleNetworkFailure(
+            feed.id, 
+            error instanceof Error ? error : new Error('Unknown fetch error')
+          );
+          
+          console.log(`Using ${cachedEvents.length} cached events for feed ${feed.id}`);
+          return cachedEvents;
+        } catch (cacheError) {
+          console.warn('Failed to get cached events:', cacheError);
+        }
       }
+      
+      // Both network and cache failed
+      await this.handleFetchError(error, feed.id);
+      throw error;
     }
   }
   
@@ -268,17 +288,28 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   
   // Offline support
   enableOfflineMode(): void {
-    offlineCalendarService.enableBackgroundSync();
-    console.log('Offline mode enabled for calendar feeds');
+    if (this.offlineService) {
+      this.offlineService.enableBackgroundSync();
+      console.log('Offline mode enabled for calendar feeds');
+    } else {
+      console.warn('Offline service not available');
+    }
   }
   
   disableOfflineMode(): void {
-    offlineCalendarService.disableBackgroundSync();
-    console.log('Offline mode disabled for calendar feeds');
+    if (this.offlineService) {
+      this.offlineService.disableBackgroundSync();
+      console.log('Offline mode disabled for calendar feeds');
+    } else {
+      console.warn('Offline service not available');
+    }
   }
   
   async getCachedEvents(feedId: string): Promise<CalendarEvent[]> {
-    return offlineCalendarService.getCachedEvents(feedId);
+    if (this.offlineService) {
+      return this.offlineService.getCachedEvents(feedId);
+    }
+    return [];
   }
   
   // Google Calendar OAuth implementation
@@ -300,21 +331,15 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   }
   
   async exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials> {
-    if (!this.GOOGLE_CLIENT_ID || !this.GOOGLE_CLIENT_SECRET) {
-      throw new CalendarFeedError('Google OAuth not configured', 'OAUTH_NOT_CONFIGURED');
-    }
-    
-    const response = await fetch('https://oauth2.googleapis.com/token', {
+    // SECURITY: OAuth token exchange must happen on the server to protect client secret
+    const response = await fetch('/api/calendar/google/exchange-token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
-        client_id: this.GOOGLE_CLIENT_ID,
-        client_secret: this.GOOGLE_CLIENT_SECRET,
+      body: JSON.stringify({
         code,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
+        redirectUri,
       }),
     });
     
@@ -324,13 +349,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     
     const data = await response.json();
     
-    // Encrypt the token (in a real implementation, use proper encryption)
-    const encryptedToken = btoa(data.access_token); // Simple base64 encoding for demo
-    
     return {
-      encryptedToken,
-      refreshToken: data.refresh_token,
-      expiresAt: new Date(Date.now() + data.expires_in * 1000),
+      encryptedToken: data.encryptedToken, // Server returns properly encrypted token
+      refreshToken: data.refreshToken,
+      expiresAt: new Date(data.expiresAt),
     };
   }
   
@@ -339,16 +361,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       throw new CalendarFeedError('No refresh token available', 'NO_REFRESH_TOKEN');
     }
     
-    const response = await fetch('https://oauth2.googleapis.com/token', {
+    // SECURITY: Token refresh must happen on the server to protect client secret
+    const response = await fetch('/api/calendar/google/refresh-token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
-        client_id: this.GOOGLE_CLIENT_ID!,
-        client_secret: this.GOOGLE_CLIENT_SECRET!,
-        refresh_token: credentials.refreshToken,
-        grant_type: 'refresh_token',
+      body: JSON.stringify({
+        refreshToken: credentials.refreshToken,
       }),
     });
     
@@ -359,9 +379,9 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     const data = await response.json();
     
     return {
-      encryptedToken: btoa(data.access_token),
-      refreshToken: data.refresh_token || credentials.refreshToken,
-      expiresAt: new Date(Date.now() + data.expires_in * 1000),
+      encryptedToken: data.encryptedToken, // Server returns properly encrypted token
+      refreshToken: data.refreshToken || credentials.refreshToken,
+      expiresAt: new Date(data.expiresAt),
     };
   }
   
@@ -537,8 +557,23 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       throw new CalendarFeedError('Google Calendar credentials missing', 'MISSING_CREDENTIALS', feed.id);
     }
     
-    // Decrypt token (in a real implementation, use proper decryption)
-    const accessToken = atob(feed.credentials.encryptedToken);
+    // SECURITY: Token decryption should happen server-side
+    // For now, we'll call the server to get a decrypted token for API calls
+    const tokenResponse = await fetch('/api/calendar/google/decrypt-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        encryptedToken: feed.credentials.encryptedToken,
+      }),
+    });
+    
+    if (!tokenResponse.ok) {
+      throw new CalendarFeedError('Failed to decrypt access token', 'TOKEN_DECRYPT_FAILED', feed.id);
+    }
+    
+    const { accessToken } = await tokenResponse.json();
     
     const params = new URLSearchParams({
       maxResults: '2500',
@@ -603,9 +638,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
     
+    // FIXED: Handle all-day events correctly - end.date is exclusive
     const endTime = item.end.dateTime 
       ? new Date(item.end.dateTime)
-      : new Date(item.end.date + 'T23:59:59');
+      : new Date(new Date(item.end.date!).getTime() - 1); // Subtract 1ms from exclusive end date
     
     return {
       id: `${feed.id}:${item.id}`,
@@ -672,17 +708,32 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   private async handleFetchError(error: unknown, feedId: string): Promise<void> {
     const baseDelay = CALENDAR_CONFIG.ERROR_HANDLING.RETRY_DELAY_BASE;
     const maxDelay = CALENDAR_CONFIG.ERROR_HANDLING.RETRY_DELAY_MAX;
+    const maxRetries = CALENDAR_CONFIG.ERROR_HANDLING.MAX_RETRY_ATTEMPTS;
     
-    // Get current retry count (simplified - in real implementation, track per feed)
-    const retryCount = 1;
+    // Get or initialize retry state for this feed
+    const now = Date.now();
+    let retryState = this.retryState.get(feedId);
+    
+    if (!retryState || (now - retryState.lastAttempt) > 60000) { // Reset after 1 minute
+      retryState = { count: 0, lastAttempt: now };
+    }
+    
+    retryState.count++;
+    retryState.lastAttempt = now;
+    this.retryState.set(feedId, retryState);
+    
+    if (retryState.count > maxRetries) {
+      console.error(`Max retries exceeded for feed ${feedId}, giving up`);
+      return;
+    }
     
     // Exponential backoff with jitter
     const delay = Math.min(
-      baseDelay * Math.pow(2, retryCount) + Math.random() * 1000,
+      baseDelay * Math.pow(2, retryState.count) + Math.random() * 1000,
       maxDelay
     );
     
-    console.warn(`Feed fetch failed for ${feedId}, retrying in ${delay}ms:`, error);
+    console.warn(`Feed fetch failed for ${feedId} (attempt ${retryState.count}/${maxRetries}), retrying in ${delay}ms:`, error);
     
     // In a real implementation, you might want to schedule a retry
     // For now, we just log the error and delay
@@ -690,5 +741,19 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   }
 }
 
+// Factory function to create properly wired service instances
+export function createCalendarFeedService(): CalendarFeedServiceImpl {
+  const feedService = new CalendarFeedServiceImpl();
+  
+  // Lazy load offline service to avoid circular dependency
+  import('./offline-calendar.service').then(({ offlineCalendarService }) => {
+    feedService.setOfflineService(offlineCalendarService);
+  }).catch(error => {
+    console.warn('Failed to load offline calendar service:', error);
+  });
+  
+  return feedService;
+}
+
 // Create a singleton instance
-export const calendarFeedService = new CalendarFeedServiceImpl();
+export const calendarFeedService = createCalendarFeedService();

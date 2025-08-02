@@ -77,7 +77,8 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
   private readonly MAX_RETRY_ATTEMPTS = 3;
   
   constructor() {
-    this.initializeDatabase();
+    // FIXED: Remove async call from constructor to avoid unhandled promise rejections
+    // Database initialization is handled lazily in getDatabase()
     this.setupVisibilityChangeHandler();
   }
   
@@ -410,9 +411,14 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
   }
   
   private async fetchFreshEvents(feed: CalendarFeed): Promise<CalendarEvent[]> {
-    // This would integrate with the main calendar feed service
-    // For now, we'll simulate a network request
-    const response = await fetch(`/api/calendar/feeds/${feed.id}/events`);
+    // FIXED: Use server-side API endpoint to avoid circular dependency
+    // The server will handle the actual feed fetching logic
+    const response = await fetch(`/api/calendar/feeds/${feed.id}/events`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

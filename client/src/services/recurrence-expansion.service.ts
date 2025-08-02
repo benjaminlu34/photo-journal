@@ -237,10 +237,16 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   
   clearCache(eventId?: string): void {
     if (eventId) {
-      // Clear cache entries for specific event
+      // FIXED: Safely parse JSON cache keys to check eventId
       for (const key of this.expansionCache.keys()) {
-        if (key.includes(eventId)) {
-          this.expansionCache.delete(key);
+        try {
+          const parsedKey: CacheKey = JSON.parse(key);
+          if (parsedKey.eventId === eventId) {
+            this.expansionCache.delete(key);
+          }
+        } catch (error) {
+          // Skip invalid JSON keys
+          console.warn('Failed to parse cache key:', key, error);
         }
       }
     } else {
