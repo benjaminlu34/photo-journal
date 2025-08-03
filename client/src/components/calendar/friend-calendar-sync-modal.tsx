@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,6 @@ export function FriendCalendarSyncModal({
 }: FriendCalendarSyncModalProps) {
   const [activeTab, setActiveTab] = useState("sync");
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [syncItems, setSyncItems] = useState<FriendCalendarSyncItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshingFriends, setRefreshingFriends] = useState<Set<string>>(new Set());
@@ -61,38 +60,7 @@ export function FriendCalendarSyncModal({
   const { actions } = useCalendarStore();
 
   // Load friends with calendar access on mount
-  useEffect(() => {
-    if (isOpen) {
-      loadFriendsWithCalendarAccess();
-    }
-  }, [isOpen]);
-
-  // Memoize updateSyncItems to include all dependencies
-  const updateSyncItems = useCallback(() => {
-    const items: FriendCalendarSyncItem[] = friends.map(friend => {
-      const isSynced = syncedFriends.includes(friend.id);
-      
-      return {
-        friend,
-        isSynced,
-        lastSyncAt: isSynced ? new Date() : undefined, // In real implementation, get from cache
-        syncError: undefined, // In real implementation, get from service
-        eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
-        canSync: true, // In real implementation, check permissions
-        assignedColor: generateFriendColor(friend.id),
-        isRefreshing: refreshingFriends.has(friend.id)
-      };
-    });
-    
-    setSyncItems(items);
-  }, [friends, syncedFriends, refreshingFriends]);
-
-  // Update sync items when dependencies change
-  useEffect(() => {
-    updateSyncItems();
-  }, [updateSyncItems]);
-
-  const loadFriendsWithCalendarAccess = async () => {
+  const loadFriendsWithCalendarAccess = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -106,7 +74,31 @@ export function FriendCalendarSyncModal({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadFriendsWithCalendarAccess();
+    }
+  }, [isOpen, loadFriendsWithCalendarAccess]);
+
+  // Memoize syncItems to avoid unnecessary re-renders
+  const syncItems = useMemo(() => {
+    return friends.map(friend => {
+      const isSynced = syncedFriends.includes(friend.id);
+      
+      return {
+        friend,
+        isSynced,
+        lastSyncAt: isSynced ? new Date() : undefined, // In real implementation, get from cache
+        syncError: undefined, // In real implementation, get from service
+        eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
+        canSync: true, // In real implementation, check permissions
+        assignedColor: generateFriendColor(friend.id),
+        isRefreshing: refreshingFriends.has(friend.id)
+      };
+    });
+  }, [friends, syncedFriends, refreshingFriends, generateFriendColor]);
 
 
 
@@ -136,13 +128,6 @@ export function FriendCalendarSyncModal({
       
       await onToggleSync(friend.id, enabled);
       
-      // Update local state
-      setSyncItems(prev => prev.map(item => 
-        item.friend.id === friend.id 
-          ? { ...item, isSynced: enabled, eventCount: enabled ? item.eventCount : 0 }
-          : item
-      ));
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to toggle sync';
       setError(errorMessage);
@@ -157,23 +142,10 @@ export function FriendCalendarSyncModal({
       
       await onRefreshFriend(friend.id);
       
-      // Update local state with new sync time
-      setSyncItems(prev => prev.map(item => 
-        item.friend.id === friend.id 
-          ? { ...item, lastSyncAt: new Date(), syncError: undefined }
-          : item
-      ));
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to refresh';
       setError(errorMessage);
       
-      // Update local state with error
-      setSyncItems(prev => prev.map(item => 
-        item.friend.id === friend.id 
-          ? { ...item, syncError: errorMessage }
-          : item
-      ));
       
       console.error('Error refreshing friend calendar:', error);
     } finally {

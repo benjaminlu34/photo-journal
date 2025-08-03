@@ -5,6 +5,7 @@
 import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
 import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
+import { sub, add } from 'date-fns';
 
 // Configuration constants
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -349,8 +350,8 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       
       // Fetch fresh events for the current week (±2 weeks window)
       const now = new Date();
-      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-      const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const twoWeeksAgo = sub(now, { days: 14 });
+      const twoWeeksFromNow = add(now, { days: 14 });
       
       await this.fetchFriendEvents(friend, twoWeeksAgo, twoWeeksFromNow);
       
@@ -399,7 +400,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         externalId: event.id,
         sequence: 0,
         source: 'ical' as const,
-        lastModified: new Date(),
+        lastModified: new Date(event.startTime), // Use stable timestamp instead of new Date()
         friendUserId,
         friendUsername: friendUserId, // Should be resolved from friend data
         isFromFriend: true,
@@ -452,6 +453,13 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       // Open IndexedDB and clear friend-specific data
       const dbName = 'FriendCalendarCache';
       const request = indexedDB.open(dbName, 1);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('friendEvents')) {
+          db.createObjectStore('friendEvents');
+        }
+      };
       
       request.onsuccess = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
