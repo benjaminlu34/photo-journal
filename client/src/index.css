@@ -7,9 +7,9 @@
 @layer base {
   :root {
     /* Neumorphic Design Tokens - Warm Coral/Cream Theme */
-    --surface: #FEF7F0;
-    --surface-elevated: #FDF4ED;
-    --shadow-dark: rgba(251, 146, 60, 0.15);
+    --surface: #FDF4ED;
+    --surface-elevated: #f5f9ff;
+    --shadow-dark: rgba(179, 189, 214, 0.7);
     --shadow-light: #FFFFFF;
     --radius-lg: 20px;
     --radius-sm: 12px;
@@ -614,17 +614,17 @@
   }
 
   .calendar-day-today {
-    @apply text-blue-700 font-semibold;
-    background: linear-gradient(145deg, #dbeafe, #bfdbfe);
+    @apply text-primary-foreground font-semibold;
+    background: linear-gradient(145deg, hsl(var(--primary)), hsl(var(--secondary)));
     box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.1),
       -2px -2px 4px rgba(255, 255, 255, 0.9),
-      inset 1px 1px 2px rgba(59, 130, 246, 0.1);
+      inset 1px 1px 2px hsl(var(--primary) / 0.2);
   }
 
   .calendar-day-selected {
     @apply text-white font-bold;
-    background: linear-gradient(145deg, #3b82f6, #2563eb);
+    background: linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.9));
     box-shadow:
       4px 4px 8px rgba(0, 0, 0, 0.15),
       -4px -4px 8px rgba(255, 255, 255, 0.7),
@@ -642,9 +642,9 @@
   .calendar-day-has-events::after {
     content: '';
     @apply absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full;
-    background: #3b82f6;
+    background: hsl(var(--primary));
     box-shadow:
-      0 1px 2px rgba(59, 130, 246, 0.3),
+      0 1px 2px hsl(var(--primary) / 0.3),
       inset 0 0 1px rgba(255, 255, 255, 0.5);
   }
 
