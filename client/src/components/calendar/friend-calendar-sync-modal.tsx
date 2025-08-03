@@ -21,22 +21,7 @@ import { format } from "date-fns";
 import type { Friend } from "@/types/journal";
 import { friendCalendarService } from "@/services/friend-calendar.service";
 import { useCalendarStore } from "@/lib/calendar-store";
-
-// Generate a consistent color for a friend's calendar - moved outside component as it's a pure function
-const generateFriendColor = (friendId: string): string => {
-  // Simple hash-based color generation for consistency
-  let hash = 0;
-  for (let i = 0; i < friendId.length; i++) {
-    hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  
-  const colors = [
-    '#3B82F6', '#8B5CF6', '#EC4899', '#10B981',
-    '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'
-  ];
-  
-  return colors[Math.abs(hash) % colors.length];
-};
+import { generateFriendColor } from "@/utils/colorUtils/colorUtils";
 
 interface FriendCalendarSyncItem {
   friend: Friend;
@@ -139,7 +124,13 @@ export function FriendCalendarSyncModal({
         
         // Show consent banner for newly enabled friends (only if not previously dismissed)
         const hasDismissedConsent = localStorage.getItem('friend-calendar-consent-dismissed') === 'true';
-        setRecentlyEnabledFriends(prev => [...prev, friend]);
+        setRecentlyEnabledFriends(prev => {
+          // Prevent duplicate friends in the array
+          if (!prev.some(f => f.id === friend.id)) {
+            return [...prev, friend];
+          }
+          return prev;
+        });
         setShowConsentBanner(!hasDismissedConsent);
       }
       
