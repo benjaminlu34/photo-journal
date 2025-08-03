@@ -4,6 +4,7 @@
 
 import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
+import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
 
 // Configuration constants
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -469,24 +470,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   
   // Generate a consistent color for a friend's calendar
   private generateFriendColor(friendId: string): string {
-    // Simple hash-based color generation for consistency
-    let hash = 0;
-    for (let i = 0; i < friendId.length; i++) {
-      hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const colors = [
-      '#3B82F6', // Blue
-      '#8B5CF6', // Purple
-      '#EC4899', // Pink
-      '#10B981', // Green
-      '#F59E0B', // Amber
-      '#EF4444', // Red
-      '#06B6D4', // Cyan
-      '#84CC16', // Lime
-    ];
-    
-    return colors[Math.abs(hash) % colors.length];
+    return sharedGenerateFriendColor(friendId);
   }
 }
 

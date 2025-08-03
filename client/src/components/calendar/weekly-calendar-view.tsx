@@ -328,7 +328,9 @@ export function WeeklyCalendarView({
               pattern: event.pattern,
               location: event.location,
               attendees: event.attendees || [],
-              createdBy: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdBy : '',
+              createdBy: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdBy :
+                       event.eventType === 'friend' ? (event as FriendCalendarEvent).friendUsername :
+                       event.eventType === 'external' ? (event as CalendarEvent).feedName : '',
               createdAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdAt : event.startTime,
               updatedAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).updatedAt : event.startTime,
               linkedJournalEntryId: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).linkedJournalEntryId : undefined,
