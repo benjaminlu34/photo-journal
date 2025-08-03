@@ -20,6 +20,83 @@ import { WeekHeader } from './week-header';
 import { CalendarErrorBoundary, useCalendarErrorHandler } from './calendar-error-boundary';
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 
+// Helper function to convert different event types to LocalEvent format
+function convertToLocalEventFormat(event: LocalEvent | CalendarEvent | FriendCalendarEvent & { eventType: 'local' | 'external' | 'friend' }) {
+  if ('eventType' in event && event.eventType === 'local') {
+    const localEvent = event as unknown as LocalEvent & { eventType: 'local' };
+    return {
+      id: localEvent.id,
+      title: localEvent.title,
+      description: localEvent.description,
+      startTime: localEvent.startTime,
+      endTime: localEvent.endTime,
+      timezone: localEvent.timezone,
+      isAllDay: localEvent.isAllDay,
+      color: localEvent.color,
+      pattern: localEvent.pattern,
+      location: localEvent.location,
+      attendees: localEvent.attendees || [],
+      createdBy: localEvent.createdBy,
+      createdAt: localEvent.createdAt,
+      updatedAt: localEvent.updatedAt,
+      linkedJournalEntryId: localEvent.linkedJournalEntryId,
+      reminderMinutes: localEvent.reminderMinutes,
+      collaborators: localEvent.collaborators,
+      tags: localEvent.tags
+    };
+  }
+  
+  if ('eventType' in event && event.eventType === 'friend') {
+    const friendEvent = event as unknown as FriendCalendarEvent & { eventType: 'friend' };
+    return {
+      id: friendEvent.id,
+      title: friendEvent.title,
+      description: friendEvent.description,
+      startTime: friendEvent.startTime,
+      endTime: friendEvent.endTime,
+      timezone: friendEvent.timezone,
+      isAllDay: friendEvent.isAllDay,
+      color: friendEvent.color,
+      pattern: friendEvent.pattern,
+      location: friendEvent.location,
+      attendees: friendEvent.attendees || [],
+      createdBy: friendEvent.friendUsername,
+      createdAt: friendEvent.startTime,
+      updatedAt: friendEvent.startTime,
+      linkedJournalEntryId: undefined,
+      reminderMinutes: undefined,
+      collaborators: [],
+      tags: []
+    };
+  }
+  
+  if ('eventType' in event && event.eventType === 'external') {
+    const externalEvent = event as unknown as CalendarEvent & { eventType: 'external' };
+    return {
+      id: externalEvent.id,
+      title: externalEvent.title,
+      description: externalEvent.description,
+      startTime: externalEvent.startTime,
+      endTime: externalEvent.endTime,
+      timezone: externalEvent.timezone,
+      isAllDay: externalEvent.isAllDay,
+      color: externalEvent.color,
+      pattern: externalEvent.pattern,
+      location: externalEvent.location,
+      attendees: externalEvent.attendees || [],
+      createdBy: externalEvent.feedName,
+      createdAt: externalEvent.startTime,
+      updatedAt: externalEvent.startTime,
+      linkedJournalEntryId: undefined,
+      reminderMinutes: undefined,
+      collaborators: [],
+      tags: []
+    };
+  }
+  
+  throw new Error(`Unknown event type: ${(event as any).eventType}`);
+}
+
 // Debounce utility with cancel method
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T & { cancel: () => void } {
   let timeout: ReturnType<typeof setTimeout>;
