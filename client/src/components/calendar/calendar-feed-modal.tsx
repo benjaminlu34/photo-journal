@@ -136,7 +136,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                   
                   <Button
                     type="button"
-                    className="w-full neu-card bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+                    className="w-full neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
                   >
                     <Chrome className="w-4 h-4 mr-2" />
                     Connect to Google Calendar
@@ -208,7 +208,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                   <Button
                     type="submit"
                     disabled={!formData.name.trim() || !formData.url.trim()}
-                    className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+                    className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
                   >
                     Add Feed
                   </Button>
@@ -229,7 +229,7 @@ export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: Calen
                   actions.setFriendSyncModalOpen(true);
                   onClose();
                 }}
-                className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+                className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
               >
                 <Users className="w-4 h-4 mr-2" />
                 Manage Friend Sync

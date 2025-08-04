@@ -309,7 +309,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
             <Button
               type="submit"
               disabled={!formData.title.trim()}
-              className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
             >
               {event ? "Update" : "Create"} Event
             </Button>

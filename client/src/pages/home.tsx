@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
@@ -21,8 +21,70 @@ function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
-  const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek } = useJournal();
+  const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek, setViewMode } = useJournal();
 
+
+  // View persistence: handle both URL params and localStorage
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const param = url.searchParams.get('view');
+    const stored = window.localStorage.getItem('pj.viewMode');
+
+    // Determine the view mode to use (URL param takes precedence over localStorage)
+    const mode = (param || stored || viewMode || 'daily') as string;
+
+    // Apply the view mode to the context
+    if (mode !== viewMode) {
+      // This will trigger the viewMode change in the context
+      // which will then trigger the useEffect below to update URL and localStorage
+      setViewMode(mode as any);
+    }
+
+    // Apply date/week anchors based on the mode
+    if (mode === 'weekly-calendar' || mode === 'weekly-creative') {
+      const today = new Date();
+      const start = new Date(today);
+      start.setDate(today.getDate() - today.getDay());
+      setCurrentWeek(start);
+    } else {
+      setCurrentDate(new Date());
+    }
+
+    // Ensure URL has the view parameter
+    if (!param) {
+      url.searchParams.set('view', mode);
+      // Remove any hash fragment from the URL
+      url.hash = '';
+      window.history.replaceState(null, '', url.toString());
+    }
+
+    // Persist to localStorage
+    try {
+      window.localStorage.setItem('pj.viewMode', mode);
+    } catch (e) {
+      console.warn('Failed to persist view mode to localStorage:', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update URL and localStorage when viewMode changes
+  useEffect(() => {
+    if (!viewMode) return;
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('view') !== viewMode) {
+      url.searchParams.set('view', viewMode);
+      // Remove any hash fragment from the URL
+      url.hash = '';
+      window.history.replaceState(null, '', url.toString());
+    }
+
+    try {
+      window.localStorage.setItem('pj.viewMode', viewMode);
+    } catch (e) {
+      console.warn('Failed to persist view mode to localStorage:', e);
+    }
+  }, [viewMode]);
 
   const handleFriendRequest = async (searchUser: UserSearchResult) => {
     if (user && searchUser.id === user.id) {
@@ -53,7 +115,7 @@ function HomeContent() {
         throw new Error(errorData.message || 'Failed to send friend request');
       }
 
-      const result = await response.json();
+      await response.json();
 
       toast({
         title: "Friend request sent",
@@ -80,6 +142,7 @@ function HomeContent() {
     }
   }, [user, isLoading, toast]);
 
+
   if (isLoading) {
     return (
       <div
@@ -105,129 +168,133 @@ function HomeContent() {
     <div className="flex h-screen">
       <JournalSidebar />
 
-      <div className="neu-card flex-1 flex flex-col min-w-0">
+      <div className="neu-card flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center space-x-4 flex-shrink-0">
-              <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap flex items-center min-w-80 max-w-96 flex-shrink-0">
-                {viewMode === "daily" && "Daily Pinboard"}
-                {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                  const startOfWeekDate = new Date(currentWeek);
-                  startOfWeekDate.setDate(currentWeek.getDate() - currentWeek.getDay());
-                  const endOfWeekDate = new Date(startOfWeekDate);
-                  endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
-
-                  const startMonth = startOfWeekDate.toLocaleDateString("en-US", { month: "short" });
-                  const startDay = startOfWeekDate.getDate();
-                  const endMonth = endOfWeekDate.toLocaleDateString("en-US", { month: "short" });
-                  const endDay = endOfWeekDate.getDate();
-                  const year = endOfWeekDate.getFullYear();
-
-                  if (startMonth === endMonth) {
-                    return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;
-                  } else {
-                    return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+          <div className="grid grid-cols-[auto_1fr_auto] items-center w-full gap-4">
+            {/* Left: Navigation at the very left */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="default"
+                size="sm"
+                aria-label="Previous"
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    const prevDay = new Date(currentDate);
+                    prevDay.setDate(currentDate.getDate() - 1);
+                    setCurrentDate(prevDay);
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    const prevWeek = new Date(currentWeek);
+                    prevWeek.setDate(currentWeek.getDate() - 7);
+                    setCurrentWeek(prevWeek);
+                  } else if (viewMode === "monthly") {
+                    const prevMonth = new Date(currentDate);
+                    prevMonth.setMonth(currentDate.getMonth() - 1);
+                    setCurrentDate(prevMonth);
                   }
+                }}
+                className="neu-nav-pill text-gray-700"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              <Button
+                variant="default"
+                size="sm"
+                aria-label="Go to current period"
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    setCurrentDate(new Date());
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    setCurrentWeek(new Date());
+                  } else if (viewMode === "monthly") {
+                    setCurrentDate(new Date());
+                  }
+                }}
+                className="neu-nav-pill text-gray-700 whitespace-nowrap"
+              >
+                {viewMode === "daily" && "Today"}
+                {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
+                  const today = new Date();
+                  const thisWeekStart = new Date(today);
+                  thisWeekStart.setDate(today.getDate() - today.getDay());
+                  thisWeekStart.setHours(0, 0, 0, 0);
+                  const currentWeekStart = new Date(currentWeek);
+                  currentWeekStart.setDate(currentWeek.getDate() - currentWeek.getDay());
+                  currentWeekStart.setHours(0, 0, 0, 0);
+                  return thisWeekStart.getTime() === currentWeekStart.getTime() ? "This Week" : "Go to This Week";
                 })()}
-                {viewMode === "monthly" && (
-                  <>
-                    <Calendar className="w-7 h-7 text-purple-500 mr-3" />
-                    {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                  </>
-                )}
-              </h2>
+                {viewMode === "monthly" && "This Month"}
+              </Button>
 
-              {/* Navigation Controls */}
-              <div className="flex items-center space-x-1">
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    if (viewMode === "daily") {
-                      const prevDay = new Date(currentDate);
-                      prevDay.setDate(currentDate.getDate() - 1);
-                      setCurrentDate(prevDay);
-                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                      const prevWeek = new Date(currentWeek);
-                      prevWeek.setDate(currentWeek.getDate() - 7);
-                      setCurrentWeek(prevWeek);
-                    } else if (viewMode === "monthly") {
-                      const prevMonth = new Date(currentDate);
-                      prevMonth.setMonth(currentDate.getMonth() - 1);
-                      setCurrentDate(prevMonth);
-                    }
-                  }}
-                  className="neu-nav-pill text-gray-700"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
+              <Button
+                variant="default"
+                size="sm"
+                aria-label="Next"
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    const nextDay = new Date(currentDate);
+                    nextDay.setDate(currentDate.getDate() + 1);
+                    setCurrentDate(nextDay);
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    const nextWeek = new Date(currentWeek);
+                    nextWeek.setDate(currentWeek.getDate() + 7);
+                    setCurrentWeek(nextWeek);
+                  } else if (viewMode === "monthly") {
+                    const nextMonth = new Date(currentDate);
+                    nextMonth.setMonth(currentDate.getMonth() + 1);
+                    setCurrentDate(nextMonth);
+                  }
+                }}
+                className="neu-nav-pill text-gray-700"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
 
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    if (viewMode === "daily") {
-                      setCurrentDate(new Date());
-                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                      setCurrentWeek(new Date());
-                    } else if (viewMode === "monthly") {
-                      setCurrentDate(new Date());
-                    }
-                  }}
-                  className="neu-nav-pill text-gray-700 whitespace-nowrap"
-                >
-                  {viewMode === "daily" && "Today"}
+            {/* Center: Title and FriendSearch with fixed positioning */}
+            <div className="flex items-center justify-between min-w-0 flex-1">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-2xl font-bold text-gray-800 truncate">
+                  {viewMode === "daily" && "Daily Pinboard"}
                   {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                    const today = new Date();
-                    const thisWeekStart = new Date(today);
-                    thisWeekStart.setDate(today.getDate() - today.getDay());
-                    thisWeekStart.setHours(0, 0, 0, 0);
-                    const currentWeekStart = new Date(currentWeek);
-                    currentWeekStart.setDate(currentWeek.getDate() - currentWeek.getDay());
-                    currentWeekStart.setHours(0, 0, 0, 0);
-                    return thisWeekStart.getTime() === currentWeekStart.getTime() ? "This Week" : "Go to This Week";
-                  })()}
-                  {viewMode === "monthly" && "This Month"}
-                </Button>
+                    const startOfWeekDate = new Date(currentWeek);
+                    startOfWeekDate.setDate(currentWeek.getDate() - currentWeek.getDay());
+                    const endOfWeekDate = new Date(startOfWeekDate);
+                    endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
 
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    if (viewMode === "daily") {
-                      const nextDay = new Date(currentDate);
-                      nextDay.setDate(currentDate.getDate() + 1);
-                      setCurrentDate(nextDay);
-                    } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                      const nextWeek = new Date(currentWeek);
-                      nextWeek.setDate(currentWeek.getDate() + 7);
-                      setCurrentWeek(nextWeek);
-                    } else if (viewMode === "monthly") {
-                      const nextMonth = new Date(currentDate);
-                      nextMonth.setMonth(currentDate.getMonth() + 1);
-                      setCurrentDate(nextMonth);
+                    const startMonth = startOfWeekDate.toLocaleDateString("en-US", { month: "short" });
+                    const startDay = startOfWeekDate.getDate();
+                    const endMonth = endOfWeekDate.toLocaleDateString("en-US", { month: "short" });
+                    const endDay = endOfWeekDate.getDate();
+                    const year = endOfWeekDate.getFullYear();
+
+                    if (startMonth === endMonth) {
+                      return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;
+                    } else {
+                      return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
                     }
-                  }}
-                  className="neu-nav-pill text-gray-700"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+                  })()}
+                  {viewMode === "monthly" && (
+                    <>
+                      <Calendar className="w-7 h-7 text-purple-500 mr-3 inline-block align-[-2px]" />
+                      {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </>
+                  )}
+                </h2>
+              </div>
+              <div className="w-[280px] sm:w-[320px] md:w-[360px] ml-4 flex-shrink-0">
+                <FriendSearch
+                  onFriendRequest={handleFriendRequest}
+                  placeholder="Find friends..."
+                  showRecentSearches={false}
+                  className="w-full"
+                  currentUserId={user?.id}
+                />
               </div>
             </div>
 
-            {/* Center Section */}
-            <div className="flex items-center space-x-4 flex-1 justify-center max-w-md">
-              <FriendSearch
-                onFriendRequest={handleFriendRequest}
-                placeholder="Find friends..."
-                showRecentSearches={false}
-                className="w-full"
-                currentUserId={user?.id}
-              />
-            </div>
-
-            {/* Right Section */}
-            <div className="flex items-center space-x-3 flex-shrink-0">
+            {/* Right: utilities cluster unchanged */}
+            <div className="flex items-center gap-3 shrink-0 justify-end">
               <ViewToggle />
               <FriendshipNotifications className="neu-nav-pill" />
               <Button

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react";
-import { format, isSameDay } from "date-fns";
-import { Clock, MapPin } from "lucide-react";
+import { useMemo, useRef } from "react";
+import { format } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { LocalEvent } from "@/types/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
+import { EventCard } from "./event-card";
 
 interface DayColumnProps {
   date: Date;
@@ -16,6 +16,17 @@ interface DayColumnProps {
   onEventDragEnd: () => void;
 }
 
+type PositionedEvent = {
+  event: LocalEvent;
+  top: number;
+  height: number;
+};
+
+/**
+ * Basic grid with half-hour divisions and DST-aware rendering.
+ * Virtualization note: with fixed 24 hours and 60px per hour, we keep it simple now.
+ * The virtualization threshold hook-in can be added later using windowing if needed.
+ */
 export function DayColumn({
   date,
   events,
@@ -24,98 +35,84 @@ export function DayColumn({
   onEventClick,
   onTimeSlotClick,
   onEventDragStart,
-  onEventDragEnd
+  onEventDragEnd,
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
-  const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
-  
-  // Handle drag start for events
-  const handleEventDragStart = (eventId: string) => {
-    setDraggingEventId(eventId);
-    onEventDragStart(eventId);
-  };
-  
-  // Handle drag end for events
-  const handleEventDragEnd = () => {
-    setDraggingEventId(null);
-    onEventDragEnd();
-  };
-  
-  // Calculate event positions
-  const calculateEventPosition = (event: LocalEvent) => {
-    const startTime = new Date(event.startTime);
-    const endTime = new Date(event.endTime);
-    const eventHours = startTime.getHours();
-    const eventMinutes = startTime.getMinutes();
-    const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-    
-    // Calculate duration in hours
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const durationHours = durationMs / (1000 * 60 * 60);
-    const height = durationHours * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-    
-    return {
-      top: `${positionTop}px`,
-      height: `${height}px`
-    };
-  };
-  
+
+  const positioned = useMemo<PositionedEvent[]>(() => {
+    return events.map((event) => {
+      const startTime = new Date(event.startTime);
+      const endTime = new Date(event.endTime);
+      const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+      const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      const height =
+        Math.max((endMinutes - startMinutes), CALENDAR_CONFIG.EVENTS.MIN_DURATION) /
+        60 *
+        CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      return { event, top, height };
+    });
+  }, [events]);
+
+  const slots = useMemo(() => {
+    const minutesPerSlot = CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL; // 30
+    const slotsPerDay = (24 * 60) / minutesPerSlot;
+    return Array.from({ length: slotsPerDay }, (_, i) => i);
+  }, []);
+
   return (
     <div
       ref={columnRef}
-      className={`relative border-l border-gray-200 ${isWeekend ? 'bg-rose-50' : ''} ${isToday ? 'bg-purple-50' : ''}`}
+      className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${
+        isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
+      }`}
+      role="gridcell"
+      aria-label={`Day column ${format(date, "EEEE MMM d")}${isToday ? " today" : ""}`}
     >
-      {/* Time slots for the day */}
-      {Array.from({ length: 24 }, (_, hour) => (
-        <div
-          key={`slot-${date.toISOString()}-${hour}`}
-          className="h-16 border-b border-r border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors"
-          onClick={() => {
-            const slotDate = new Date(date);
-            slotDate.setHours(hour, 0, 0, 0);
-            onTimeSlotClick(slotDate);
-          }}
-        />
-      ))}
-      
-      {/* Events positioned absolutely */}
-      {events.map((event) => {
-        const position = calculateEventPosition(event);
-        
+      {/* Time grid with half-hour divisions */}
+      {slots.map((slotIndex) => {
+        const hour = Math.floor((slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) / 60);
+        const isHourBoundary = (slotIndex % (60 / CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL)) === 0;
         return (
           <div
-            key={event.id}
-            onClick={() => onEventClick(event)}
-            draggable
-            onDragStart={() => handleEventDragStart(event.id)}
-            onDragEnd={handleEventDragEnd}
-            className="absolute left-1 right-1 p-2 rounded-lg text-sm neu-inset hover:shadow-neu-active transition-all duration-300 cursor-pointer transform hover:scale-[1.02] z-10"
-            style={{
-              backgroundColor: applyOpacityToColor(event.color, 0.1),
-              borderLeft: `4px solid ${event.color}`,
-              top: position.top,
-              height: position.height,
+            key={`slot-${date.toISOString()}-${slotIndex}`}
+            className={`h-8 border-b border-r ${
+              isHourBoundary ? "border-gray-300" : "border-gray-200"
+            } hover:bg-gray-100/60 cursor-pointer transition-colors`}
+            onClick={() => {
+              const minutesOffset = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
+              const slotDate = new Date(date);
+              slotDate.setHours(0, 0, 0, 0);
+              slotDate.setMinutes(minutesOffset);
+              onTimeSlotClick(slotDate);
             }}
             role="button"
-            tabIndex={0}
-            aria-label={`${event.title} at ${format(new Date(event.startTime), "h:mm a")}`}
-          >
-            <div className="font-semibold text-gray-800 truncate text-xs">
-              {event.title}
-            </div>
-            <div className="flex items-center text-xs text-gray-600 mt-1">
-              <Clock className="w-3 h-3 mr-1" />
-              {format(new Date(event.startTime), "h:mm a")}
-            </div>
-            {event.location && (
-              <div className="flex items-center text-xs text-gray-600 mt-1">
-                <MapPin className="w-3 h-3 mr-1" />
-                <span className="truncate">{event.location}</span>
-              </div>
-            )}
-          </div>
+            aria-label={`Add event at ${hour}:${(slotIndex % 2) * 30 === 0 ? "00" : "30"}`}
+            tabIndex={-1}
+          />
         );
       })}
+
+      {/* Positioned events */}
+      {positioned.map(({ event, top, height }) => (
+        <div
+          key={event.id}
+          className="absolute left-1 right-1"
+          style={{ top, height }}
+        >
+          <EventCard
+            event={event}
+            isLocal={Boolean(event.createdBy)}
+            isDragging={false}
+            isSelected={false}
+            onClick={() => onEventClick(event)}
+            onDragStart={() => onEventDragStart(event.id)}
+            onDragEnd={onEventDragEnd}
+            onFocus={() => {}}
+            onBlur={() => {}}
+          />
+        </div>
+      ))}
     </div>
   );
 }

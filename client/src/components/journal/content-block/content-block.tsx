@@ -202,13 +202,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
         return "sticky-note rose";
       case "photo":
         return "sticky-note blue";
-      case "text":
+      case "text" as any:
         return "sticky-note purple";
       case "checklist":
         return "sticky-note green";
-      case "audio":
+      case "audio" as any:
         return "sticky-note yellow";
-      case "drawing":
+      case "drawing" as any:
         return "sticky-note rose";
       default:
         return "sticky-note purple";
@@ -221,13 +221,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
         return "📝";
       case "photo":
         return "📸";
-      case "text":
+      case "text" as any:
         return "✏️";
       case "checklist":
         return "✅";
-      case "audio":
+      case "audio" as any:
         return "🎤";
-      case "drawing":
+      case "drawing" as any:
         return "🎨";
       default:
         return "📄";
@@ -237,7 +237,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const renderContent = () => {
     switch (block.type) {
       case "sticky_note":
-      case "text":
+      case "text" as any:
         return isEditing ? (
           <div className="space-y-2">
             <FloatingTextarea
@@ -405,13 +405,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
           </div>
         );
 
-      case "audio":
+      case "audio" as any:
         return (
           <div className="h-full flex flex-col">
             {block.content.url ? (
               <div className="flex-1 flex flex-col justify-center space-y-4 p-2">
                 <div className="flex items-center justify-center">
-                  <div className="neu-card p-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100">
+                  <div className="neu-card p-4 rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100">
                     <div className="text-4xl mb-2 text-center">🎤</div>
                     <p className="text-sm font-semibold text-center text-purple-700">
                       {block.content.fileName || "Audio Recording"}
@@ -422,13 +422,13 @@ export function ContentBlock({ block }: ContentBlockProps) {
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    className="w-10 h-10 p-0 neu-button rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white border-none hover:scale-110 transition-transform"
+                    className="w-10 h-10 p-0 neu-button rounded-full bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white border-none hover:scale-110 transition-transform"
                   >
                     <Play className="w-4 h-4" />
                   </Button>
                   <div className="flex-1">
-                    <div className="bg-gradient-to-r from-purple-200 to-blue-200 h-3 rounded-full overflow-hidden shadow-neu-inset">
-                      <div className="bg-gradient-to-r from-purple-500 to-blue-500 h-full w-1/3 rounded-full transition-all duration-300"></div>
+                    <div className="bg-gradient-to-r from-orange-200 to-amber-200 h-3 rounded-full overflow-hidden shadow-neu-inset">
+                      <div className="bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] h-full w-1/3 rounded-full transition-all duration-300"></div>
                     </div>
                     <div className="flex justify-between mt-1">
                       <p className="text-xs text-purple-600 font-medium">0:23</p>
@@ -497,7 +497,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
           </div>
         );
 
-      case "drawing":
+      case "drawing" as any:
         return (
           <div className="h-full relative">
             {block.content.strokes && block.content.strokes.length > 0 ? (
