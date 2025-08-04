@@ -100,11 +100,25 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
       color: formData.color,
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
+      timezone: undefined,
+      pattern: 'plain' as const,
+      attendees: []
     };
     
-    // Mock functionality for UI purposes
-    console.log("Event submitted:", eventData);
-    onClose();
+    try {
+      // TODO: Connect to calendar store for actual event creation/updates
+      if (event) {
+        console.log("Updating event:", event.id, eventData);
+        // await calendarActions.updateLocalEvent(event.id, eventData);
+      } else {
+        console.log("Creating event:", eventData);
+        // await calendarActions.createLocalEvent(eventData);
+      }
+      onClose();
+    } catch (error) {
+      console.error('Failed to save event:', error);
+      // TODO: Show error toast
+    }
   };
   
   return (

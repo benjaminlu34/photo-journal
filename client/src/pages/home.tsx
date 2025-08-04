@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameWeek, isSameDay } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
@@ -40,11 +41,9 @@ function HomeContent() {
       setViewMode(mode as any);
     }
 
-    // Apply date/week anchors based on the mode
+    // Apply date/week anchors based on the mode (use date-fns for stability)
     if (mode === 'weekly-calendar' || mode === 'weekly-creative') {
-      const today = new Date();
-      const start = new Date(today);
-      start.setDate(today.getDate() - today.getDay());
+      const start = startOfWeek(new Date(), { weekStartsOn: 0 });
       setCurrentWeek(start);
     } else {
       setCurrentDate(new Date());
@@ -115,7 +114,7 @@ function HomeContent() {
         throw new Error(errorData.message || 'Failed to send friend request');
       }
 
-      await response.json();
+      const result = await response.json();
 
       toast({
         title: "Friend request sent",
@@ -179,13 +178,11 @@ function HomeContent() {
                 aria-label="Previous"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    const prevDay = new Date(currentDate);
-                    prevDay.setDate(currentDate.getDate() - 1);
+                    const prevDay = addDays(new Date(currentDate), -1);
                     setCurrentDate(prevDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    const prevWeek = new Date(currentWeek);
-                    prevWeek.setDate(currentWeek.getDate() - 7);
-                    setCurrentWeek(prevWeek);
+                    // Align with WeekHeader behavior: move in whole-week increments from currentWeek
+                    setCurrentWeek(subWeeks(new Date(currentWeek), 1));
                   } else if (viewMode === "monthly") {
                     const prevMonth = new Date(currentDate);
                     prevMonth.setMonth(currentDate.getMonth() - 1);
@@ -205,7 +202,7 @@ function HomeContent() {
                   if (viewMode === "daily") {
                     setCurrentDate(new Date());
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    setCurrentWeek(new Date());
+                    setCurrentWeek(startOfWeek(new Date(), { weekStartsOn: 0 }));
                   } else if (viewMode === "monthly") {
                     setCurrentDate(new Date());
                   }
@@ -214,14 +211,10 @@ function HomeContent() {
               >
                 {viewMode === "daily" && "Today"}
                 {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                  const today = new Date();
-                  const thisWeekStart = new Date(today);
-                  thisWeekStart.setDate(today.getDate() - today.getDay());
-                  thisWeekStart.setHours(0, 0, 0, 0);
-                  const currentWeekStart = new Date(currentWeek);
-                  currentWeekStart.setDate(currentWeek.getDate() - currentWeek.getDay());
-                  currentWeekStart.setHours(0, 0, 0, 0);
-                  return thisWeekStart.getTime() === currentWeekStart.getTime() ? "This Week" : "Go to This Week";
+                  const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+                  const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
+                  // Match WeekHeader logic by comparing week starts (equivalent to isSameWeek with same options)
+                  return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
                 })()}
                 {viewMode === "monthly" && "This Month"}
               </Button>
@@ -232,13 +225,11 @@ function HomeContent() {
                 aria-label="Next"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    const nextDay = new Date(currentDate);
-                    nextDay.setDate(currentDate.getDate() + 1);
+                    const nextDay = addDays(new Date(currentDate), 1);
                     setCurrentDate(nextDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    const nextWeek = new Date(currentWeek);
-                    nextWeek.setDate(currentWeek.getDate() + 7);
-                    setCurrentWeek(nextWeek);
+                    // Align with WeekHeader behavior: move in whole-week increments from currentWeek
+                    setCurrentWeek(addWeeks(new Date(currentWeek), 1));
                   } else if (viewMode === "monthly") {
                     const nextMonth = new Date(currentDate);
                     nextMonth.setMonth(currentDate.getMonth() + 1);
@@ -257,16 +248,15 @@ function HomeContent() {
                 <h2 className="text-2xl font-bold text-gray-800 truncate">
                   {viewMode === "daily" && "Daily Pinboard"}
                   {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                    const startOfWeekDate = new Date(currentWeek);
-                    startOfWeekDate.setDate(currentWeek.getDate() - currentWeek.getDay());
-                    const endOfWeekDate = new Date(startOfWeekDate);
-                    endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
+                    // Mirror WeekHeader: compute weekStart/weekEnd using date-fns
+                    const weekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
+                    const weekEnd = endOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
 
-                    const startMonth = startOfWeekDate.toLocaleDateString("en-US", { month: "short" });
-                    const startDay = startOfWeekDate.getDate();
-                    const endMonth = endOfWeekDate.toLocaleDateString("en-US", { month: "short" });
-                    const endDay = endOfWeekDate.getDate();
-                    const year = endOfWeekDate.getFullYear();
+                    const startMonth = weekStart.toLocaleDateString("en-US", { month: "short" });
+                    const startDay = weekStart.getDate();
+                    const endMonth = weekEnd.toLocaleDateString("en-US", { month: "short" });
+                    const endDay = weekEnd.getDate();
+                    const year = weekEnd.getFullYear();
 
                     if (startMonth === endMonth) {
                       return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;

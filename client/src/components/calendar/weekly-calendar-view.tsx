@@ -445,6 +445,9 @@ export function WeeklyCalendarView({
             currentWeek={currentWeek}
             onWeekChange={actions.setCurrentWeek}
             onTodayClick={handleTodayClick}
+            onCreateEventClick={() => setIsCreateEventModalOpen(true)}
+            onSettingsClick={() => {}} // TODO: Implement settings
+            onFeedModalClick={() => setIsImportCalendarModalOpen(true)}
             hasJournalEntries={weekDays.map(() => false)} // TODO: Implement journal entry checking
             showRecurrenceBanner={CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI}
           />
@@ -553,7 +556,6 @@ export function WeeklyCalendarView({
           <CalendarFeedModal
             isOpen={isImportCalendarModalOpen}
             onClose={() => setIsImportCalendarModalOpen(false)}
-            existingFeeds={feeds}
           />
         )}
 

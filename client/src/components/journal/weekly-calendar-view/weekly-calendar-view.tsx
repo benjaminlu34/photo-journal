@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
-import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn } from "@/components/calendar";
+import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader } from "@/components/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
@@ -182,6 +182,17 @@ export function WeeklyCalendarView({
     console.log('Drag ended');
   }, []);
 
+  const handleTodayClick = useCallback(() => {
+    const today = new Date();
+    setCurrentWeek(today);
+    calendarActions.setCurrentWeek(today);
+  }, [setCurrentWeek, calendarActions]);
+
+  const handleWeekChange = useCallback((date: Date) => {
+    setCurrentWeek(date);
+    calendarActions.setCurrentWeek(date);
+  }, [setCurrentWeek, calendarActions]);
+
   // Render mobile pad navigation
   const renderPadNavigation = () => {
     if (responsiveViewMode !== 'pads') return null;
@@ -230,6 +241,19 @@ export function WeeklyCalendarView({
 
   return (
     <div className="flex-1 h-full bg-white flex flex-col">
+      {/* Week Header */}
+      <WeekHeader
+        currentWeek={calendarCurrentWeek}
+        onWeekChange={handleWeekChange}
+        onTodayClick={handleTodayClick}
+        onCreateEventClick={() => {
+          setSelectedDateForEvent(new Date());
+          setIsEventModalOpen(true);
+        }}
+        onSettingsClick={() => setIsSettingsOpen(true)}
+        onFeedModalClick={() => setIsFeedModalOpen(true)}
+      />
+
       {renderPadNavigation()}
 
       {/* Calendar Container with proper height constraints */}

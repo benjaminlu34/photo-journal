@@ -1,306 +1,363 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Plus, Settings, Trash2, Chrome, Link, RefreshCw, Users } from "lucide-react";
+import { Calendar, Globe, Users, Plus, Trash2, RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import type { CalendarFeed } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
-import { useCalendarStore } from "@/lib/calendar-store";
-
-const mockGoogleCalendars = [
-  { id: "primary", name: "Personal Calendar", description: "Your main calendar" },
-  { id: "work", name: "Work Calendar", description: "Work-related events" },
-  { id: "family", name: "Family Calendar", description: "Family events and activities" },
-  { id: "holidays", name: "Holidays", description: "Public holidays" },
-];
+import type { CalendarFeed } from "@/types/calendar";
+import { useCalendar } from "@/contexts/calendar-context";
 
 interface CalendarFeedModalProps {
   isOpen: boolean;
   onClose: () => void;
-  existingFeeds?: CalendarFeed[];
 }
 
-export function CalendarFeedModal({ isOpen, onClose, existingFeeds = [] }: CalendarFeedModalProps) {
-  const [activeTab, setActiveTab] = useState("add");
-  const [feedType, setFeedType] = useState<"google" | "ical">("google");
-  const [formData, setFormData] = useState({
+export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
+  const { feeds, actions } = useCalendar();
+  const [activeTab, setActiveTab] = useState("feeds");
+  
+  // iCal feed form state
+  const [icalFormData, setIcalFormData] = useState({
     name: "",
     url: "",
-    color: "#3B82F6",
+    color: "#3B82F6"
   });
   
-  const [selectedCalendars, setSelectedCalendars] = useState<Record<string, boolean>>({});
-  const { actions } = useCalendarStore();
+  // Google Calendar form state
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   
-  const handleInputChange = useCallback((field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  }, []);
+  // Friend calendar state
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
   
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleAddIcalFeed = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Calendar feed submitted:", { ...formData, type: feedType });
-    onClose();
-  }, [formData, feedType, onClose]);
+    
+    if (!icalFormData.name.trim() || !icalFormData.url.trim()) {
+      return;
+    }
+    
+    try {
+      const newFeed: CalendarFeed = {
+        id: crypto.randomUUID(),
+        name: icalFormData.name,
+        type: 'ical',
+        url: icalFormData.url,
+        color: icalFormData.color,
+        isEnabled: true,
+        lastSyncAt: new Date(),
+        syncError: undefined
+      };
+      
+      actions.addFeed(newFeed);
+      
+      // Reset form
+      setIcalFormData({
+        name: "",
+        url: "",
+        color: "#3B82F6"
+      });
+      
+      // Mock external events for demo
+      actions.addExternalEvents(newFeed.id, []);
+      
+    } catch (error) {
+      console.error('Failed to add iCal feed:', error);
+      actions.setError('Failed to add calendar feed. Please check the URL and try again.');
+    }
+  };
   
-  const handleCalendarSelection = useCallback((id: string, checked: boolean) => {
-    setSelectedCalendars(prev => ({ ...prev, [id]: checked }));
-  }, []);
+  const handleConnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+    
+    try {
+      // Mock Google Calendar OAuth flow
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const googleFeed: CalendarFeed = {
+        id: crypto.randomUUID(),
+        name: "Google Calendar",
+        type: 'google',
+        googleCalendarId: "primary",
+        color: "#4285F4",
+        isEnabled: true,
+        lastSyncAt: new Date(),
+        syncError: undefined
+      };
+      
+      actions.addFeed(googleFeed);
+      
+      // Mock external events for demo
+      actions.addExternalEvents(googleFeed.id, []);
+      
+    } catch (error) {
+      console.error('Failed to connect Google Calendar:', error);
+      actions.setError('Failed to connect Google Calendar. Please try again.');
+    } finally {
+      setIsConnectingGoogle(false);
+    }
+  };
+  
+  const handleRemoveFeed = (feedId: string) => {
+    actions.removeFeed(feedId);
+  };
+  
+  const handleRefreshFeed = async (feedId: string) => {
+    try {
+      // Mock refresh operation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Refreshed feed:', feedId);
+    } catch (error) {
+      console.error('Failed to refresh feed:', error);
+      actions.setError('Failed to refresh calendar feed.');
+    }
+  };
+  
+  const renderFeedItem = (feed: CalendarFeed) => (
+    <div key={feed.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl neu-card">
+      <div className="flex items-center space-x-3">
+        <div
+          className="w-4 h-4 rounded-full border-2 border-white shadow-neu"
+          style={{ backgroundColor: feed.color }}
+          aria-label={`${feed.name} color indicator`}
+        />
+        <div>
+          <div className="flex items-center space-x-2">
+            <h3 className="font-medium text-gray-800">{feed.name}</h3>
+            {feed.type === 'google' && <Calendar className="w-4 h-4 text-blue-500" />}
+            {feed.type === 'ical' && <Globe className="w-4 h-4 text-green-500" />}
+            {feed.type === 'friend' && <Users className="w-4 h-4 text-purple-500" />}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Last sync: {format(feed.lastSyncAt, "MMM d, h:mm a")}
+            {feed.syncError && (
+              <Badge variant="destructive" className="ml-2 text-xs">
+                Error
+              </Badge>
+            )}
+          </div>
+          {feed.syncError && (
+            <div className="text-xs text-red-600 mt-1 flex items-center">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              {feed.syncError}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleRefreshFeed(feed.id)}
+          className="neu-card p-2"
+          aria-label={`Refresh ${feed.name}`}
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleRemoveFeed(feed.id)}
+          className="neu-card p-2 text-red-600 hover:text-red-700"
+          aria-label={`Remove ${feed.name}`}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl neu-card">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-purple-600" />
+            <Calendar className="w-5 h-5 text-blue-600" />
             Calendar Feeds
           </DialogTitle>
-          <DialogDescription>
-            Connect your Google Calendar or iCal feeds to view events in your journal.
-          </DialogDescription>
         </DialogHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 neu-card">
-            <TabsTrigger value="add" className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Add Feed
-            </TabsTrigger>
-            <TabsTrigger value="friends" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Friends
-            </TabsTrigger>
-            <TabsTrigger value="manage" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Manage Feeds
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="feeds">My Feeds ({feeds.length})</TabsTrigger>
+            <TabsTrigger value="add">Add Feed</TabsTrigger>
+            <TabsTrigger value="friends">Friends</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="add" className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium text-gray-700">Feed Type</Label>
-                <Select value={feedType} onValueChange={(value: "google" | "ical") => setFeedType(value)}>
-                  <SelectTrigger className="mt-1 neu-inset">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="google">
-                      <div className="flex items-center gap-2">
-                        <Chrome className="w-4 h-4" />
-                        Google Calendar
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="ical">
-                      <div className="flex items-center gap-2">
-                        <Link className="w-4 h-4" />
-                        iCal Feed
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {feedType === "google" ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Select Google Calendars
-                    </Label>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {mockGoogleCalendars.map((calendar) => (
-                        <Card key={calendar.id} className="neu-card hover:shadow-neu-lg transition-all cursor-pointer">
-                          <CardContent className="p-3">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium text-gray-800">{calendar.name}</h4>
-                                <p className="text-sm text-gray-600">{calendar.description}</p>
-                              </div>
-                              <input
-                                type="checkbox"
-                                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                                checked={selectedCalendars[calendar.id] || false}
-                                onChange={(e) => handleCalendarSelection(calendar.id, e.target.checked)}
-                              />
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <Button
-                    type="button"
-                    className="w-full neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-                  >
-                    <Chrome className="w-4 h-4 mr-2" />
-                    Connect to Google Calendar
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="feedName" className="text-sm font-medium text-gray-700">
-                      Feed Name
-                    </Label>
-                    <Input
-                      id="feedName"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
-                      className="mt-1 neu-inset"
-                      placeholder="My Calendar Feed"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="feedUrl" className="text-sm font-medium text-gray-700">
-                      iCal URL
-                    </Label>
-                    <Input
-                      id="feedUrl"
-                      type="url"
-                      value={formData.url}
-                      onChange={(e) => handleInputChange("url", e.target.value)}
-                      className="mt-1 neu-inset"
-                      placeholder="https://example.com/calendar.ics"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Color</Label>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {availableColors.map((color) => (
-                        <button
-                          key={color.value}
-                          type="button"
-                          className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
-                            formData.color === color.value
-                              ? "border-gray-800 scale-110 shadow-neu-lg"
-                              : "border-gray-300 hover:scale-105"
-                          }`}
-                          style={{ backgroundColor: color.value }}
-                          onClick={() => handleInputChange("color", color.value)}
-                          aria-label={`Select ${color.label} color`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <DialogFooter className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={onClose}
-                  className="neu-card"
-                >
-                  Cancel
-                </Button>
-                {feedType === "ical" && (
-                  <Button
-                    type="submit"
-                    disabled={!formData.name.trim() || !formData.url.trim()}
-                    className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-                  >
-                    Add Feed
-                  </Button>
-                )}
-              </DialogFooter>
-            </form>
-          </TabsContent>
-          
-          <TabsContent value="friends" className="space-y-4">
-            <div className="text-center py-8">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-700 font-medium mb-2">Friend Calendar Sync</p>
-              <p className="text-gray-600 mb-4">
-                Sync calendars from friends who have granted you access.
-              </p>
-              <Button
-                onClick={() => {
-                  actions.setFriendSyncModalOpen(true);
-                  onClose();
-                }}
-                className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Manage Friend Sync
-              </Button>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="manage" className="space-y-4">
-            {existingFeeds.length === 0 ? (
+          {/* Existing Feeds */}
+          <TabsContent value="feeds" className="space-y-4">
+            {feeds.length === 0 ? (
               <div className="text-center py-8">
                 <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No calendar feeds connected yet.</p>
-                <p className="text-sm text-gray-500 mt-1">Add a feed to get started.</p>
+                <h3 className="text-lg font-medium text-gray-600 mb-2">No calendar feeds added</h3>
+                <p className="text-gray-500 mb-4">Add Google Calendar, iCal feeds, or sync with friends to see their events.</p>
+                <Button
+                  onClick={() => setActiveTab("add")}
+                  className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Feed
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
-                {existingFeeds.map((feed) => (
-                  <Card key={feed.id} className="neu-card">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: feed.color }}
-                          />
-                          <div>
-                            <h4 className="font-medium text-gray-800">{feed.name}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {feed.type === "google" ? "Google Calendar" : "iCal Feed"}
-                              </Badge>
-                              {feed.lastSyncAt && (
-                                <span className="text-xs text-gray-500">
-                                  Last synced: {format(new Date(feed.lastSyncAt), 'P')}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="neu-card p-2"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="neu-card p-2"
-                          >
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="neu-card p-2 text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {feeds.map(renderFeedItem)}
               </div>
             )}
           </TabsContent>
+          
+          {/* Add New Feed */}
+          <TabsContent value="add" className="space-y-6">
+            {/* Google Calendar */}
+            <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <Calendar className="w-6 h-6 text-blue-600" />
+                  <div>
+                    <h3 className="font-medium text-blue-800">Google Calendar</h3>
+                    <p className="text-sm text-blue-600">Connect your Google Calendar account</p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleConnectGoogle}
+                  disabled={isConnectingGoogle}
+                  className="neu-card bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isConnectingGoogle ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Connect
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="text-xs text-blue-700 flex items-center">
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Read-only access to view your events
+              </div>
+            </div>
+            
+            {/* iCal Feed */}
+            <form onSubmit={handleAddIcalFeed} className="p-4 border border-green-200 rounded-xl bg-green-50">
+              <div className="flex items-center space-x-3 mb-4">
+                <Globe className="w-6 h-6 text-green-600" />
+                <div>
+                  <h3 className="font-medium text-green-800">iCal Feed</h3>
+                  <p className="text-sm text-green-600">Add any iCal (.ics) calendar feed</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="ical-name" className="text-sm font-medium text-gray-700">
+                    Feed Name
+                  </Label>
+                  <Input
+                    id="ical-name"
+                    value={icalFormData.name}
+                    onChange={(e) => setIcalFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="mt-1 neu-input"
+                    placeholder="e.g., Work Calendar"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="ical-url" className="text-sm font-medium text-gray-700">
+                    iCal URL
+                  </Label>
+                  <Input
+                    id="ical-url"
+                    type="url"
+                    value={icalFormData.url}
+                    onChange={(e) => setIcalFormData(prev => ({ ...prev, url: e.target.value }))}
+                    className="mt-1 neu-input"
+                    placeholder="https://example.com/calendar.ics"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Color</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {availableColors.map((color) => (
+                      <button
+                        key={color.value}
+                        type="button"
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                          icalFormData.color === color.value
+                            ? "border-gray-800 ring-2 ring-gray-400"
+                            : "border-gray-300 hover:border-gray-500"
+                        }`}
+                        style={{ backgroundColor: color.value }}
+                        onClick={() => setIcalFormData(prev => ({ ...prev, color: color.value }))}
+                        aria-label={`Select ${color.label} color`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full neu-card bg-green-600 hover:bg-green-700 text-white mt-4"
+                  disabled={!icalFormData.name.trim() || !icalFormData.url.trim()}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add iCal Feed
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+          
+          {/* Friend Calendars */}
+          <TabsContent value="friends" className="space-y-4">
+            <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+              <div className="flex items-center space-x-3 mb-3">
+                <Users className="w-6 h-6 text-purple-600" />
+                <div>
+                  <h3 className="font-medium text-purple-800">Friend Calendars</h3>
+                  <p className="text-sm text-purple-600">Coming soon - sync calendars with your friends</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <Input
+                  value={friendSearchQuery}
+                  onChange={(e) => setFriendSearchQuery(e.target.value)}
+                  className="neu-input"
+                  placeholder="Search for friends..."
+                  disabled
+                />
+                
+                <div className="text-center py-8">
+                  <div className="text-gray-500 text-sm">
+                    Friend calendar synchronization will be available in a future update.
+                    <br />
+                    You'll be able to view your friends' calendars with their permission.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
+        
+        <DialogFooter>
+          <Button
+            onClick={onClose}
+            className="neu-card"
+          >
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
