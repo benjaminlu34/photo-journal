@@ -268,3 +268,29 @@ export function normalizeEventDates<T extends { startTime: Date | string; endTim
     endTime: event.endTime instanceof Date ? event.endTime : new Date(event.endTime)
   };
 }
+
+/**
+ * Generate a consistent color for a friend's calendar based on their ID
+ * @param friendId - The friend's unique identifier
+ * @returns A consistent hex color string for the friend
+ */
+export function generateFriendColor(friendId: string): string {
+  // Simple hash-based color generation for consistency
+  let hash = 0;
+  for (let i = 0; i < friendId.length; i++) {
+    hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    '#3B82F6', // Blue
+    '#8B5CF6', // Purple
+    '#EC4899', // Pink
+    '#10B981', // Green
+    '#F59E0B', // Amber
+    '#EF4444', // Red
+    '#06B6D4', // Cyan
+    '#84CC16', // Lime
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+}

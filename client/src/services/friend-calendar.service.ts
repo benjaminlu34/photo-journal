@@ -2,8 +2,45 @@
  * Friend calendar service for handling friend calendar synchronization
  */
 
-import type { FriendCalendarEvent, CalendarFeed } from '@/types/calendar';
+import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
+import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
+import { sub, add } from 'date-fns';
+
+// Configuration constants
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const EVENT_WINDOW_WEEKS = 2; // ±2 weeks for event expansion
+
+// Auth utilities (should be imported from auth service in real implementation)
+const getAuthToken = (): string => {
+  // In real implementation, get from auth service/context
+  return localStorage.getItem('auth_token') || '';
+};
+
+const getCsrfToken = (): string => {
+  // In real implementation, get from meta tag or auth service
+  return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+};
+
+// API response interfaces
+interface FriendCalendarAccessResponse {
+  hasAccess: boolean;
+  permission: 'viewer' | 'contributor' | 'editor' | 'owner';
+}
+
+interface FriendEventsResponse {
+  events: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    startTime: string;
+    endTime: string;
+    isAllDay: boolean;
+    color: string;
+    location?: string;
+    attendees?: string[];
+  }>;
+}
 
 export interface FriendCalendarService {
   // Create a friend calendar feed
@@ -13,18 +50,65 @@ export interface FriendCalendarService {
   fetchFriendEvents(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]>;
   
   // Validate friend calendar access (viewer+ permissions required)
-  validateFriendAccess(friend: Friend): boolean;
+  validateFriendAccess(friend: Friend): Promise<boolean>;
+  
+  // Check if user can view friend's calendar
+  canViewFriendCalendar(friendUserId: string): Promise<boolean>;
   
   // Handle friend permission changes (auto-unsync if permissions revoked)
   handlePermissionChange(friend: Friend, hasAccess: boolean): void;
   
   // Purge friend cache & revoke encrypted IndexedDB blobs on permission loss
   purgeFriendCache(friendId: string): void;
+  
+  // Sync friend's calendar events (requires viewer permission)
+  syncFriendCalendar(friendUserId: string): Promise<CalendarFeed>;
+  
+  // Get friend's events for date range
+  getFriendEvents(friendUserId: string, dateRange: DateRange): Promise<FriendCalendarEvent[]>;
+  
+  // Remove friend calendar sync
+  unsyncFriendCalendar(friendUserId: string): Promise<void>;
+  
+  // Get list of friends with calendar access
+  getFriendsWithCalendarAccess(): Promise<Friend[]>;
+  
+  // Refresh individual friend's events
+  refreshFriendEvents(friendUserId: string): Promise<void>;
 }
 
 export class FriendCalendarServiceImpl implements FriendCalendarService {
   private friendCaches: Map<string, FriendCalendarEvent[]> = new Map();
   private friendFeeds: Map<string, CalendarFeed> = new Map();
+  private lastSyncTimestamps: Map<string, Date> = new Map();
+  private syncErrors: Map<string, string> = new Map();
+  private abortControllers: Map<string, AbortController> = new Map();
+
+  // Create secure headers for API calls
+  private getSecureHeaders(): HeadersInit {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getAuthToken()}`,
+      'X-CSRF-Token': getCsrfToken(),
+    };
+  }
+
+  // Cancel ongoing requests for a friend
+  private cancelFriendRequests(friendId: string): void {
+    const controller = this.abortControllers.get(friendId);
+    if (controller) {
+      controller.abort();
+      this.abortControllers.delete(friendId);
+    }
+  }
+
+  // Create abort controller for request cancellation
+  private createAbortController(friendId: string): AbortSignal {
+    this.cancelFriendRequests(friendId);
+    const controller = new AbortController();
+    this.abortControllers.set(friendId, controller);
+    return controller.signal;
+  }
   
   // Create a friend calendar feed
   createFriendFeed(friend: Friend): CalendarFeed {
@@ -47,35 +131,100 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   // Fetch events from a friend's calendar
   async fetchFriendEvents(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
     try {
-      // Check if we have cached events for this friend
+      // Check permissions first
+      const hasAccess = await this.validateFriendAccess(friend);
+      if (!hasAccess) {
+        throw new Error(`No permission to access ${friend.firstName || friend.lastName || friend.id}'s calendar`);
+      }
+
+      // Check cache
       const cacheKey = friend.id;
       const cachedEvents = this.friendCaches.get(cacheKey);
-      
-      // In a real implementation, this would:
-      // 1. Check permissions to ensure we still have access
-      // 2. Make an API call to fetch friend's events for the date range
-      // 3. Convert to FriendCalendarEvent format
-      // 4. Cache the results
-      
-      // For now, we'll return an empty array to demonstrate the structure
-      console.log(`Fetching events for friend: ${friend.firstName || friend.lastName || friend.id}`);
-      const events: FriendCalendarEvent[] = [];
-      
-      // Cache the events
+      const lastSync = this.lastSyncTimestamps.get(cacheKey);
+
+      if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < CACHE_TTL_MS) {
+        return cachedEvents.filter(event => {
+          const eventStart = new Date(event.startTime);
+          const eventEnd = new Date(event.endTime);
+          return eventStart < endDate && eventEnd > startDate;
+        });
+      }
+
+      // Fetch fresh events from API, pass full friend to preserve username and other props downstream
+      const events = await this.fetchFriendEventsFromAPI(friend, startDate, endDate);
+
+      // Cache and timestamps
       this.friendCaches.set(cacheKey, events);
-      
+      this.lastSyncTimestamps.set(cacheKey, new Date());
+      this.syncErrors.delete(cacheKey);
+
       return events;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.syncErrors.set(friend.id, errorMessage);
       console.error(`Failed to fetch events for friend ${friend.firstName || friend.lastName || friend.id}:`, error);
       throw error;
     }
   }
   
   // Validate friend calendar access (viewer+ permissions required)
-  validateFriendAccess(friend: Friend): boolean {
-    // In a real implementation, this would check the friend's permission level
-    // For now, we'll assume access is valid if the friend exists
-    return !!friend && !!friend.id;
+  async validateFriendAccess(friend: Friend): Promise<boolean> {
+    try {
+      const signal = this.createAbortController(friend.id);
+
+      const response = await fetch(`/api/friends/${friend.id}/calendar-access`, {
+        method: 'GET',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to validate access: ${response.statusText}`);
+      }
+      
+      const data: FriendCalendarAccessResponse = await response.json();
+      return data.hasAccess && ['viewer', 'contributor', 'editor', 'owner'].includes(data.permission);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend access validation cancelled');
+        return false;
+      }
+      console.error('Error validating friend access:', error);
+      return false;
+    } finally {
+      this.abortControllers.delete(friend.id);
+    }
+  }
+  
+  // Check if user can view friend's calendar
+  async canViewFriendCalendar(friendUserId: string): Promise<boolean> {
+    try {
+      const signal = this.createAbortController(friendUserId);
+
+      const response = await fetch(`/api/friends/${friendUserId}/calendar-access`, {
+        method: 'GET',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to check calendar access: ${response.statusText}`);
+      }
+      
+      const data: FriendCalendarAccessResponse = await response.json();
+      return data.hasAccess;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Calendar access check cancelled');
+        return false;
+      }
+      console.error('Error checking calendar access:', error);
+      return false;
+    } finally {
+      this.abortControllers.delete(friendUserId);
+    }
   }
   
   // Handle friend permission changes (auto-unsync if permissions revoked)
@@ -91,33 +240,243 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   purgeFriendCache(friendId: string): void {
     // Remove cached events for this friend
     this.friendCaches.delete(friendId);
+    this.lastSyncTimestamps.delete(friendId);
+    this.syncErrors.delete(friendId);
     
-    // In a real implementation, we would also:
-    // 1. Remove any encrypted data stored in IndexedDB
-    // 2. Revoke any tokens or credentials
+    // Clear IndexedDB cache for this friend
+    this.clearIndexedDBCache(friendId);
+    
     console.log(`Purged cache for friend: ${friendId}`);
+  }
+  
+  // Sync friend's calendar events (requires viewer permission)
+  async syncFriendCalendar(friendUserId: string): Promise<CalendarFeed> {
+    try {
+      // First check if we can access this friend's calendar
+      const hasAccess = await this.canViewFriendCalendar(friendUserId);
+      if (!hasAccess) {
+        throw new Error('No permission to sync this friend\'s calendar');
+      }
+      
+      // Fetch friend data
+      const friend = await this.getFriendById(friendUserId);
+      if (!friend) {
+        throw new Error('Friend not found');
+      }
+      
+      // Create or update the friend feed
+      const feed = this.createFriendFeed(friend);
+      
+      return feed;
+    } catch (error) {
+      console.error('Error syncing friend calendar:', error);
+      throw error;
+    }
+  }
+  
+  // Get friend's events for date range
+  async getFriendEvents(friendUserId: string, dateRange: DateRange): Promise<FriendCalendarEvent[]> {
+    try {
+      const friend = await this.getFriendById(friendUserId);
+      if (!friend) {
+        throw new Error('Friend not found');
+      }
+      
+      return await this.fetchFriendEvents(friend, dateRange.start, dateRange.end);
+    } catch (error) {
+      console.error('Error getting friend events:', error);
+      throw error;
+    }
+  }
+  
+  // Remove friend calendar sync
+  async unsyncFriendCalendar(friendUserId: string): Promise<void> {
+    try {
+      // Remove feed
+      this.friendFeeds.delete(friendUserId);
+      
+      // Purge all cached data
+      this.purgeFriendCache(friendUserId);
+      
+      console.log(`Unsynced friend calendar: ${friendUserId}`);
+    } catch (error) {
+      console.error('Error unsyncing friend calendar:', error);
+      throw error;
+    }
+  }
+  
+  // Get list of friends with calendar access
+  async getFriendsWithCalendarAccess(): Promise<Friend[]> {
+    try {
+      const signal = this.createAbortController('friends-list');
+
+      const response = await fetch('/api/friends/with-calendar-access', {
+        method: 'GET',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friends with calendar access: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friends list fetch cancelled');
+        return [];
+      }
+      console.error('Error fetching friends with calendar access:', error);
+      throw error;
+    } finally {
+      this.abortControllers.delete('friends-list');
+    }
+  }
+  
+  // Refresh individual friend's events
+  async refreshFriendEvents(friendUserId: string): Promise<void> {
+    try {
+      // Clear cache to force fresh fetch
+      this.friendCaches.delete(friendUserId);
+      this.lastSyncTimestamps.delete(friendUserId);
+      
+      const friend = await this.getFriendById(friendUserId);
+      if (!friend) {
+        throw new Error('Friend not found');
+      }
+      
+      // Fetch fresh events for the current week (±2 weeks window)
+      const now = new Date();
+      const twoWeeksAgo = sub(now, { days: 14 });
+      const twoWeeksFromNow = add(now, { days: 14 });
+      
+      await this.fetchFriendEvents(friend, twoWeeksAgo, twoWeeksFromNow);
+      
+      console.log(`Refreshed events for friend: ${friendUserId}`);
+    } catch (error) {
+      console.error('Error refreshing friend events:', error);
+      throw error;
+    }
+  }
+  
+  // Private helper methods
+  private async fetchFriendEventsFromAPI(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
+    try {
+      const signal = this.createAbortController(friend.id);
+
+      const response = await fetch(`/api/friends/${friend.id}/calendar/events`, {
+        method: 'POST',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal,
+        body: JSON.stringify({
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friend events: ${response.statusText}`);
+      }
+
+      const data: FriendEventsResponse = await response.json();
+
+      // Transform API response to FriendCalendarEvent format, preserving friend metadata
+      return data.events.map((event): FriendCalendarEvent => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: new Date(event.startTime),
+        endTime: new Date(event.endTime),
+        isAllDay: event.isAllDay,
+        color: event.color,
+        location: event.location,
+        attendees: event.attendees,
+        feedId: `friend-${friend.id}`,
+        feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
+        externalId: event.id,
+        sequence: 0,
+        source: 'friend' as const,
+        lastModified: new Date(event.startTime),
+        friendUserId: friend.id,
+        friendUsername: friend.username ?? friend.id,
+        isFromFriend: true,
+        sourceId: friend.id,
+        canonicalEventId: event.id,
+        originalEventId: event.id,
+        isRecurring: false
+      }));
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend events fetch cancelled');
+        return [];
+      }
+      throw error;
+    } finally {
+      this.abortControllers.delete(friend.id);
+    }
+  }
+  
+  private async getFriendById(friendUserId: string): Promise<Friend | null> {
+    try {
+      const signal = this.createAbortController(`friend-${friendUserId}`);
+
+      const response = await fetch(`/api/friends/${friendUserId}`, {
+        method: 'GET',
+        headers: this.getSecureHeaders(),
+        credentials: 'include',
+        signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch friend: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Friend fetch cancelled');
+        return null;
+      }
+      console.error('Error fetching friend by ID:', error);
+      throw error;
+    } finally {
+      this.abortControllers.delete(`friend-${friendUserId}`);
+    }
+  }
+  
+  private async clearIndexedDBCache(friendId: string): Promise<void> {
+    try {
+      // Open IndexedDB and clear friend-specific data
+      const dbName = 'FriendCalendarCache';
+      const request = indexedDB.open(dbName, 1);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('friendEvents')) {
+          db.createObjectStore('friendEvents');
+        }
+      };
+      
+      request.onsuccess = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        const transaction = db.transaction(['friendEvents'], 'readwrite');
+        const store = transaction.objectStore('friendEvents');
+        store.delete(friendId);
+      };
+      
+      request.onerror = (event) => {
+        console.error('Error opening IndexedDB for cache clearing:', event);
+      };
+    } catch (error) {
+      console.error('Error clearing IndexedDB cache:', error);
+    }
   }
   
   // Generate a consistent color for a friend's calendar
   private generateFriendColor(friendId: string): string {
-    // Simple hash-based color generation for consistency
-    let hash = 0;
-    for (let i = 0; i < friendId.length; i++) {
-      hash = friendId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const colors = [
-      '#3B82F6', // Blue
-      '#8B5CF6', // Purple
-      '#EC4899', // Pink
-      '#10B981', // Green
-      '#F59E0B', // Amber
-      '#EF4444', // Red
-      '#06B6D4', // Cyan
-      '#84CC16', // Lime
-    ];
-    
-    return colors[Math.abs(hash) % colors.length];
+    return sharedGenerateFriendColor(friendId);
   }
 }
 
