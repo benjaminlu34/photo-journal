@@ -20,12 +20,12 @@ import {
   RefreshCw,
   Radio,
   Database,
-  CloudOff,
-  Gem
+  CloudOff
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuthMigration } from "@/hooks/useAuthMigration";
 import { useToast } from "@/hooks/use-toast";
+import { AppLogo } from "@/components/ui/app-logo";
 
 export default function Landing() {
   const [email, setEmail] = useState("");
@@ -93,7 +93,7 @@ export default function Landing() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 via-red-400 to-pink-400 flex items-center justify-center text-white font-semibold shadow-lg backdrop-blur-sm border border-white/20">
-                <Gem className="w-6 h-6" />
+                <AppLogo size="lg" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
