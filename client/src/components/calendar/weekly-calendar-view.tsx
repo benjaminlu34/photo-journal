@@ -163,7 +163,7 @@ export function WeeklyCalendarView({
 
     return () => {
       // Cancel debounced calls on cleanup
-      (debouncedLoadEvents as any).cancel?.();
+      debouncedLoadEvents.cancel?.();
     };
   }, [currentWeek, storeSyncedFriends, debouncedLoadEvents]);
 
