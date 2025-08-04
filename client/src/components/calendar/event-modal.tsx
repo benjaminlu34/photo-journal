@@ -112,7 +112,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-purple-600" />
+            <Calendar className="w-5 h-5 text-orange-600" />
             {event ? "Edit Event" : "Create Event"}
           </DialogTitle>
         </DialogHeader>

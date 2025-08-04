@@ -21,7 +21,7 @@ const convertToLocalEventForDisplay = (
   // Use a stable date reference to avoid creating new Date objects on every render
   const stableCreatedAt = event.startTime;
   const stableUpdatedAt = event.startTime;
-  
+
   return {
     id: event.id,
     title: event.title,

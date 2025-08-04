@@ -98,7 +98,7 @@ export function CreateEventModal({
       <DialogContent className="max-w-md neu-card">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-purple-600" />
+            <Calendar className="w-5 h-5 " />
             Create Event
           </DialogTitle>
         </DialogHeader>
