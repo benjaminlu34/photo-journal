@@ -20,81 +20,82 @@ import { WeekHeader } from './week-header';
 import { CalendarErrorBoundary, useCalendarErrorHandler } from './calendar-error-boundary';
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 
-// Helper function to convert different event types to LocalEvent format
-function convertToLocalEventFormat(event: LocalEvent | CalendarEvent | FriendCalendarEvent & { eventType: 'local' | 'external' | 'friend' }) {
-  if ('eventType' in event && event.eventType === 'local') {
-    const localEvent = event as unknown as LocalEvent & { eventType: 'local' };
-    return {
-      id: localEvent.id,
-      title: localEvent.title,
-      description: localEvent.description,
-      startTime: localEvent.startTime,
-      endTime: localEvent.endTime,
-      timezone: localEvent.timezone,
-      isAllDay: localEvent.isAllDay,
-      color: localEvent.color,
-      pattern: localEvent.pattern,
-      location: localEvent.location,
-      attendees: localEvent.attendees || [],
-      createdBy: localEvent.createdBy,
-      createdAt: localEvent.createdAt,
-      updatedAt: localEvent.updatedAt,
-      linkedJournalEntryId: localEvent.linkedJournalEntryId,
-      reminderMinutes: localEvent.reminderMinutes,
-      collaborators: localEvent.collaborators,
-      tags: localEvent.tags
-    };
+type WithEventType =
+  | (LocalEvent & { eventType: 'local' })
+  | (CalendarEvent & { eventType: 'external' })
+  | (FriendCalendarEvent & { eventType: 'friend' }); // kept only if referenced elsewhere
+
+// Helper with fully discriminated union – no unsafe casts
+function convertToLocalEventFormat(event: WithEventType) {
+  switch (event.eventType) {
+    case 'local':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: event.createdBy,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        linkedJournalEntryId: event.linkedJournalEntryId,
+        reminderMinutes: event.reminderMinutes,
+        collaborators: event.collaborators,
+        tags: event.tags
+      };
+    case 'friend':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: event.friendUsername,
+        createdAt: event.startTime,
+        updatedAt: event.startTime,
+        linkedJournalEntryId: undefined,
+        reminderMinutes: undefined,
+        collaborators: [],
+        tags: []
+      };
+    case 'external':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: event.feedName,
+        createdAt: event.startTime,
+        updatedAt: event.startTime,
+        linkedJournalEntryId: undefined,
+        reminderMinutes: undefined,
+        collaborators: [],
+        tags: []
+      };
+    default:
+      // Exhaustive check
+      const _exhaustive: never = event;
+      return _exhaustive;
   }
-  
-  if ('eventType' in event && event.eventType === 'friend') {
-    const friendEvent = event as unknown as FriendCalendarEvent & { eventType: 'friend' };
-    return {
-      id: friendEvent.id,
-      title: friendEvent.title,
-      description: friendEvent.description,
-      startTime: friendEvent.startTime,
-      endTime: friendEvent.endTime,
-      timezone: friendEvent.timezone,
-      isAllDay: friendEvent.isAllDay,
-      color: friendEvent.color,
-      pattern: friendEvent.pattern,
-      location: friendEvent.location,
-      attendees: friendEvent.attendees || [],
-      createdBy: friendEvent.friendUsername,
-      createdAt: friendEvent.startTime,
-      updatedAt: friendEvent.startTime,
-      linkedJournalEntryId: undefined,
-      reminderMinutes: undefined,
-      collaborators: [],
-      tags: []
-    };
-  }
-  
-  if ('eventType' in event && event.eventType === 'external') {
-    const externalEvent = event as unknown as CalendarEvent & { eventType: 'external' };
-    return {
-      id: externalEvent.id,
-      title: externalEvent.title,
-      description: externalEvent.description,
-      startTime: externalEvent.startTime,
-      endTime: externalEvent.endTime,
-      timezone: externalEvent.timezone,
-      isAllDay: externalEvent.isAllDay,
-      color: externalEvent.color,
-      pattern: externalEvent.pattern,
-      location: externalEvent.location,
-      attendees: externalEvent.attendees || [],
-      createdBy: externalEvent.feedName,
-      createdAt: externalEvent.startTime,
-      updatedAt: externalEvent.startTime,
-      linkedJournalEntryId: undefined,
-      reminderMinutes: undefined,
-      collaborators: [],
-      tags: []
-    };
-  }
-  
-  throw new Error(`Unknown event type: ${(event as any).eventType}`);
 }
 
 // Debounce utility with cancel method
@@ -235,9 +236,10 @@ export function WeeklyCalendarView({
 
   // Get all events for the week with proper typing
   const allEvents = useMemo(() => {
-    type CombinedEvent = (LocalEvent | CalendarEvent | FriendCalendarEvent) & {
-      eventType: 'local' | 'external' | 'friend';
-    };
+    type CombinedEvent =
+      | (LocalEvent & { eventType: 'local' })
+      | (CalendarEvent & { eventType: 'external' })
+      | (FriendCalendarEvent & { eventType: 'friend' });
 
     const events: CombinedEvent[] = [];
 
@@ -277,7 +279,7 @@ export function WeeklyCalendarView({
   // Memoize events grouped by day for performance (iterate allEvents once)
   const eventsByDayKey = useMemo(() => {
     // key format: yyyy-MM-dd
-    const map = new Map<string, (LocalEvent | CalendarEvent | FriendCalendarEvent & { eventType: 'local' | 'external' | 'friend' })[]>();
+    const map = new Map<string, WithEventType[]>();
 
     // Precompute day boundaries for the current week
     const dayBounds = weekDays.map(d => {
@@ -290,16 +292,16 @@ export function WeeklyCalendarView({
     });
 
     // For each event, push into all days it overlaps this week
-    for (const ev of allEvents) {
+    for (const ev of allEvents as WithEventType[]) {
       const evStart = new Date(ev.startTime);
       const evEnd = new Date(ev.endTime);
       for (const { key, start, end } of dayBounds) {
         if (evStart < end && evEnd > start) {
           const arr = map.get(key);
           if (arr) {
-            arr.push(ev as any);
+            arr.push(ev);
           } else {
-            map.set(key, [ev as any]);
+            map.set(key, [ev]);
           }
         }
       }
@@ -434,7 +436,7 @@ export function WeeklyCalendarView({
             // Fetch pre-grouped events for this day and convert to LocalEvent format
             const key = format(date, 'yyyy-MM-dd');
             const dayEvents = eventsByDayKey.get(key) ?? [];
-            const localEventFormat = dayEvents.map(convertToLocalEventFormat);
+            const localEventFormat = (dayEvents as WithEventType[]).map(convertToLocalEventFormat);
 
             return (
               <DayColumn

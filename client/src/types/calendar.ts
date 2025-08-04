@@ -16,17 +16,43 @@ export interface BaseEvent {
   attendees?: string[];
 }
 
-export interface CalendarEvent extends BaseEvent {
+export interface CalendarEventBase extends BaseEvent {
   feedId: string;
   feedName: string;
-  externalId: string; // UID from iCal/Google
+  externalId: string; // UID from iCal/Google or friend canonical id
   sequence: number; // For duplicate detection
   recurrenceRule?: string;
   isRecurring: boolean;
   originalEvent?: string; // For recurring event instances
-  source: 'google' | 'ical';
   lastModified: Date;
+  source: 'google' | 'ical' | 'friend';
 }
+
+/**
+ * Single discriminated union type for all non-local calendar events.
+ */
+export interface GoogleCalendarEvent extends CalendarEventBase {
+  source: 'google';
+}
+
+export interface IcalCalendarEvent extends CalendarEventBase {
+  source: 'ical';
+}
+
+export interface FriendCalendarEvent extends CalendarEventBase {
+  source: 'friend';
+  friendUserId: string;
+  friendUsername: string;
+  isFromFriend: true;
+  originalEventId: string; // Reference to friend's local event
+  canonicalEventId: string; // Stable ID after deduplication
+  sourceId: string; // friendUserId (distinct from feedId)
+}
+
+/**
+ * Unified CalendarEvent including friend
+ */
+export type CalendarEvent = GoogleCalendarEvent | IcalCalendarEvent | FriendCalendarEvent;
 
 export interface LocalEvent extends BaseEvent {
   createdBy: string; // User ID
@@ -38,14 +64,7 @@ export interface LocalEvent extends BaseEvent {
   tags: string[];
 }
 
-export interface FriendCalendarEvent extends CalendarEvent {
-  friendUserId: string;
-  friendUsername: string;
-  isFromFriend: true;
-  originalEventId: string; // Reference to friend's local event
-  canonicalEventId: string; // Stable ID after deduplication
-  sourceId: string; // friendUserId (distinct from feedId)
-}
+/* moved & extended above as a discriminated member with source: 'friend' */
 
 export interface CalendarFeed {
   id: string;

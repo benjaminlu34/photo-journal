@@ -397,7 +397,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
         externalId: event.id,
         sequence: 0,
-        source: 'ical' as const,
+        source: 'friend' as const,
         lastModified: new Date(event.startTime),
         friendUserId: friend.id,
         friendUsername: friend.username ?? friend.id,
