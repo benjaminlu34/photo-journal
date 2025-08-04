@@ -172,17 +172,25 @@ export function WeeklyCalendarView({
       const friendsToSync = syncedFriends.filter(
         friendUserId => !storeSyncedFriends.includes(friendUserId)
       );
-      
+
       if (friendsToSync.length > 0) {
-        Promise.all(
-          friendsToSync.map(friendUserId =>
-            actions.syncFriendCalendar(friendUserId).catch(error => {
-              const errorMessage = `Failed to sync friend ${friendUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-              console.error(errorMessage, error);
-              actions.setError(errorMessage);
-            })
-          )
-        );
+        (async () => {
+          const results = await Promise.allSettled(
+            friendsToSync.map(friendUserId =>
+              actions.syncFriendCalendar(friendUserId)
+            )
+          );
+
+          const failures = results
+            .map((r, i) => ({ r, id: friendsToSync[i] }))
+            .filter(x => x.r.status === 'rejected') as Array<{ r: PromiseRejectedResult; id: string }>;
+
+          if (failures.length > 0) {
+            const message = `Failed to sync ${failures.length} friend${failures.length !== 1 ? 's' : ''}: ${failures.map(f => f.id).join(', ')}`;
+            console.error(message, failures.map(f => f.r.reason));
+            actions.setError(message);
+          }
+        })();
       }
     }
   }, [syncedFriends, storeSyncedFriends, actions]);

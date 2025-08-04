@@ -400,7 +400,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         source: 'ical' as const,
         lastModified: new Date(event.startTime),
         friendUserId: friend.id,
-        friendUsername: (friend as any).username ?? friend.id,
+        friendUsername: friend.username ?? friend.id,
         isFromFriend: true,
         sourceId: friend.id,
         canonicalEventId: event.id,
