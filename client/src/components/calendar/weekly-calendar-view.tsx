@@ -257,14 +257,48 @@ export function WeeklyCalendarView({
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
-  const weekDays = [];
-  
+  const weekDays: Date[] = [];
+
   // Generate array of days for the week
   for (let i = 0; i < 7; i++) {
     const date = new Date(weekStart);
     date.setDate(date.getDate() + i);
     weekDays.push(date);
   }
+
+  // Memoize events grouped by day for performance (iterate allEvents once)
+  const eventsByDayKey = useMemo(() => {
+    // key format: yyyy-MM-dd
+    const map = new Map<string, (LocalEvent | CalendarEvent | FriendCalendarEvent & { eventType: 'local' | 'external' | 'friend' })[]>();
+
+    // Precompute day boundaries for the current week
+    const dayBounds = weekDays.map(d => {
+      const start = new Date(d);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(d);
+      end.setHours(23, 59, 59, 999);
+      const key = format(d, 'yyyy-MM-dd');
+      return { key, start, end };
+    });
+
+    // For each event, push into all days it overlaps this week
+    for (const ev of allEvents) {
+      const evStart = new Date(ev.startTime);
+      const evEnd = new Date(ev.endTime);
+      for (const { key, start, end } of dayBounds) {
+        if (evStart < end && evEnd > start) {
+          const arr = map.get(key);
+          if (arr) {
+            arr.push(ev as any);
+          } else {
+            map.set(key, [ev as any]);
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [allEvents, weekDays]);
 
   const syncedFriendCount = storeSyncedFriends.length;
 
@@ -389,14 +423,9 @@ export function WeeklyCalendarView({
             const dayEnd = new Date(date);
             dayEnd.setHours(23, 59, 59, 999);
 
-            // Filter events overlapping this day
-            const dayEvents = allEvents.filter(event => {
-              const eventStart = new Date(event.startTime);
-              const eventEnd = new Date(event.endTime);
-              return eventStart < dayEnd && eventEnd > dayStart;
-            });
-
-            // Convert to LocalEvent format using helper to avoid duplicated logic
+            // Fetch pre-grouped events for this day and convert to LocalEvent format
+            const key = format(date, 'yyyy-MM-dd');
+            const dayEvents = eventsByDayKey.get(key) ?? [];
             const localEventFormat = dayEvents.map(convertToLocalEventFormat);
 
             return (
