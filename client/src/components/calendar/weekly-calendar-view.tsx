@@ -232,22 +232,26 @@ export function WeeklyCalendarView({
     };
 
     const events: CombinedEvent[] = [];
-    
+
     // Add local events
-    Object.values(localEvents).forEach(event => {
+    for (const event of Object.values(localEvents)) {
       events.push({ ...event, eventType: 'local' as const });
-    });
-    
+    }
+
     // Add external events
-    Object.values(externalEvents).flat().forEach(event => {
-      events.push({ ...event, eventType: 'external' as const });
-    });
-    
+    for (const extArr of Object.values(externalEvents)) {
+      for (const event of extArr) {
+        events.push({ ...event, eventType: 'external' as const });
+      }
+    }
+
     // Add friend events
-    Object.values(friendEvents).flat().forEach(event => {
-      events.push({ ...event, eventType: 'friend' as const });
-    });
-    
+    for (const frArr of Object.values(friendEvents)) {
+      for (const event of frArr) {
+        events.push({ ...event, eventType: 'friend' as const });
+      }
+    }
+
     return events;
   }, [localEvents, externalEvents, friendEvents]);
 
@@ -380,41 +384,20 @@ export function WeeklyCalendarView({
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-7 h-full min-h-[600px]" role="grid" aria-label="Weekly calendar grid">
           {weekDays.map((date, index) => {
+            const dayStart = new Date(date);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(date);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            // Filter events overlapping this day
             const dayEvents = allEvents.filter(event => {
               const eventStart = new Date(event.startTime);
               const eventEnd = new Date(event.endTime);
-              const dayStart = new Date(date);
-              dayStart.setHours(0, 0, 0, 0);
-              const dayEnd = new Date(date);
-              dayEnd.setHours(23, 59, 59, 999);
-              
-              // Check for event overlap with the day (handles multi-day events)
               return eventStart < dayEnd && eventEnd > dayStart;
             });
 
-            // Convert to LocalEvent format for DayColumn compatibility
-            const localEventFormat = dayEvents.map(event => ({
-              id: event.id,
-              title: event.title,
-              description: event.description,
-              startTime: event.startTime,
-              endTime: event.endTime,
-              timezone: event.timezone,
-              isAllDay: event.isAllDay,
-              color: event.color,
-              pattern: event.pattern,
-              location: event.location,
-              attendees: event.attendees || [],
-              createdBy: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdBy :
-                       event.eventType === 'friend' ? (event as FriendCalendarEvent).friendUsername :
-                       event.eventType === 'external' ? (event as CalendarEvent).feedName : '',
-              createdAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).createdAt : event.startTime,
-              updatedAt: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).updatedAt : event.startTime,
-              linkedJournalEntryId: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).linkedJournalEntryId : undefined,
-              reminderMinutes: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).reminderMinutes : undefined,
-              collaborators: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).collaborators : [],
-              tags: 'eventType' in event && event.eventType === 'local' ? (event as LocalEvent).tags : []
-            }));
+            // Convert to LocalEvent format using helper to avoid duplicated logic
+            const localEventFormat = dayEvents.map(convertToLocalEventFormat);
 
             return (
               <DayColumn

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -83,15 +83,21 @@ export function FriendCalendarSyncModal({
   }, [isOpen, loadFriendsWithCalendarAccess]);
 
   // Memoize syncItems to avoid unnecessary re-renders
+  // Avoid allocating new Date() objects here; use stable primitives.
+  const nowRef = useRef<number>();
+  if (nowRef.current == null) nowRef.current = Date.now();
+
   const syncItems = useMemo(() => {
+    const nowTs = nowRef.current!;
     return friends.map(friend => {
       const isSynced = syncedFriends.includes(friend.id);
-      
+
       return {
         friend,
         isSynced,
-        lastSyncAt: isSynced ? new Date() : undefined, // In real implementation, get from cache
-        syncError: undefined, // In real implementation, get from service
+        // store a timestamp to preserve referential stability and avoid re-renders in children
+        lastSyncAtTs: isSynced ? nowTs : undefined,
+        syncError: undefined,
         eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
         canSync: true, // In real implementation, check permissions
         assignedColor: generateFriendColor(friend.id),
@@ -347,10 +353,14 @@ export function FriendCalendarSyncModal({
                                 <Calendar className="w-3 h-3" />
                                 {item.eventCount} events
                               </span>
-                              {item.lastSyncAt && (
+                              {item.lastSyncAtTs && (
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  Last synced: {format(item.lastSyncAt, 'p')}
+                                  {/*
+                                    Convert timestamp to Date only at render-time for formatting.
+                                    Children can remain memoized because the primitive ts is stable.
+                                  */}
+                                  Last synced: {format(new Date(item.lastSyncAtTs), 'p')}
                                 </span>
                               )}
                             </div>

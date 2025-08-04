@@ -136,30 +136,28 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       if (!hasAccess) {
         throw new Error(`No permission to access ${friend.firstName || friend.lastName || friend.id}'s calendar`);
       }
-      
-      // Check if we have cached events for this friend
+
+      // Check cache
       const cacheKey = friend.id;
       const cachedEvents = this.friendCaches.get(cacheKey);
       const lastSync = this.lastSyncTimestamps.get(cacheKey);
-      
-      // Use cache if recent (within configured TTL)
+
       if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < CACHE_TTL_MS) {
         return cachedEvents.filter(event => {
-          // Check for event overlap with date range (handles multi-day events)
           const eventStart = new Date(event.startTime);
           const eventEnd = new Date(event.endTime);
           return eventStart < endDate && eventEnd > startDate;
         });
       }
-      
-      // Fetch fresh events from API
-      const events = await this.fetchFriendEventsFromAPI(friend.id, startDate, endDate);
-      
-      // Cache the events and update timestamp
+
+      // Fetch fresh events from API, pass full friend to preserve username and other props downstream
+      const events = await this.fetchFriendEventsFromAPI(friend, startDate, endDate);
+
+      // Cache and timestamps
       this.friendCaches.set(cacheKey, events);
       this.lastSyncTimestamps.set(cacheKey, new Date());
-      this.syncErrors.delete(cacheKey); // Clear any previous errors
-      
+      this.syncErrors.delete(cacheKey);
+
       return events;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -363,11 +361,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   }
   
   // Private helper methods
-  private async fetchFriendEventsFromAPI(friendUserId: string, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
+  private async fetchFriendEventsFromAPI(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
     try {
-      const signal = this.createAbortController(friendUserId);
+      const signal = this.createAbortController(friend.id);
 
-      const response = await fetch(`/api/friends/${friendUserId}/calendar/events`, {
+      const response = await fetch(`/api/friends/${friend.id}/calendar/events`, {
         method: 'POST',
         headers: this.getSecureHeaders(),
         credentials: 'include',
@@ -377,14 +375,14 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
           endDate: endDate.toISOString()
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch friend events: ${response.statusText}`);
       }
-      
+
       const data: FriendEventsResponse = await response.json();
-      
-      // Transform API response to FriendCalendarEvent format
+
+      // Transform API response to FriendCalendarEvent format, preserving friend metadata
       return data.events.map((event): FriendCalendarEvent => ({
         id: event.id,
         title: event.title,
@@ -395,16 +393,16 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         color: event.color,
         location: event.location,
         attendees: event.attendees,
-        feedId: `friend-${friendUserId}`,
-        feedName: `Friend's Calendar`,
+        feedId: `friend-${friend.id}`,
+        feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
         externalId: event.id,
         sequence: 0,
         source: 'ical' as const,
-        lastModified: new Date(event.startTime), // Use stable timestamp instead of new Date()
-        friendUserId,
-        friendUsername: friendUserId, // Should be resolved from friend data
+        lastModified: new Date(event.startTime),
+        friendUserId: friend.id,
+        friendUsername: (friend as any).username ?? friend.id,
         isFromFriend: true,
-        sourceId: friendUserId,
+        sourceId: friend.id,
         canonicalEventId: event.id,
         originalEventId: event.id,
         isRecurring: false
@@ -416,7 +414,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       }
       throw error;
     } finally {
-      this.abortControllers.delete(friendUserId);
+      this.abortControllers.delete(friend.id);
     }
   }
   
