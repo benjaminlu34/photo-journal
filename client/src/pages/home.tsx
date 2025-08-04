@@ -232,7 +232,7 @@ function HomeContent() {
               <FriendshipNotifications className="neu-nav-pill" />
               <Button
                 variant="default"
-                className="font-semibold text-gray-700 hover:text-[rgb(139,92,246)] neu-nav-pill whitespace-nowrap"
+                className="font-semibold text-gray-700 hover:text-[rgb(246,182,92)] neu-nav-pill whitespace-nowrap"
               >
                 <CalendarPlus className="w-4 h-4 mr-2" />
                 Calendar

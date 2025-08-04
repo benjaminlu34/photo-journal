@@ -7,11 +7,11 @@ import { useUser } from "@/hooks/useUser";
 import {
   ChevronLeft,
   ChevronRight,
-  Heart,
   CalendarDays,
   Calendar,
   User,
 } from "lucide-react";
+import { AppLogo } from "@/components/ui/app-logo";
 import { ProfilePicture } from "@/components/profile/ProfilePicture/ProfilePicture";
 import { getInitials } from "@/hooks/useProfilePicture";
 
@@ -96,7 +96,7 @@ export function JournalSidebar() {
       <div className="neu-card p-6 flex-shrink-0">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 rounded-xl neu-button flex items-center justify-center text-white font-semibold text-lg">
-            <Heart className="w-6 h-6" />
+            <AppLogo size="lg" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">My Journal</h1>
