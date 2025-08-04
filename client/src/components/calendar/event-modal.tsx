@@ -43,7 +43,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
         isAllDay: event.isAllDay,
         location: event.location || "",
         color: event.color,
-        reminderMinutes: 'reminderMinutes' in event ? event.reminderMinutes || 30 : 30,
+        reminderMinutes: 'reminderMinutes' in event ? (typeof event.reminderMinutes === 'number' ? event.reminderMinutes : 30) : 30,
         tags: 'tags' in event ? event.tags || [] : [],
       });
     } else if (initialDate) {
@@ -109,7 +109,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md neu-card">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-purple-600" />
@@ -126,7 +126,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="title"
               value={formData.title}
               onChange={(e) => handleInputChange("title", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
               placeholder="Event title"
               required
             />
@@ -140,7 +140,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="description"
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
               placeholder="Event description"
               rows={3}
             />
@@ -159,7 +159,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                   ? format(formData.startTime, "yyyy-MM-dd")
                   : format(formData.startTime, "yyyy-MM-dd'T'HH:mm")}
                 onChange={(e) => handleDateChange("startTime", e.target.value)}
-                className="mt-1 neu-inset"
+                className="mt-1 neu-input"
               />
             </div>
             
@@ -175,7 +175,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                   ? format(formData.endTime, "yyyy-MM-dd")
                   : format(formData.endTime, "yyyy-MM-dd'T'HH:mm")}
                 onChange={(e) => handleDateChange("endTime", e.target.value)}
-                className="mt-1 neu-inset"
+                className="mt-1 neu-input"
               />
             </div>
           </div>
@@ -185,6 +185,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="allDay"
               checked={formData.isAllDay}
               onCheckedChange={(checked) => handleInputChange("isAllDay", checked)}
+              className="all-day-toggle"
             />
             <Label htmlFor="allDay" className="text-sm font-medium text-gray-700">
               All day event
@@ -200,7 +201,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="location"
               value={formData.location}
               onChange={(e) => handleInputChange("location", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
             placeholder="Add location"
             />
           </div>
@@ -212,10 +213,10 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                 <button
                   key={color.value}
                   type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
+                  className={`w-8 h-8 rounded-full border-2 transition-all ${
                     formData.color === color.value
-                      ? "border-gray-800 scale-110 shadow-neu-lg"
-                      : "border-gray-300 hover:scale-105"
+                      ? "border-gray-800 ring-2 ring-gray-400"
+                      : "border-gray-300 hover:border-gray-500"
                   }`}
                   style={{ backgroundColor: color.value }}
                   onClick={() => handleInputChange("color", color.value)}
@@ -231,10 +232,15 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
             </Label>
             <Select
               value={formData.reminderMinutes.toString()}
-              onValueChange={(value) => handleInputChange("reminderMinutes", parseInt(value))}
+              onValueChange={(value) => {
+                const numValue = parseInt(value, 10);
+                if (!isNaN(numValue)) {
+                  handleInputChange("reminderMinutes", numValue);
+                }
+              }}
             >
-              <SelectTrigger className="mt-1 neu-inset">
-                <SelectValue />
+              <SelectTrigger className="mt-1 neu-input">
+                <SelectValue placeholder="Select reminder time" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">No reminder</SelectItem>
@@ -257,7 +263,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               <Input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                className="neu-inset flex-1"
+                className="flex-1 neu-input"
                 placeholder="Add tag"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -280,7 +286,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                 {formData.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 neu-inset"
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 shadow-neu-inset"
                   >
                     {tag}
                     <button

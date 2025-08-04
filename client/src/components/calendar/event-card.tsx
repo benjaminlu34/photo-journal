@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Clock, MapPin, User, Lock } from "lucide-react";
 import { format } from "date-fns";
 import type { LocalEvent } from "@/types/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
+import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 interface EventCardProps {
   event: LocalEvent;
@@ -28,78 +29,210 @@ export function EventCard({
   onBlur,
 }: EventCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [dragStartTime, setDragStartTime] = useState<number | null>(null);
+  const [dragStartPosition, setDragStartPosition] = useState<{ x: number; y: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const truncateText = (text: string, maxLength: number = 30) =>
-    text.length <= maxLength ? text : `${text.substring(0, maxLength)}...`;
+  const truncateText = useCallback((text: string, maxLength: number = 30) =>
+    text.length <= maxLength ? text : `${text.substring(0, maxLength)}...`, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isLocal) return;
+    
+    setDragStartTime(Date.now());
+    setDragStartPosition({ x: e.clientX, y: e.clientY });
+  }, [isLocal]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragStartTime || !dragStartPosition || !isLocal) return;
+
+    const timeDiff = Date.now() - dragStartTime;
+    const distance = Math.sqrt(
+      Math.pow(e.clientX - dragStartPosition.x, 2) + 
+      Math.pow(e.clientY - dragStartPosition.y, 2)
+    );
+
+    // Check if we've exceeded the drag thresholds
+    if (timeDiff >= CALENDAR_CONFIG.MOBILE.DRAG_START_DELAY && 
+        distance >= CALENDAR_CONFIG.MOBILE.DRAG_START_DISTANCE) {
+      onDragStart();
+      setDragStartTime(null);
+      setDragStartPosition(null);
+    }
+  }, [dragStartTime, dragStartPosition, isLocal, onDragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    if (dragStartTime && dragStartPosition) {
+      // This was a click, not a drag
+      onClick();
+    }
+    setDragStartTime(null);
+    setDragStartPosition(null);
+  }, [dragStartTime, dragStartPosition, onClick]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  }, [onClick]);
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (!isLocal) {
+      e.preventDefault();
+      return;
+    }
+    
+    // Set drag data
+    e.dataTransfer.setData('text/plain', event.id);
+    e.dataTransfer.effectAllowed = 'move';
+    
+    onDragStart();
+  }, [isLocal, event.id, onDragStart]);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    onDragEnd();
+  }, [onDragEnd]);
 
   return (
     <div
-      className={`p-2 rounded-lg text-sm transition-all duration-300 cursor-pointer z-10 ${
+      ref={cardRef}
+      className={`relative p-3 rounded-xl text-sm transition-all duration-300 cursor-pointer z-10 select-none backdrop-blur-sm ${
         isSelected
-          ? "ring-2 ring-purple-500 shadow-lg"
-          : "neu-inset hover:shadow-neu-active transform hover:scale-[1.02]"
-      } ${isDragging ? "opacity-50" : ""}`}
+          ? "ring-2 ring-purple-500 shadow-lg transform scale-105"
+          : "shadow-neu hover:shadow-neu-lg transform hover:scale-[1.02] hover:-translate-y-0.5"
+      } ${isDragging ? "opacity-50 rotate-2 scale-110" : ""} ${!isLocal ? "cursor-default" : ""}`}
       style={{
-        backgroundColor: applyOpacityToColor(event.color, 0.1),
+        backgroundColor: applyOpacityToColor(event.color, 0.15),
         borderLeft: `4px solid ${event.color}`,
+        backdropFilter: 'blur(8px)',
+        border: `1px solid ${applyOpacityToColor(event.color, 0.3)}`,
+        boxShadow: isHovered 
+          ? `0 8px 32px ${applyOpacityToColor(event.color, 0.2)}, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
+          : `0 4px 16px ${applyOpacityToColor(event.color, 0.1)}, inset 0 1px 0 rgba(255, 255, 255, 0.05)`,
       }}
-      onClick={onClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       draggable={isLocal}
-      onDragStart={(e) => {
-        // Distinguish tap vs drag handled upstream; here just emit
-        onDragStart();
-      }}
-      onDragEnd={(e) => onDragEnd()}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onFocus={onFocus}
       onBlur={onBlur}
+      onKeyDown={handleKeyDown}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       role="button"
       tabIndex={0}
-      aria-label={`${event.title} at ${format(new Date(event.startTime), "h:mm a")}`}
+      aria-label={`${event.title} from ${format(event.startTime, "h:mm a")} to ${format(event.endTime, "h:mm a")}${event.location ? ` at ${event.location}` : ''}${!isLocal ? ' (read-only)' : ''}`}
+      aria-describedby={isHovered && event.description ? `${event.id}-description` : undefined}
     >
-      <div className="font-semibold text-gray-800 truncate text-xs">
-        {truncateText(event.title)}
-      </div>
+      {/* Event pattern overlay for accessibility */}
+      {event.pattern && event.pattern !== 'plain' && (
+        <div 
+          className={`absolute inset-0 rounded-xl pointer-events-none ${
+            event.pattern === 'stripe' 
+              ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent bg-[length:8px_8px]'
+              : event.pattern === 'dot'
+              ? 'bg-[radial-gradient(circle_at_2px_2px,white_1px,transparent_1px)] bg-[length:8px_8px]'
+              : ''
+          }`}
+          style={{ opacity: 0.3 }}
+        />
+      )}
 
-      <div className="flex items-center text-xs text-gray-600 mt-1">
-        <Clock className="w-3 h-3 mr-1" />
-        {format(new Date(event.startTime), "h:mm a")}
-        {!event.isAllDay && (
-          <>
-            {" - "}
-            {format(new Date(event.endTime), "h:mm a")}
-          </>
+      <div className="relative z-10">
+        <div className="font-semibold text-gray-800 truncate text-sm leading-tight">
+          {truncateText(event.title)}
+        </div>
+
+        <div className="flex items-center text-xs text-gray-600 mt-1.5">
+          <Clock className="w-3 h-3 mr-1.5 flex-shrink-0" />
+          <span className="truncate">
+            {event.isAllDay ? 'All day' : (
+              <>
+                {format(event.startTime, "h:mm a")}
+                {" - "}
+                {format(event.endTime, "h:mm a")}
+              </>
+            )}
+          </span>
+        </div>
+
+        {event.location && (
+          <div className="flex items-center text-xs text-gray-600 mt-1">
+            <MapPin className="w-3 h-3 mr-1.5 flex-shrink-0" />
+            <span className="truncate">{truncateText(event.location, 20)}</span>
+          </div>
         )}
+
+        <div className="flex items-center justify-between mt-2">
+          {isLocal && event.createdBy && event.createdBy !== 'external' ? (
+            <div className="flex items-center text-xs text-gray-500">
+              <User className="w-3 h-3 mr-1" />
+              <span className="truncate">{truncateText(event.createdBy, 10)}</span>
+            </div>
+          ) : (
+            <div className="flex items-center text-xs text-gray-500">
+              <Lock className="w-3 h-3 mr-1" />
+              <span>Read-only</span>
+            </div>
+          )}
+
+          {/* Visual indicator for event type */}
+          <div className="flex items-center space-x-1">
+            {event.attendees && event.attendees.length > 0 && (
+              <div className="w-2 h-2 rounded-full bg-blue-400" title={`${event.attendees.length} attendees`} />
+            )}
+            {event.linkedJournalEntryId && (
+              <div className="w-2 h-2 rounded-full bg-green-400" title="Linked to journal entry" />
+            )}
+            {event.reminderMinutes && (
+              <div className="w-2 h-2 rounded-full bg-yellow-400" title="Has reminder" />
+            )}
+          </div>
+        </div>
       </div>
 
-      {event.location && (
-        <div className="flex items-center text-xs text-gray-600 mt-1">
-          <MapPin className="w-3 h-3 mr-1" />
-          <span className="truncate">{truncateText(event.location, 20)}</span>
-        </div>
-      )}
-
-      {isLocal && event.createdBy && (
-        <div className="flex items-center text-xs text-gray-500 mt-1">
-          <User className="w-3 h-3 mr-1" />
-          {event.createdBy}
-        </div>
-      )}
-
-      {!isLocal && (
-        <div className="flex items-center text-xs text-gray-500 mt-1">
-          <Lock className="w-3 h-3 mr-1" />
-          Read-only
-        </div>
-      )}
-
-      {isHovered && event.title.length > 30 && (
+      {/* Resize handle for local events */}
+      {isLocal && (
         <div
-          className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-20"
-          role="tooltip"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-100 transition-opacity"
+          style={{
+            background: `linear-gradient(to bottom, transparent, ${event.color}40)`,
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            // TODO: Implement resize functionality
+            console.log('Resize started for event:', event.id);
+          }}
+          role="button"
+          aria-label="Resize event"
+          tabIndex={-1}
         >
-          {event.title}
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-gray-400 rounded-full" />
+        </div>
+      )}
+
+      {/* Tooltip for truncated title or description */}
+      {isHovered && (event.title.length > 30 || event.description) && (
+        <div
+          id={`${event.id}-description`}
+          className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg z-20 max-w-xs"
+          role="tooltip"
+          style={{ minWidth: '200px' }}
+        >
+          {event.title.length > 30 && (
+            <div className="font-semibold mb-1">{event.title}</div>
+          )}
+          {event.description && (
+            <div className="text-gray-300">{event.description}</div>
+          )}
+          {event.attendees && event.attendees.length > 0 && (
+            <div className="text-gray-400 mt-1 text-xs">
+              {event.attendees.length} attendee{event.attendees.length > 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       )}
     </div>

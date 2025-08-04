@@ -1,24 +1,27 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useCalendar } from "@/contexts/calendar-context";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
-// Removed colorPaletteManager import to avoid potential re-render issues
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
-import { EventModal, CalendarFeedModal, CalendarSettings } from "@/components/calendar";
+import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn } from "@/components/calendar";
 import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 
 
 // Helper function to convert external/friend events to LocalEvent format for display
-function convertToLocalEventForDisplay(
+const convertToLocalEventForDisplay = (
   event: CalendarEvent | FriendCalendarEvent,
   type: 'external' | 'friend'
-): LocalEvent {
+): LocalEvent => {
+  // Use a stable date reference to avoid creating new Date objects on every render
+  const stableCreatedAt = event.startTime;
+  const stableUpdatedAt = event.startTime;
+  
   return {
     id: event.id,
     title: event.title,
@@ -32,23 +35,23 @@ function convertToLocalEventForDisplay(
     location: event.location,
     attendees: event.attendees,
     createdBy: type === 'external' ? 'external' : (event as FriendCalendarEvent).friendUserId,
-    createdAt: event.startTime, // Use stable value instead of creating new Date
-    updatedAt: event.startTime, // Use stable value instead of creating new Date
+    createdAt: stableCreatedAt,
+    updatedAt: stableUpdatedAt,
     collaborators: [],
     tags: []
   };
-}
+};
 
 // Helper function to convert events array to LocalEvent array for a specific day
-function convertEventsForDay(
+const convertEventsForDay = (
   eventsArray: CalendarEvent[] | FriendCalendarEvent[],
   type: 'external' | 'friend',
   day: Date
-): LocalEvent[] {
+): LocalEvent[] => {
   return eventsArray
     .filter(event => isSameDay(event.startTime, day))
     .map(event => convertToLocalEventForDisplay(event, type));
-}
+};
 
 export function WeeklyCalendarView({
   initialDate,
@@ -153,16 +156,31 @@ export function WeeklyCalendarView({
     return `64px repeat(${dayCount}, 1fr)`;
   }, [displayDays.length]);
 
-  const handleEventClick = (event: LocalEvent) => {
+  const handleEventClick = useCallback((event: LocalEvent) => {
     setSelectedEvent(event);
     setIsEventModalOpen(true);
-  };
+  }, []);
 
-  const handleEventModalClose = () => {
+  const handleEventModalClose = useCallback(() => {
     setIsEventModalOpen(false);
     setSelectedEvent(null);
     setSelectedDateForEvent(null);
-  };
+  }, []);
+
+  const handleTimeSlotClick = useCallback((slotDate: Date) => {
+    setSelectedDateForEvent(slotDate);
+    setIsEventModalOpen(true);
+  }, []);
+
+  const handleEventDragStart = useCallback((eventId: string) => {
+    // TODO: Implement drag start logic
+    console.log('Drag started for event:', eventId);
+  }, []);
+
+  const handleEventDragEnd = useCallback(() => {
+    // TODO: Implement drag end logic
+    console.log('Drag ended');
+  }, []);
 
   // Render mobile pad navigation
   const renderPadNavigation = () => {
@@ -279,6 +297,7 @@ export function WeeklyCalendarView({
               height: `${24 * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px`, // 24 hours * configured hour height
             }}
           >
+            {/* Time column */}
             <div className="border-r border-gray-200 bg-white sticky left-0 z-10">
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={`time-${i}`} className="border-b border-gray-200 flex items-center justify-center bg-white" style={{ height: `${CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px` }}>
@@ -289,78 +308,24 @@ export function WeeklyCalendarView({
               ))}
             </div>
 
-            {/* Calendar grid with days */}
+            {/* Day columns using DayColumn component */}
             {displayDays.map((day) => {
               const isToday = isSameDay(day, new Date());
               const isWeekend = day.getDay() === 0 || day.getDay() === 6;
               const dayEvents = eventsByDay[day.toDateString()] || [];
 
               return (
-                <div
-                  key={`grid-${day.toISOString()}`}
-                  className={`relative ${isWeekend ? 'bg-rose-50' : ''} ${isToday ? 'bg-[hsl(var(--accent))/0.08]' : ''} ${day.getDay() === 0 ? 'border-l border-gray-200' : ''}`}
-                >
-                  {/* Draw right border only on the last day column to keep total widths equal */}
-                  <div className="absolute top-0 right-0 h-full w-px bg-gray-200 pointer-events-none" />
-                  {/* Time slots for the day */}
-                  {Array.from({ length: 24 }, (_, hour) => (
-                    <div
-                      key={`slot-${day.toISOString()}-${hour}`}
-                      className="border-b border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors"
-                      style={{ height: `${CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px` }}
-                      onClick={() => {
-                        const slotDate = new Date(day);
-                        slotDate.setHours(hour, 0, 0, 0);
-                        setSelectedDateForEvent(slotDate);
-                        setIsEventModalOpen(true);
-                      }}
-                    />
-                  ))}
-
-                  {/* Events positioned absolutely */}
-                  {dayEvents.map((event) => {
-                    // Calculate position based on startTime Date object
-                    const eventHours = event.startTime.getHours();
-                    const eventMinutes = event.startTime.getMinutes();
-                    const positionTop = (eventHours + eventMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-
-                    // Calculate duration in hours for dynamic height
-                    const durationMs = event.endTime.getTime() - event.startTime.getTime();
-                    const durationHours = durationMs / (1000 * 60 * 60);
-                    const height = durationHours * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-
-                    return (
-                      <div
-                        key={event.id}
-                        onClick={() => handleEventClick(event)}
-                        className="absolute left-1 right-1 p-2 rounded-lg text-sm neu-inset hover:shadow-neu-active transition-all duration-300 cursor-pointer transform hover:scale-[1.02] z-10"
-                        style={{
-                          backgroundColor: applyOpacityToColor(event.color, 0.1),
-                          borderLeft: `4px solid ${event.color}`,
-                          top: `${positionTop}px`,
-                          height: `${height}px`,
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`${event.title} at ${format(event.startTime, "h:mm a")}`}
-                      >
-                        <div className="font-semibold text-gray-800 truncate text-xs">
-                          {event.title}
-                        </div>
-                        <div className="flex items-center text-xs text-gray-600 mt-1">
-                          <Clock className="w-3 h-3 mr-1" />
-                          {format(event.startTime, "h:mm a")}
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center text-xs text-gray-600 mt-1">
-                            <MapPin className="w-3 h-3 mr-1" />
-                            <span className="truncate">{event.location}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <DayColumn
+                  key={`day-${day.toISOString()}`}
+                  date={day}
+                  events={dayEvents}
+                  isToday={isToday}
+                  isWeekend={isWeekend}
+                  onEventClick={handleEventClick}
+                  onTimeSlotClick={handleTimeSlotClick}
+                  onEventDragStart={handleEventDragStart}
+                  onEventDragEnd={handleEventDragEnd}
+                />
               );
             })}
           </div>

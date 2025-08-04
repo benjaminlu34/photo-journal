@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, subWeeks, addWeeks, isSameWeek } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
-import { useRef } from "react";
+import { useRef, useCallback, useMemo } from "react";
 
 interface WeekHeaderProps {
   currentWeek: Date;
@@ -20,20 +20,37 @@ export function WeekHeader({
   hasJournalEntries,
   showRecurrenceBanner
 }: WeekHeaderProps) {
-  const startDate = startOfWeek(currentWeek, { weekStartsOn: 0 });
-  const endDate = endOfWeek(currentWeek, { weekStartsOn: 0 });
-
-  const weekRange = `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`;
-
+  // Suppress unused variable warning for hasJournalEntries - will be used for visual indicators
+  void hasJournalEntries;
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const goToPreviousWeek = () => {
-    onWeekChange(subWeeks(currentWeek, 1));
-  };
+  // Memoize date calculations to prevent unnecessary re-computations
+  const { startDate, endDate, weekRange, isCurrentWeek } = useMemo(() => {
+    const start = startOfWeek(currentWeek, { weekStartsOn: 0 });
+    const end = endOfWeek(currentWeek, { weekStartsOn: 0 });
+    const range = `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+    const isCurrent = isSameWeek(currentWeek, new Date(), { weekStartsOn: 0 });
+    
+    return {
+      startDate: start,
+      endDate: end,
+      weekRange: range,
+      isCurrentWeek: isCurrent
+    };
+  }, [currentWeek]);
 
-  const goToNextWeek = () => {
+  const goToPreviousWeek = useCallback(() => {
+    onWeekChange(subWeeks(currentWeek, 1));
+  }, [currentWeek, onWeekChange]);
+
+  const goToNextWeek = useCallback(() => {
     onWeekChange(addWeeks(currentWeek, 1));
-  };
+  }, [currentWeek, onWeekChange]);
+
+  const handleTodayClick = useCallback(() => {
+    onTodayClick();
+  }, [onTodayClick]);
 
   return (
     <div
@@ -90,14 +107,15 @@ export function WeekHeader({
         <Button
           variant="outline"
           size="sm"
-          onClick={onTodayClick}
+          onClick={handleTodayClick}
           className="neu-card"
           aria-label="Go to today"
+          disabled={isCurrentWeek}
         >
           Today
         </Button>
 
-        {showRecurrenceBanner && (
+        {showRecurrenceBanner && CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI && (
           <div
             className="hidden sm:block bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs px-2 py-1 rounded-full"
             role="status"

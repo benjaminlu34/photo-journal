@@ -1,9 +1,35 @@
-import { useMemo, useRef } from "react";
-import { format } from "date-fns";
+import { useMemo, useRef, useCallback } from "react";
+import { format, isSameDay } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { LocalEvent } from "@/types/calendar";
-import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
 import { EventCard } from "./event-card";
+
+// Helper function to detect DST gaps for a given date
+const getDSTGaps = (date: Date): { start: number; end: number }[] => {
+  const gaps: { start: number; end: number }[] = [];
+
+  // Check each hour of the day for DST transitions
+  for (let hour = 0; hour < 24; hour++) {
+    const testDate = new Date(date);
+    testDate.setHours(hour, 0, 0, 0);
+
+    const nextHour = new Date(testDate);
+    nextHour.setHours(hour + 1, 0, 0, 0);
+
+    // If the difference is not exactly 1 hour, there's a DST transition
+    const hourDiff = (nextHour.getTime() - testDate.getTime()) / (1000 * 60 * 60);
+
+    if (hourDiff !== 1) {
+      if (hourDiff > 1) {
+        // Spring forward - hour is skipped
+        gaps.push({ start: hour * 60, end: (hour + 1) * 60 });
+      }
+      // Fall back is handled by showing the hour twice, which is fine for our grid
+    }
+  }
+
+  return gaps;
+};
 
 interface DayColumnProps {
   date: Date;
@@ -20,12 +46,16 @@ type PositionedEvent = {
   event: LocalEvent;
   top: number;
   height: number;
+  column: number;
+  totalColumns: number;
+  width: number;
+  left: number;
 };
 
 /**
- * Basic grid with half-hour divisions and DST-aware rendering.
- * Virtualization note: with fixed 24 hours and 60px per hour, we keep it simple now.
- * The virtualization threshold hook-in can be added later using windowing if needed.
+ * Day column with time grid, event positioning, and collision detection.
+ * Implements basic collision detection to prevent overlapping events.
+ * Virtualization can be added later if needed for performance.
  */
 export function DayColumn({
   date,
@@ -39,19 +69,71 @@ export function DayColumn({
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
 
+  // Collision detection and positioning algorithm
   const positioned = useMemo<PositionedEvent[]>(() => {
-    return events.map((event) => {
-      const startTime = new Date(event.startTime);
-      const endTime = new Date(event.endTime);
-      const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-      const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
-      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-      const height =
-        Math.max((endMinutes - startMinutes), CALENDAR_CONFIG.EVENTS.MIN_DURATION) /
-        60 *
-        CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-      return { event, top, height };
+    if (events.length === 0) return [];
+
+    // Sort events by start time, then by duration (longer events first)
+    const sortedEvents = [...events].sort((a, b) => {
+      const aStart = a.startTime.getTime();
+      const bStart = b.startTime.getTime();
+      if (aStart !== bStart) return aStart - bStart;
+
+      // If same start time, longer events first
+      const aDuration = a.endTime.getTime() - a.startTime.getTime();
+      const bDuration = b.endTime.getTime() - b.startTime.getTime();
+      return bDuration - aDuration;
     });
+
+    const positioned: PositionedEvent[] = [];
+    const columns: { start: number; end: number }[] = [];
+
+    sortedEvents.forEach((event) => {
+      const startMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
+      const endMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
+      const actualDuration = Math.max(endMinutes - startMinutes, CALENDAR_CONFIG.EVENTS.MIN_DURATION);
+
+      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      const height = (actualDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+
+      // Find the first available column
+      let columnIndex = 0;
+      while (columnIndex < columns.length) {
+        const column = columns[columnIndex];
+        if (startMinutes >= column.end) {
+          // This column is free for this event
+          break;
+        }
+        columnIndex++;
+      }
+
+      // If no existing column is available, create a new one
+      if (columnIndex === columns.length) {
+        columns.push({ start: startMinutes, end: endMinutes });
+      } else {
+        // Update the column's end time
+        columns[columnIndex] = { start: Math.min(columns[columnIndex].start, startMinutes), end: Math.max(columns[columnIndex].end, endMinutes) };
+      }
+
+      positioned.push({
+        event,
+        top,
+        height,
+        column: columnIndex,
+        totalColumns: Math.max(columns.length, 1),
+        width: 100 / Math.max(columns.length, 1), // Percentage width
+        left: (columnIndex * 100) / Math.max(columns.length, 1), // Percentage left offset
+      });
+    });
+
+    // Update totalColumns for all events to ensure consistent layout
+    const maxColumns = Math.max(columns.length, 1);
+    return positioned.map(pos => ({
+      ...pos,
+      totalColumns: maxColumns,
+      width: 100 / maxColumns,
+      left: (pos.column * 100) / maxColumns,
+    }));
   }, [events]);
 
   const slots = useMemo(() => {
@@ -60,56 +142,97 @@ export function DayColumn({
     return Array.from({ length: slotsPerDay }, (_, i) => i);
   }, []);
 
+  // Check if we need virtualization (for grids > 12 hours)
+  const needsVirtualization = useMemo(() => {
+    return slots.length > CALENDAR_CONFIG.TIME_GRID.VIRTUALIZATION_THRESHOLD * 2; // 2 slots per hour
+  }, [slots.length]);
+
+  // Get DST gaps for this date
+  const dstGaps = useMemo(() => getDSTGaps(date), [date]);
+
+  // Filter out slots that fall within DST gaps
+  const visibleSlots = useMemo(() => {
+    return slots.filter(slotIndex => {
+      const slotMinutes = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
+      return !dstGaps.some(gap => slotMinutes >= gap.start && slotMinutes < gap.end);
+    });
+  }, [slots, dstGaps]);
+
+  const handleTimeSlotClick = useCallback((slotIndex: number) => {
+    const minutesOffset = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
+    const slotDate = new Date(date);
+    slotDate.setHours(0, 0, 0, 0);
+    slotDate.setMinutes(minutesOffset);
+    onTimeSlotClick(slotDate);
+  }, [date, onTimeSlotClick]);
+
+  const handleEventClick = useCallback((event: LocalEvent) => {
+    onEventClick(event);
+  }, [onEventClick]);
+
   return (
     <div
       ref={columnRef}
-      className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${
-        isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
-      }`}
+      className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
+        }`}
       role="gridcell"
       aria-label={`Day column ${format(date, "EEEE MMM d")}${isToday ? " today" : ""}`}
     >
       {/* Time grid with half-hour divisions */}
-      {slots.map((slotIndex) => {
+      {/* TODO: Add react-virtual for virtualization when slots > threshold */}
+      {needsVirtualization && (
+        <div className="absolute top-0 left-0 right-0 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 z-20">
+          Large time grid - consider installing react-virtual for better performance
+        </div>
+      )}
+      {dstGaps.length > 0 && (
+        <div className="absolute top-0 left-0 right-0 bg-blue-100 text-blue-800 text-xs px-2 py-1 z-20 mt-6">
+          DST transition detected - some hours may be skipped
+        </div>
+      )}
+      {visibleSlots.map((slotIndex) => {
         const hour = Math.floor((slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) / 60);
+        const minute = (slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) % 60;
         const isHourBoundary = (slotIndex % (60 / CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL)) === 0;
+
         return (
           <div
             key={`slot-${date.toISOString()}-${slotIndex}`}
-            className={`h-8 border-b border-r ${
-              isHourBoundary ? "border-gray-300" : "border-gray-200"
-            } hover:bg-gray-100/60 cursor-pointer transition-colors`}
-            onClick={() => {
-              const minutesOffset = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
-              const slotDate = new Date(date);
-              slotDate.setHours(0, 0, 0, 0);
-              slotDate.setMinutes(minutesOffset);
-              onTimeSlotClick(slotDate);
-            }}
+            className={`border-b border-r transition-colors ${isHourBoundary ? "border-gray-300" : "border-gray-200"
+              } hover:bg-gray-100/60 cursor-pointer`}
+            style={{ height: `${CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT / 2}px` }}
+            onClick={() => handleTimeSlotClick(slotIndex)}
             role="button"
-            aria-label={`Add event at ${hour}:${(slotIndex % 2) * 30 === 0 ? "00" : "30"}`}
+            aria-label={`Add event at ${hour}:${minute.toString().padStart(2, '0')}`}
             tabIndex={-1}
           />
         );
       })}
 
-      {/* Positioned events */}
-      {positioned.map(({ event, top, height }) => (
+      {/* Positioned events with collision detection */}
+      {positioned.map(({ event, top, height, width, left }) => (
         <div
           key={event.id}
-          className="absolute left-1 right-1"
-          style={{ top, height }}
+          className="absolute"
+          style={{
+            top: `${top}px`,
+            height: `${height}px`,
+            left: `${left}%`,
+            width: `${width}%`,
+            paddingLeft: '2px',
+            paddingRight: '2px',
+          }}
         >
           <EventCard
             event={event}
-            isLocal={Boolean(event.createdBy)}
+            isLocal={Boolean(event.createdBy && event.createdBy !== 'external')}
             isDragging={false}
             isSelected={false}
-            onClick={() => onEventClick(event)}
+            onClick={() => handleEventClick(event)}
             onDragStart={() => onEventDragStart(event.id)}
             onDragEnd={onEventDragEnd}
-            onFocus={() => {}}
-            onBlur={() => {}}
+            onFocus={() => { }}
+            onBlur={() => { }}
           />
         </div>
       ))}

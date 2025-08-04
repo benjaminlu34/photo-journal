@@ -160,9 +160,9 @@
   }
 
   .neu-input:focus {
-    @apply shadow-neu ring-2;
+    @apply shadow-neu-inset ring-2;
     filter: drop-shadow(0 0 2px var(--ring-primary-40));
-    /* Using filter for glow effect */
+    /* Keep inset shadow on focus and add glow effect */
   }
 
   /* Navigation pills */
