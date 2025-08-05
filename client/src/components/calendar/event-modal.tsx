@@ -10,6 +10,7 @@ import { Calendar, Clock, MapPin, Tag } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { useCalendar } from "@/contexts/calendar-context";
 
 interface EventModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface EventModalProps {
 }
 
 export function EventModal({ isOpen, onClose, event, initialDate }: EventModalProps) {
+  const { actions } = useCalendar();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -106,18 +108,17 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
     };
     
     try {
-      // TODO: Connect to calendar store for actual event creation/updates
-      if (event) {
-        console.log("Updating event:", event.id, eventData);
-        // await calendarActions.updateLocalEvent(event.id, eventData);
+      if (event && 'createdBy' in event) {
+        // Update existing local event
+        await actions.updateLocalEvent(event.id, eventData);
       } else {
-        console.log("Creating event:", eventData);
-        // await calendarActions.createLocalEvent(eventData);
+        // Create new local event
+        await actions.createLocalEvent(eventData);
       }
       onClose();
     } catch (error) {
       console.error('Failed to save event:', error);
-      // TODO: Show error toast
+      actions.setError('Failed to save event. Please try again.');
     }
   };
   

@@ -1,255 +1,187 @@
 /**
- * Calendar validation utilities for CRDT event validation
+ * Calendar event validation utilities
  */
 
-import type { LocalEvent, BaseEvent } from '@/types/calendar';
+import type { LocalEvent } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
+import { validateHexColor } from '@/utils/colorUtils/colorUtils';
 
 export interface ValidationResult {
   isValid: boolean;
   errors: string[];
-  warnings: string[];
 }
 
-/**
- * Validates a CRDT event before insertion/update
- */
+// Validate a CRDT event before storing
 export function validateCRDTEvent(event: LocalEvent): ValidationResult {
   const errors: string[] = [];
-  const warnings: string[] = [];
-
-  // Validate required fields
-  if (!event.id || event.id.trim().length === 0) {
-    errors.push('Event ID is required');
+  
+  // Required fields
+  if (!event.id || typeof event.id !== 'string') {
+    errors.push('Event ID is required and must be a string');
   }
-
-  if (!event.title || event.title.trim().length === 0) {
+  
+  if (!event.title || typeof event.title !== 'string' || !event.title.trim()) {
     errors.push('Event title is required');
   }
-
+  
   if (event.title && event.title.length > CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH) {
-    errors.push(`Event title must be ${CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH} characters or less`);
+    errors.push(`Event title cannot exceed ${CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH} characters`);
   }
-
+  
   if (event.description && event.description.length > CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH) {
-    errors.push(`Event description must be ${CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH} characters or less`);
+    errors.push(`Event description cannot exceed ${CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH} characters`);
   }
-
-  // Validate dates
-  if (!event.startTime || !(event.startTime instanceof Date) || isNaN(event.startTime.getTime())) {
-    errors.push('Valid start time is required');
+  
+  // Date validation
+  if (!event.startTime || !(event.startTime instanceof Date)) {
+    errors.push('Event start time is required and must be a Date object');
   }
-
-  if (!event.endTime || !(event.endTime instanceof Date) || isNaN(event.endTime.getTime())) {
-    errors.push('Valid end time is required');
+  
+  if (!event.endTime || !(event.endTime instanceof Date)) {
+    errors.push('Event end time is required and must be a Date object');
   }
-
-  if (event.startTime && event.endTime && event.startTime >= event.endTime) {
-    errors.push('End time must be after start time');
+  
+  if (event.startTime && event.endTime && event.endTime <= event.startTime) {
+    errors.push('Event end time must be after start time');
   }
-
-  // Validate duration
+  
+  // Duration validation
   if (event.startTime && event.endTime && !event.isAllDay) {
-    const durationMs = event.endTime.getTime() - event.startTime.getTime();
-    const durationMinutes = durationMs / (1000 * 60);
-    
+    const durationMinutes = (event.endTime.getTime() - event.startTime.getTime()) / (1000 * 60);
     if (durationMinutes < CALENDAR_CONFIG.EVENTS.MIN_DURATION) {
       errors.push(`Event duration must be at least ${CALENDAR_CONFIG.EVENTS.MIN_DURATION} minutes`);
     }
   }
-
-  // Validate user fields
-  if (!event.createdBy || event.createdBy.trim().length === 0) {
-    errors.push('Created by field is required');
+  
+  // Color validation
+  if (event.color) {
+    const colorValidation = validateHexColor(event.color);
+    if (!colorValidation.isValid) {
+      errors.push(`Invalid event color: ${colorValidation.error}`);
+    }
   }
-
-  if (!event.createdAt || !(event.createdAt instanceof Date) || isNaN(event.createdAt.getTime())) {
-    errors.push('Valid created at timestamp is required');
+  
+  // Boolean fields
+  if (typeof event.isAllDay !== 'boolean') {
+    errors.push('isAllDay must be a boolean value');
   }
-
-  if (!event.updatedAt || !(event.updatedAt instanceof Date) || isNaN(event.updatedAt.getTime())) {
-    errors.push('Valid updated at timestamp is required');
+  
+  // User fields
+  if (!event.createdBy || typeof event.createdBy !== 'string') {
+    errors.push('createdBy is required and must be a string');
   }
-
-  // Validate arrays
+  
+  if (!event.createdAt || !(event.createdAt instanceof Date)) {
+    errors.push('createdAt is required and must be a Date object');
+  }
+  
+  if (!event.updatedAt || !(event.updatedAt instanceof Date)) {
+    errors.push('updatedAt is required and must be a Date object');
+  }
+  
+  // Array fields
   if (!Array.isArray(event.collaborators)) {
-    errors.push('Collaborators must be an array');
+    errors.push('collaborators must be an array');
   }
-
+  
   if (!Array.isArray(event.tags)) {
-    errors.push('Tags must be an array');
+    errors.push('tags must be an array');
   }
-
-  // Validate color
-  if (!event.color || !isValidColor(event.color)) {
-    errors.push('Valid color is required');
+  
+  if (!Array.isArray(event.attendees)) {
+    errors.push('attendees must be an array');
   }
-
-  // Validate timezone if present
-  if (event.timezone && !isValidTimezone(event.timezone)) {
-    warnings.push('Invalid timezone specified, will default to user timezone');
+  
+  // Optional numeric fields
+  if (event.reminderMinutes !== undefined && (typeof event.reminderMinutes !== 'number' || event.reminderMinutes < 0)) {
+    errors.push('reminderMinutes must be a non-negative number');
   }
-
-  // Validate reminder
-  if (event.reminderMinutes !== undefined && (event.reminderMinutes < 0 || event.reminderMinutes > 10080)) {
-    warnings.push('Reminder should be between 0 and 10080 minutes (1 week)');
+  
+  // Pattern validation
+  if (event.pattern && !['stripe', 'dot', 'plain'].includes(event.pattern)) {
+    errors.push('pattern must be one of: stripe, dot, plain');
   }
-
-  // Validate attendees
-  if (event.attendees && event.attendees.length > 100) {
-    warnings.push('Large number of attendees may affect performance');
+  
+  // Timezone validation
+  if (event.timezone && typeof event.timezone !== 'string') {
+    errors.push('timezone must be a string');
   }
-
+  
   return {
     isValid: errors.length === 0,
-    errors,
-    warnings
+    errors
   };
 }
 
-/**
- * Creates a CRDT-compatible event from input data
- */
+// Create a CRDT-compatible event from partial data
 export function createCRDTCompatibleEvent(
   eventData: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>,
   userId: string
 ): Omit<LocalEvent, 'id'> {
   const now = new Date();
-
+  
   return {
-    title: sanitizeTitle(eventData.title),
-    description: sanitizeDescription(eventData.description || ''),
-    startTime: new Date(eventData.startTime),
-    endTime: new Date(eventData.endTime),
-    timezone: eventData.timezone || undefined,
-    isAllDay: Boolean(eventData.isAllDay),
-    color: sanitizeColor(eventData.color),
+    ...eventData,
+    title: eventData.title.trim(),
+    description: eventData.description?.trim() || undefined,
+    color: eventData.color || CALENDAR_CONFIG.COLORS.DEFAULT_EVENT_COLOR,
     pattern: eventData.pattern || 'plain',
-    location: sanitizeLocation(eventData.location || ''),
-    attendees: sanitizeAttendees(eventData.attendees || []),
+    attendees: eventData.attendees || [],
+    tags: eventData.tags || [],
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
-    linkedJournalEntryId: eventData.linkedJournalEntryId,
-    reminderMinutes: validateReminderMinutes(eventData.reminderMinutes),
-    collaborators: [userId], // Creator is always a collaborator
-    tags: sanitizeTags(eventData.tags || [])
+    collaborators: [userId], // Creator is automatically a collaborator
+    reminderMinutes: eventData.reminderMinutes || undefined,
+    linkedJournalEntryId: eventData.linkedJournalEntryId || undefined,
+    location: eventData.location?.trim() || undefined,
+    timezone: eventData.timezone || undefined,
   };
 }
 
-/**
- * Validates update data before applying to existing event
- */
-export function validateEventUpdate(
-  currentEvent: LocalEvent,
-  updates: Partial<LocalEvent>,
-  userId: string
-): ValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  // Check if user has permission to update
-  if (!currentEvent.collaborators.includes(userId)) {
-    errors.push('User does not have permission to update this event');
-  }
-
-  // Validate title if being updated
-  if (updates.title !== undefined) {
-    if (!updates.title || updates.title.trim().length === 0) {
-      errors.push('Event title cannot be empty');
-    } else if (updates.title.length > CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH) {
-      errors.push(`Event title must be ${CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH} characters or less`);
-    }
-  }
-
-  // Validate description if being updated
-  if (updates.description !== undefined && updates.description.length > CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH) {
-    errors.push(`Event description must be ${CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH} characters or less`);
-  }
-
-  // Validate time changes
-  const startTime = updates.startTime || currentEvent.startTime;
-  const endTime = updates.endTime || currentEvent.endTime;
+// Sanitize event input to prevent XSS and other security issues
+export function sanitizeEventInput(input: Partial<LocalEvent>): Partial<LocalEvent> {
+  const sanitized: Partial<LocalEvent> = {};
   
-  if (startTime >= endTime) {
-    errors.push('End time must be after start time');
+  // Sanitize string fields
+  if (input.title !== undefined) {
+    sanitized.title = input.title.toString().trim().slice(0, CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH);
   }
-
-  // Validate duration for non-all-day events
-  const isAllDay = updates.isAllDay !== undefined ? updates.isAllDay : currentEvent.isAllDay;
-  if (!isAllDay) {
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const durationMinutes = durationMs / (1000 * 60);
-    
-    if (durationMinutes < CALENDAR_CONFIG.EVENTS.MIN_DURATION) {
-      errors.push(`Event duration must be at least ${CALENDAR_CONFIG.EVENTS.MIN_DURATION} minutes`);
-    }
+  
+  if (input.description !== undefined) {
+    sanitized.description = input.description.toString().trim().slice(0, CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH);
   }
-
-  // Validate color if being updated
-  if (updates.color !== undefined && !isValidColor(updates.color)) {
-    errors.push('Invalid color specified');
+  
+  if (input.location !== undefined) {
+    sanitized.location = input.location.toString().trim();
   }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings
-  };
-}
-
-// Helper functions
-
-function sanitizeTitle(title: string): string {
-  return title.trim().substring(0, CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH);
-}
-
-function sanitizeDescription(description: string): string {
-  return description.trim().substring(0, CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH);
-}
-
-function sanitizeLocation(location: string): string {
-  return location.trim().substring(0, 100); // Reasonable location limit
-}
-
-function sanitizeColor(color: string): string {
-  // Basic hex color validation and default fallback
-  const hexPattern = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-  return hexPattern.test(color) ? color : CALENDAR_CONFIG.COLORS.DEFAULT_EVENT_COLOR;
-}
-
-function sanitizeAttendees(attendees: string[]): string[] {
-  return attendees
-    .filter(email => email && email.trim().length > 0)
-    .map(email => email.trim())
-    .slice(0, 100); // Limit to 100 attendees
-}
-
-function sanitizeTags(tags: string[]): string[] {
-  return tags
-    .filter(tag => tag && tag.trim().length > 0)
-    .map(tag => tag.trim().toLowerCase())
-    .slice(0, 20); // Limit to 20 tags
-}
-
-function validateReminderMinutes(reminderMinutes?: number): number | undefined {
-  if (reminderMinutes === undefined) return undefined;
-  if (reminderMinutes < 0) return 0;
-  if (reminderMinutes > 10080) return 10080; // 1 week max
-  return reminderMinutes;
-}
-
-function isValidColor(color: string): boolean {
-  const hexPattern = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-  return hexPattern.test(color);
-}
-
-function isValidTimezone(timezone: string): boolean {
-  try {
-    // Simple timezone validation - check if it's a valid IANA timezone
-    Intl.DateTimeFormat(undefined, { timeZone: timezone });
-    return true;
-  } catch {
-    return false;
+  
+  // Sanitize and validate color
+  if (input.color !== undefined) {
+    const colorValidation = validateHexColor(input.color);
+    sanitized.color = colorValidation.isValid ? input.color : CALENDAR_CONFIG.COLORS.DEFAULT_EVENT_COLOR;
   }
+  
+  // Copy safe fields directly
+  if (input.startTime !== undefined) sanitized.startTime = input.startTime;
+  if (input.endTime !== undefined) sanitized.endTime = input.endTime;
+  if (input.isAllDay !== undefined) sanitized.isAllDay = Boolean(input.isAllDay);
+  if (input.reminderMinutes !== undefined) {
+    sanitized.reminderMinutes = Math.max(0, Math.floor(Number(input.reminderMinutes) || 0));
+  }
+  if (input.pattern !== undefined && ['stripe', 'dot', 'plain'].includes(input.pattern)) {
+    sanitized.pattern = input.pattern;
+  }
+  if (input.timezone !== undefined) sanitized.timezone = input.timezone;
+  
+  // Sanitize arrays
+  if (input.tags !== undefined && Array.isArray(input.tags)) {
+    sanitized.tags = input.tags.map(tag => tag.toString().trim()).filter(Boolean);
+  }
+  
+  if (input.attendees !== undefined && Array.isArray(input.attendees)) {
+    sanitized.attendees = input.attendees.map(attendee => attendee.toString().trim()).filter(Boolean);
+  }
+  
+  return sanitized;
 }

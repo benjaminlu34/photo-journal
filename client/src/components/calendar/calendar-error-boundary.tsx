@@ -1,19 +1,17 @@
-import React, { Component, ReactNode } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
-  onRetry?: () => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
-  errorInfo: React.ErrorInfo | null;
+  errorInfo: ErrorInfo | null;
 }
 
 export class CalendarErrorBoundary extends Component<Props, State> {
@@ -26,88 +24,104 @@ export class CalendarErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Calendar Error Boundary caught an error:', error, errorInfo);
     this.setState({
       error,
       errorInfo
     });
 
-    // Call the onError prop if provided
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo);
+    // Log error to analytics service if available
+    if (typeof window !== 'undefined' && (window as any).posthog) {
+      (window as any).posthog.capture('calendar_error', {
+        error: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack
+      });
     }
-
-    // Log to console for development
-    console.error('Calendar Error Boundary caught an error:', error, errorInfo);
   }
 
   handleRetry = () => {
-    // Call the onRetry prop if provided to allow parent components to reset state
-    if (this.props.onRetry) {
-      this.props.onRetry();
-    }
-    
     this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
+  handleGoHome = () => {
+    window.location.href = '/';
   };
 
   render() {
     if (this.state.hasError) {
-      // Custom fallback UI
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
-      // Default error UI
       return (
-        <div className="flex items-center justify-center min-h-[400px] p-8">
-          <div className="max-w-md w-full">
-            <Alert className="neu-card border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-700">
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="font-medium">Calendar Error</h3>
-                    <p className="text-sm mt-1">
-                      Something went wrong with the calendar. This might be due to a network issue or temporary system problem.
-                    </p>
-                  </div>
-                  
-                  {this.state.error && (
-                    <details className="text-xs">
-                      <summary className="cursor-pointer hover:text-red-800">
-                        Error Details
-                      </summary>
-                      <div className="mt-2 p-2 bg-red-100 rounded border">
-                        <p className="font-mono text-xs break-all">
-                          {this.state.error.message}
-                        </p>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-surface">
+          <Card className="w-full max-w-md neu-card">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <CardTitle className="text-xl font-bold text-gray-800">
+                Calendar Error
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center">
+                <p className="text-gray-600 mb-4">
+                  Something went wrong with the calendar. This error has been logged and we'll look into it.
+                </p>
+                
+                {process.env.NODE_ENV === 'development' && this.state.error && (
+                  <details className="text-left bg-gray-50 p-3 rounded-lg mb-4">
+                    <summary className="cursor-pointer font-medium text-sm text-gray-700 mb-2">
+                      Error Details (Development)
+                    </summary>
+                    <div className="text-xs text-gray-600 font-mono">
+                      <div className="mb-2">
+                        <strong>Error:</strong> {this.state.error.message}
                       </div>
-                    </details>
-                  )}
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={this.handleRetry}
-                      size="sm"
-                      className="neu-card bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Try Again
-                    </Button>
-                    
-                    <Button
-                      onClick={() => window.location.reload()}
-                      size="sm"
-                      variant="ghost"
-                      className="neu-card text-red-600 hover:text-red-700"
-                    >
-                      Reload Page
-                    </Button>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          </div>
+                      {this.state.error.stack && (
+                        <div className="mb-2">
+                          <strong>Stack:</strong>
+                          <pre className="whitespace-pre-wrap text-xs mt-1">
+                            {this.state.error.stack}
+                          </pre>
+                        </div>
+                      )}
+                      {this.state.errorInfo?.componentStack && (
+                        <div>
+                          <strong>Component Stack:</strong>
+                          <pre className="whitespace-pre-wrap text-xs mt-1">
+                            {this.state.errorInfo.componentStack}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={this.handleRetry}
+                  className="w-full neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={this.handleGoHome}
+                  className="w-full neu-card"
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Go to Home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       );
     }
@@ -116,32 +130,18 @@ export class CalendarErrorBoundary extends Component<Props, State> {
   }
 }
 
-// Higher-order component for functional components
+// Higher-order component for wrapping components with error boundary
 export function withCalendarErrorBoundary<P extends object>(
   Component: React.ComponentType<P>,
-  errorCallback?: (error: Error, errorInfo: React.ErrorInfo) => void
+  fallback?: ReactNode
 ) {
-  return function WrappedComponent(props: P) {
-    return (
-      <CalendarErrorBoundary onError={errorCallback}>
-        <Component {...props} />
-      </CalendarErrorBoundary>
-    );
-  };
-}
+  const WrappedComponent = (props: P) => (
+    <CalendarErrorBoundary fallback={fallback}>
+      <Component {...props} />
+    </CalendarErrorBoundary>
+  );
 
-// Hook for error handling in functional components
-export function useCalendarErrorHandler() {
-  const [error, setError] = React.useState<Error | null>(null);
-
-  React.useEffect(() => {
-    if (error) {
-      throw error;
-    }
-  }, [error]);
-
-  return {
-    throwError: setError,
-    clearError: () => setError(null)
-  };
+  WrappedComponent.displayName = `withCalendarErrorBoundary(${Component.displayName || Component.name})`;
+  
+  return WrappedComponent;
 }

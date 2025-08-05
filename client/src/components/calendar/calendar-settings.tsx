@@ -3,524 +3,343 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Settings, 
-  Clock, 
-  Palette, 
-  Grid, 
-  Accessibility, 
-  Bell, 
-  Monitor,
-  X,
-  Save,
-  RefreshCw
-} from "lucide-react";
+import { Settings, Clock, Bell, Palette, Users, X } from "lucide-react";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 interface CalendarSettingsProps {
   onClose: () => void;
 }
 
-interface CalendarSettingsState {
-  // Time grid settings
-  hourHeight: number;
-  snapInterval: number;
-  showMinuteLines: boolean;
-  show24HourFormat: boolean;
-  
-  // Responsive settings
-  enableMobilePads: boolean;
-  padSize: number;
-  autoDetectViewport: boolean;
-  
-  // Visual settings
-  showWeekends: boolean;
-  highlightToday: boolean;
-  showEventPatterns: boolean;
-  defaultEventColor: string;
-  
-  // Accessibility settings
-  enableHighContrast: boolean;
-  enableReducedMotion: boolean;
-  enableKeyboardNavigation: boolean;
-  showColorBlindPatterns: boolean;
-  
-  // Notification settings
-  enableBrowserNotifications: boolean;
-  defaultReminderTime: number;
-  enableSoundAlerts: boolean;
-  
-  // Performance settings
-  enableVirtualization: boolean;
-  maxEventsPerDay: number;
-  enableAnimations: boolean;
-  cacheTimeout: number;
-}
-
 export function CalendarSettings({ onClose }: CalendarSettingsProps) {
-  const [settings, setSettings] = useState<CalendarSettingsState>({
+  const [settings, setSettings] = useState({
     // Time grid settings
     hourHeight: CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT,
-    snapInterval: CALENDAR_CONFIG.TIME_GRID.SNAP_INTERVALS[1], // 15 minutes
-    showMinuteLines: true,
-    show24HourFormat: false,
-    
-    // Responsive settings
-    enableMobilePads: true,
-    padSize: CALENDAR_CONFIG.MOBILE.PAD_SIZE,
-    autoDetectViewport: true,
-    
-    // Visual settings
-    showWeekends: true,
-    highlightToday: true,
-    showEventPatterns: true,
-    defaultEventColor: CALENDAR_CONFIG.COLORS.DEFAULT_EVENT_COLOR,
-    
-    // Accessibility settings
-    enableHighContrast: false,
-    enableReducedMotion: false,
-    enableKeyboardNavigation: true,
-    showColorBlindPatterns: true,
+    minuteInterval: CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL,
+    snapInterval: 15,
     
     // Notification settings
-    enableBrowserNotifications: false,
-    defaultReminderTime: 30,
-    enableSoundAlerts: false,
+    enableNotifications: true,
+    defaultReminderMinutes: 30,
+    soundEnabled: false,
     
-    // Performance settings
-    enableVirtualization: true,
-    maxEventsPerDay: CALENDAR_CONFIG.PERFORMANCE.MAX_EVENTS_PER_DAY,
-    enableAnimations: true,
-    cacheTimeout: 15, // minutes
+    // Display settings
+    weekStartsOn: 0, // Sunday
+    timeFormat: '12h' as '12h' | '24h',
+    showWeekNumbers: false,
+    compactView: false,
+    
+    // Feature flags
+    enableRecurrence: CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI,
+    enableFriendSync: CALENDAR_CONFIG.FEATURES.ENABLE_FRIEND_SYNC,
+    enableOfflineMode: CALENDAR_CONFIG.FEATURES.ENABLE_OFFLINE_MODE,
   });
 
-  const [activeTab, setActiveTab] = useState("display");
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  const updateSetting = <K extends keyof CalendarSettingsState>(
-    key: K,
-    value: CalendarSettingsState[K]
-  ) => {
+  const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setHasUnsavedChanges(true);
   };
 
-  const handleSaveSettings = () => {
-    // In a real implementation, this would save to localStorage or API
-    console.log('Saving calendar settings:', settings);
-    setHasUnsavedChanges(false);
-    
-    // Mock save operation
-    setTimeout(() => {
-      console.log('Settings saved successfully');
-    }, 500);
+  const handleSave = () => {
+    // TODO: Save settings to localStorage or user preferences
+    localStorage.setItem('calendar-settings', JSON.stringify(settings));
+    onClose();
   };
 
-  const handleResetDefaults = () => {
+  const handleReset = () => {
+    // Reset to defaults
     setSettings({
       hourHeight: CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT,
+      minuteInterval: CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL,
       snapInterval: 15,
-      showMinuteLines: true,
-      show24HourFormat: false,
-      enableMobilePads: true,
-      padSize: CALENDAR_CONFIG.MOBILE.PAD_SIZE,
-      autoDetectViewport: true,
-      showWeekends: true,
-      highlightToday: true,
-      showEventPatterns: true,
-      defaultEventColor: CALENDAR_CONFIG.COLORS.DEFAULT_EVENT_COLOR,
-      enableHighContrast: false,
-      enableReducedMotion: false,
-      enableKeyboardNavigation: true,
-      showColorBlindPatterns: true,
-      enableBrowserNotifications: false,
-      defaultReminderTime: 30,
-      enableSoundAlerts: false,
-      enableVirtualization: true,
-      maxEventsPerDay: CALENDAR_CONFIG.PERFORMANCE.MAX_EVENTS_PER_DAY,
-      enableAnimations: true,
-      cacheTimeout: 15,
+      enableNotifications: true,
+      defaultReminderMinutes: 30,
+      soundEnabled: false,
+      weekStartsOn: 0,
+      timeFormat: '12h',
+      showWeekNumbers: false,
+      compactView: false,
+      enableRecurrence: CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI,
+      enableFriendSync: CALENDAR_CONFIG.FEATURES.ENABLE_FRIEND_SYNC,
+      enableOfflineMode: CALENDAR_CONFIG.FEATURES.ENABLE_OFFLINE_MODE,
     });
-    setHasUnsavedChanges(true);
   };
 
   return (
-    <div className="w-full max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
+    <div className="w-full max-w-2xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
           <Settings className="w-6 h-6 text-blue-600" />
-          <div>
-            <h2 className="text-xl font-bold text-gray-800">Calendar Settings</h2>
-            <p className="text-sm text-gray-600">Customize your calendar experience</p>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-800">Calendar Settings</h2>
         </div>
-        
-        <div className="flex items-center space-x-2">
-          {hasUnsavedChanges && (
-            <Badge variant="secondary" className="text-xs">
-              Unsaved changes
-            </Badge>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="neu-card p-2"
-            aria-label="Close settings"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Settings Content */}
-      <div className="p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="display" className="flex items-center gap-2">
-              <Monitor className="w-4 h-4" />
-              Display
-            </TabsTrigger>
-            <TabsTrigger value="accessibility" className="flex items-center gap-2">
-              <Accessibility className="w-4 h-4" />
-              Accessibility
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              Notifications
-            </TabsTrigger>
-            <TabsTrigger value="performance" className="flex items-center gap-2">
-              <Grid className="w-4 h-4" />
-              Performance
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Display Settings */}
-          <TabsContent value="display" className="space-y-6 mt-6">
-            {/* Time Grid Settings */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Time Grid</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-7">
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Hour Height: {settings.hourHeight}px
-                  </Label>
-                  <Slider
-                    value={[settings.hourHeight]}
-                    onValueChange={([value]) => updateSetting('hourHeight', value)}
-                    min={40}
-                    max={120}
-                    step={10}
-                    className="mt-2"
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Snap Interval</Label>
-                  <Select
-                    value={settings.snapInterval.toString()}
-                    onValueChange={(value) => updateSetting('snapInterval', parseInt(value))}
-                  >
-                    <SelectTrigger className="mt-2 neu-input">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 minutes</SelectItem>
-                      <SelectItem value="15">15 minutes</SelectItem>
-                      <SelectItem value="30">30 minutes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Show minute lines</Label>
-                  <Switch
-                    checked={settings.showMinuteLines}
-                    onCheckedChange={(checked) => updateSetting('showMinuteLines', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">24-hour format</Label>
-                  <Switch
-                    checked={settings.show24HourFormat}
-                    onCheckedChange={(checked) => updateSetting('show24HourFormat', checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Visual Settings */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Palette className="w-5 h-5 text-purple-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Visual Appearance</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-7">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Show weekends</Label>
-                  <Switch
-                    checked={settings.showWeekends}
-                    onCheckedChange={(checked) => updateSetting('showWeekends', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Highlight today</Label>
-                  <Switch
-                    checked={settings.highlightToday}
-                    onCheckedChange={(checked) => updateSetting('highlightToday', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Show event patterns</Label>
-                  <Switch
-                    checked={settings.showEventPatterns}
-                    onCheckedChange={(checked) => updateSetting('showEventPatterns', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Enable animations</Label>
-                  <Switch
-                    checked={settings.enableAnimations}
-                    onCheckedChange={(checked) => updateSetting('enableAnimations', checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Responsive Settings */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800">Responsive Behavior</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Auto-detect viewport</Label>
-                  <Switch
-                    checked={settings.autoDetectViewport}
-                    onCheckedChange={(checked) => updateSetting('autoDetectViewport', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Enable mobile pads</Label>
-                  <Switch
-                    checked={settings.enableMobilePads}
-                    onCheckedChange={(checked) => updateSetting('enableMobilePads', checked)}
-                  />
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Accessibility Settings */}
-          <TabsContent value="accessibility" className="space-y-6 mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Accessibility className="w-5 h-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Accessibility Options</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-7">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">High contrast mode</Label>
-                  <Switch
-                    checked={settings.enableHighContrast}
-                    onCheckedChange={(checked) => updateSetting('enableHighContrast', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Reduced motion</Label>
-                  <Switch
-                    checked={settings.enableReducedMotion}
-                    onCheckedChange={(checked) => updateSetting('enableReducedMotion', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Keyboard navigation</Label>
-                  <Switch
-                    checked={settings.enableKeyboardNavigation}
-                    onCheckedChange={(checked) => updateSetting('enableKeyboardNavigation', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Color-blind patterns</Label>
-                  <Switch
-                    checked={settings.showColorBlindPatterns}
-                    onCheckedChange={(checked) => updateSetting('showColorBlindPatterns', checked)}
-                  />
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 ml-7">
-                <div className="flex items-start space-x-2">
-                  <Accessibility className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-blue-800">Accessibility Features</h4>
-                    <ul className="text-sm text-blue-700 mt-2 space-y-1">
-                      <li>• ARIA labels for screen readers</li>
-                      <li>• Keyboard navigation support</li>
-                      <li>• High contrast color options</li>
-                      <li>• Pattern-based event distinction</li>
-                      <li>• Focus management for modals</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Notification Settings */}
-          <TabsContent value="notifications" className="space-y-6 mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Bell className="w-5 h-5 text-yellow-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Notification Preferences</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-7">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Browser notifications</Label>
-                  <Switch
-                    checked={settings.enableBrowserNotifications}
-                    onCheckedChange={(checked) => updateSetting('enableBrowserNotifications', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Sound alerts</Label>
-                  <Switch
-                    checked={settings.enableSoundAlerts}
-                    onCheckedChange={(checked) => updateSetting('enableSoundAlerts', checked)}
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Default reminder time</Label>
-                  <Select
-                    value={settings.defaultReminderTime.toString()}
-                    onValueChange={(value) => updateSetting('defaultReminderTime', parseInt(value))}
-                  >
-                    <SelectTrigger className="mt-2 neu-input">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">No reminder</SelectItem>
-                      <SelectItem value="5">5 minutes before</SelectItem>
-                      <SelectItem value="15">15 minutes before</SelectItem>
-                      <SelectItem value="30">30 minutes before</SelectItem>
-                      <SelectItem value="60">1 hour before</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 ml-7">
-                <div className="flex items-start space-x-2">
-                  <Bell className="w-5 h-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-yellow-800">Coming Soon</h4>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      Email reminders and push notifications will be available in a future update.
-                      Currently only browser notifications are supported.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Performance Settings */}
-          <TabsContent value="performance" className="space-y-6 mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Grid className="w-5 h-5 text-red-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Performance Options</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-7">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-gray-700">Enable virtualization</Label>
-                  <Switch
-                    checked={settings.enableVirtualization}
-                    onCheckedChange={(checked) => updateSetting('enableVirtualization', checked)}
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Max events per day: {settings.maxEventsPerDay}
-                  </Label>
-                  <Slider
-                    value={[settings.maxEventsPerDay]}
-                    onValueChange={([value]) => updateSetting('maxEventsPerDay', value)}
-                    min={10}
-                    max={100}
-                    step={10}
-                    className="mt-2"
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Cache timeout: {settings.cacheTimeout} minutes
-                  </Label>
-                  <Slider
-                    value={[settings.cacheTimeout]}
-                    onValueChange={([value]) => updateSetting('cacheTimeout', value)}
-                    min={5}
-                    max={60}
-                    step={5}
-                    className="mt-2"
-                  />
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 ml-7">
-                <div className="flex items-start space-x-2">
-                  <Grid className="w-5 h-5 text-gray-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-gray-800">Performance Tips</h4>
-                    <ul className="text-sm text-gray-700 mt-2 space-y-1">
-                      <li>• Virtualization helps with large time grids (&gt;12 hours)</li>
-                      <li>• Lower event limits improve rendering performance</li>
-                      <li>• Shorter cache timeouts keep data fresh</li>
-                      <li>• Disabled animations reduce CPU usage</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
         <Button
           variant="ghost"
-          onClick={handleResetDefaults}
-          className="neu-card text-gray-600 hover:text-gray-800"
+          size="sm"
+          onClick={onClose}
+          className="neu-card p-2"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <Tabs defaultValue="display" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 neu-card">
+          <TabsTrigger value="display">Display</TabsTrigger>
+          <TabsTrigger value="time">Time Grid</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="display" className="space-y-4">
+          <Card className="neu-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Display Preferences
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="week-starts">Week starts on</Label>
+                <Select
+                  value={settings.weekStartsOn.toString()}
+                  onValueChange={(value) => handleSettingChange('weekStartsOn', parseInt(value))}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Sunday</SelectItem>
+                    <SelectItem value="1">Monday</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="time-format">Time format</Label>
+                <Select
+                  value={settings.timeFormat}
+                  onValueChange={(value) => handleSettingChange('timeFormat', value)}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12h">12 hour</SelectItem>
+                    <SelectItem value="24h">24 hour</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="week-numbers">Show week numbers</Label>
+                <Switch
+                  id="week-numbers"
+                  checked={settings.showWeekNumbers}
+                  onCheckedChange={(checked) => handleSettingChange('showWeekNumbers', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="compact-view">Compact view</Label>
+                <Switch
+                  id="compact-view"
+                  checked={settings.compactView}
+                  onCheckedChange={(checked) => handleSettingChange('compactView', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="time" className="space-y-4">
+          <Card className="neu-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Time Grid Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="hour-height">Hour height</Label>
+                <Select
+                  value={settings.hourHeight.toString()}
+                  onValueChange={(value) => handleSettingChange('hourHeight', parseInt(value))}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="40">Compact (40px)</SelectItem>
+                    <SelectItem value="60">Normal (60px)</SelectItem>
+                    <SelectItem value="80">Large (80px)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="minute-interval">Grid lines</Label>
+                <Select
+                  value={settings.minuteInterval.toString()}
+                  onValueChange={(value) => handleSettingChange('minuteInterval', parseInt(value))}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">Every 15 min</SelectItem>
+                    <SelectItem value="30">Every 30 min</SelectItem>
+                    <SelectItem value="60">Hourly only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="snap-interval">Snap to grid</Label>
+                <Select
+                  value={settings.snapInterval.toString()}
+                  onValueChange={(value) => handleSettingChange('snapInterval', parseInt(value))}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <Card className="neu-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                Notification Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="enable-notifications">Enable notifications</Label>
+                <Switch
+                  id="enable-notifications"
+                  checked={settings.enableNotifications}
+                  onCheckedChange={(checked) => handleSettingChange('enableNotifications', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="default-reminder">Default reminder</Label>
+                <Select
+                  value={settings.defaultReminderMinutes.toString()}
+                  onValueChange={(value) => handleSettingChange('defaultReminderMinutes', parseInt(value))}
+                  disabled={!settings.enableNotifications}
+                >
+                  <SelectTrigger className="w-32 neu-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">No reminder</SelectItem>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="1440">1 day</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sound-enabled">Sound notifications</Label>
+                <Switch
+                  id="sound-enabled"
+                  checked={settings.soundEnabled}
+                  onCheckedChange={(checked) => handleSettingChange('soundEnabled', checked)}
+                  disabled={!settings.enableNotifications}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="features" className="space-y-4">
+          <Card className="neu-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Feature Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="friend-sync">Friend calendar sync</Label>
+                  <p className="text-sm text-gray-500">Sync calendars with friends</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="friend-sync"
+                    checked={settings.enableFriendSync}
+                    onCheckedChange={(checked) => handleSettingChange('enableFriendSync', checked)}
+                  />
+                  {settings.enableFriendSync && (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="offline-mode">Offline mode</Label>
+                  <p className="text-sm text-gray-500">Cache events for offline viewing</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="offline-mode"
+                    checked={settings.enableOfflineMode}
+                    onCheckedChange={(checked) => handleSettingChange('enableOfflineMode', checked)}
+                  />
+                  {settings.enableOfflineMode && (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="recurrence">Recurring events</Label>
+                  <p className="text-sm text-gray-500">Create repeating events</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="recurrence"
+                    checked={settings.enableRecurrence}
+                    onCheckedChange={(checked) => handleSettingChange('enableRecurrence', checked)}
+                    disabled={true}
+                  />
+                  <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex justify-between pt-6 border-t border-gray-200">
+        <Button
+          variant="outline"
+          onClick={handleReset}
+          className="neu-card"
+        >
           Reset to Defaults
         </Button>
-        
-        <div className="flex items-center space-x-2">
+        <div className="flex gap-2">
           <Button
             variant="ghost"
             onClick={onClose}
@@ -529,12 +348,10 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
             Cancel
           </Button>
           <Button
-            onClick={handleSaveSettings}
-            disabled={!hasUnsavedChanges}
+            onClick={handleSave}
             className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white"
           >
-            <Save className="w-4 h-4 mr-2" />
-            Save Changes
+            Save Settings
           </Button>
         </div>
       </div>
