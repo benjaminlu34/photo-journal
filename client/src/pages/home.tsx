@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
+import { CalendarProvider, useCalendar } from "@/contexts/calendar-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
 import { JournalSidebar } from "@/components/journal/sidebar/sidebar";
@@ -18,11 +19,18 @@ import { supabase } from "@/lib/supabase";
 import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
-function HomeContent() {
+function HomeContentInner() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
   const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek, setViewMode } = useJournal();
+  
+  // Use calendar context for calendar-specific state management
+  const calendarContext = useCalendar();
+  
+  // Create stable date references to avoid useEffect dependency issues
+  const today = useCallback(() => new Date(), []);
+  const currentWeekStart = useCallback(() => startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), [currentWeek]);
 
 
   // View persistence: handle both URL params and localStorage
@@ -43,10 +51,13 @@ function HomeContent() {
 
     // Apply date/week anchors based on the mode (use date-fns for stability)
     if (mode === 'weekly-calendar' || mode === 'weekly-creative') {
-      const start = startOfWeek(new Date(), { weekStartsOn: 0 });
+      const start = startOfWeek(today(), { weekStartsOn: 0 });
       setCurrentWeek(start);
+      // Sync with calendar context
+      calendarContext.actions.setCurrentWeek(start);
     } else {
-      setCurrentDate(new Date());
+      const todayDate = today();
+      setCurrentDate(todayDate);
     }
 
     // Ensure URL has the view parameter
@@ -63,8 +74,7 @@ function HomeContent() {
     } catch (e) {
       console.warn('Failed to persist view mode to localStorage:', e);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [viewMode, setViewMode, setCurrentWeek, setCurrentDate, calendarContext.actions, today]);
 
   // Update URL and localStorage when viewMode changes
   useEffect(() => {
@@ -178,21 +188,18 @@ function HomeContent() {
                 aria-label="Previous"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    const prevDay = addDays(new Date(currentDate), -1);
+                    const prevDay = addDays(currentDate, -1);
                     setCurrentDate(prevDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
                     // Keep calendar store in sync with JournalContext
-                    const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    const newWeek = subWeeks(currentWeekStart(), 1);
                     setCurrentWeek(newWeek);
-                    try {
-                      // propagate to calendar context if mounted
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-                      window.dispatchEvent(evt);
-                    } catch {}
+                    // Sync with calendar context
+                    calendarContext.actions.setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
-                    const prevMonth = new Date(currentDate);
-                    prevMonth.setMonth(currentDate.getMonth() - 1);
-                    setCurrentDate(prevMonth);
+                    const prevMonth = addDays(currentDate, -currentDate.getDate());
+                    const prevMonthStart = addDays(prevMonth, -(prevMonth.getDate() - 1));
+                    setCurrentDate(prevMonthStart);
                   }
                 }}
                 className="neu-nav-pill text-gray-700"
@@ -206,27 +213,25 @@ function HomeContent() {
                 aria-label="Go to current period"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    const today = new Date();
-                    setCurrentDate(today);
+                    const todayDate = today();
+                    setCurrentDate(todayDate);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+                    const todayStart = startOfWeek(today(), { weekStartsOn: 0 });
                     setCurrentWeek(todayStart);
-                    try {
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: todayStart } });
-                      window.dispatchEvent(evt);
-                    } catch {}
+                    // Sync with calendar context
+                    calendarContext.actions.setCurrentWeek(todayStart);
                   } else if (viewMode === "monthly") {
-                    const today = new Date();
-                    setCurrentDate(today);
+                    const todayDate = today();
+                    setCurrentDate(todayDate);
                   }
                 }}
                 className="neu-nav-pill text-gray-700 whitespace-nowrap"
               >
                 {viewMode === "daily" && "Today"}
                 {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                  const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-                  const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
-                  return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
+                  const thisWeekStart = startOfWeek(today(), { weekStartsOn: 0 });
+                  const currentWeekStartDate = currentWeekStart();
+                  return isSameWeek(thisWeekStart, currentWeekStartDate, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
                 })()}
                 {viewMode === "monthly" && "This Month"}
               </Button>
@@ -237,19 +242,17 @@ function HomeContent() {
                 aria-label="Next"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    const nextDay = addDays(new Date(currentDate), 1);
+                    const nextDay = addDays(currentDate, 1);
                     setCurrentDate(nextDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    const newWeek = addWeeks(currentWeekStart(), 1);
                     setCurrentWeek(newWeek);
-                    try {
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-                      window.dispatchEvent(evt);
-                    } catch {}
+                    // Sync with calendar context
+                    calendarContext.actions.setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
-                    const nextMonth = new Date(currentDate);
-                    nextMonth.setMonth(currentDate.getMonth() + 1);
-                    setCurrentDate(nextMonth);
+                    const nextMonth = addDays(currentDate, 32 - currentDate.getDate());
+                    const nextMonthStart = addDays(nextMonth, -(nextMonth.getDate() - 1));
+                    setCurrentDate(nextMonthStart);
                   }
                 }}
                 className="neu-nav-pill text-gray-700"
@@ -315,18 +318,28 @@ function HomeContent() {
           </div>
         </div>
 
-        <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
-          {/* Handle friendship events and refresh image URLs when permissions change */}
-          <FriendshipImageHandler />
-          <div className="flex flex-1">
-            <JournalWorkspace />
-            <CollaborationPanel />
-          </div>
-        </CRDTProvider>
+        <CalendarProvider initialDate={currentWeek}>
+          <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
+            {/* Handle friendship events and refresh image URLs when permissions change */}
+            <FriendshipImageHandler />
+            <div className="flex flex-1">
+              <JournalWorkspace />
+              <CollaborationPanel />
+            </div>
+          </CRDTProvider>
+        </CalendarProvider>
       </div>
 
 
     </div>
+  );
+}
+
+function HomeContent() {
+  return (
+    <CalendarProvider>
+      <HomeContentInner />
+    </CalendarProvider>
   );
 }
 

@@ -5,6 +5,7 @@
 import type { LocalEvent } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { validateHexColor } from '@/utils/colorUtils/colorUtils';
+import { security } from '@/lib/security';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -139,21 +140,33 @@ export function createCRDTCompatibleEvent(
   };
 }
 
+// Sanitize string to prevent XSS attacks
+function sanitizeString(str: string): string {
+  // Remove script tags and javascript: URLs
+  let sanitized = str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  
+  // Use DOMPurify for additional HTML sanitization
+  sanitized = security.sanitizeHtml(sanitized);
+  
+  return sanitized.trim();
+}
+
 // Sanitize event input to prevent XSS and other security issues
 export function sanitizeEventInput(input: Partial<LocalEvent>): Partial<LocalEvent> {
   const sanitized: Partial<LocalEvent> = {};
   
-  // Sanitize string fields
+  // Sanitize string fields with XSS protection
   if (input.title !== undefined) {
-    sanitized.title = input.title.toString().trim().slice(0, CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH);
+    sanitized.title = sanitizeString(input.title.toString()).slice(0, CALENDAR_CONFIG.EVENTS.MAX_TITLE_LENGTH);
   }
   
   if (input.description !== undefined) {
-    sanitized.description = input.description.toString().trim().slice(0, CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH);
+    sanitized.description = sanitizeString(input.description.toString()).slice(0, CALENDAR_CONFIG.EVENTS.MAX_DESCRIPTION_LENGTH);
   }
   
   if (input.location !== undefined) {
-    sanitized.location = input.location.toString().trim();
+    sanitized.location = sanitizeString(input.location.toString());
   }
   
   // Sanitize and validate color
@@ -174,13 +187,13 @@ export function sanitizeEventInput(input: Partial<LocalEvent>): Partial<LocalEve
   }
   if (input.timezone !== undefined) sanitized.timezone = input.timezone;
   
-  // Sanitize arrays
+  // Sanitize arrays with XSS protection
   if (input.tags !== undefined && Array.isArray(input.tags)) {
-    sanitized.tags = input.tags.map(tag => tag.toString().trim()).filter(Boolean);
+    sanitized.tags = input.tags.map(tag => sanitizeString(tag.toString())).filter(Boolean);
   }
   
   if (input.attendees !== undefined && Array.isArray(input.attendees)) {
-    sanitized.attendees = input.attendees.map(attendee => attendee.toString().trim()).filter(Boolean);
+    sanitized.attendees = input.attendees.map(attendee => sanitizeString(attendee.toString())).filter(Boolean);
   }
   
   return sanitized;

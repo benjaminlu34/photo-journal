@@ -157,11 +157,35 @@ export class TimezoneServiceImpl implements TimezoneService {
         hour12: false
       });
       
-      // Get the UTC time
-      const utcTime = date.getTime();
+      // Get the date components in the source timezone
+      const fromParts = fromFormatter.formatToParts(date);
+      const fromPartsObj = fromParts.reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+      }, {} as Record<string, string>);
       
-      // Create a new date in the target timezone
-      const targetDate = new Date(utcTime);
+      // Create a date string in the source timezone format
+      const fromDateString = `${fromPartsObj.year}-${fromPartsObj.month}-${fromPartsObj.day}T${fromPartsObj.hour}:${fromPartsObj.minute}:${fromPartsObj.second}`;
+      
+      // Parse this as if it were in the target timezone
+      const tempDate = new Date(fromDateString);
+      
+      // Get the date components in the target timezone
+      const toParts = toFormatter.formatToParts(tempDate);
+      const toPartsObj = toParts.reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+      }, {} as Record<string, string>);
+      
+      // Create the final date in the target timezone
+      const targetDate = new Date(
+        parseInt(toPartsObj.year),
+        parseInt(toPartsObj.month) - 1, // Month is 0-indexed
+        parseInt(toPartsObj.day),
+        parseInt(toPartsObj.hour),
+        parseInt(toPartsObj.minute),
+        parseInt(toPartsObj.second)
+      );
       
       return targetDate;
     } catch (error) {
