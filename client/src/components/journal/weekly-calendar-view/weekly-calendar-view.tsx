@@ -146,6 +146,21 @@ export function WeeklyCalendarView({
     return () => actions.cleanup?.();
   }, [calendarCurrentWeek, username, actions]);
 
+  // Bridge: sync external "pj:calendar:setWeek" events into Calendar store and Journal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { date: Date };
+      if (!detail?.date) return;
+      const normalized = startOfWeek(new Date(detail.date), { weekStartsOn: 0 });
+      setCurrentWeek(normalized);
+      actions.setCurrentWeek(normalized);
+    };
+    window.addEventListener("pj:calendar:setWeek", handler as EventListener);
+    return () => {
+      window.removeEventListener("pj:calendar:setWeek", handler as EventListener);
+    };
+  }, [actions, setCurrentWeek]);
+
   // Friend sync features are not available via CalendarContext actions yet.
   // Placeholder no-ops to preserve UI and avoid type errors.
   const debouncedLoadEvents = useMemo(

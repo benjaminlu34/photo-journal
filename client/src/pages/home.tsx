@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameWeek, isSameDay } from "date-fns";
+import { startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
@@ -181,8 +181,14 @@ function HomeContent() {
                     const prevDay = addDays(new Date(currentDate), -1);
                     setCurrentDate(prevDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    // Align with WeekHeader behavior: move in whole-week increments from currentWeek
-                    setCurrentWeek(subWeeks(new Date(currentWeek), 1));
+                    // Keep calendar store in sync with JournalContext
+                    const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    setCurrentWeek(newWeek);
+                    try {
+                      // propagate to calendar context if mounted
+                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
+                      window.dispatchEvent(evt);
+                    } catch {}
                   } else if (viewMode === "monthly") {
                     const prevMonth = new Date(currentDate);
                     prevMonth.setMonth(currentDate.getMonth() - 1);
@@ -200,11 +206,18 @@ function HomeContent() {
                 aria-label="Go to current period"
                 onClick={() => {
                   if (viewMode === "daily") {
-                    setCurrentDate(new Date());
+                    const today = new Date();
+                    setCurrentDate(today);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    setCurrentWeek(startOfWeek(new Date(), { weekStartsOn: 0 }));
+                    const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+                    setCurrentWeek(todayStart);
+                    try {
+                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: todayStart } });
+                      window.dispatchEvent(evt);
+                    } catch {}
                   } else if (viewMode === "monthly") {
-                    setCurrentDate(new Date());
+                    const today = new Date();
+                    setCurrentDate(today);
                   }
                 }}
                 className="neu-nav-pill text-gray-700 whitespace-nowrap"
@@ -213,7 +226,6 @@ function HomeContent() {
                 {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
                   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
                   const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
-                  // Match WeekHeader logic by comparing week starts (equivalent to isSameWeek with same options)
                   return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
                 })()}
                 {viewMode === "monthly" && "This Month"}
@@ -228,8 +240,12 @@ function HomeContent() {
                     const nextDay = addDays(new Date(currentDate), 1);
                     setCurrentDate(nextDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    // Align with WeekHeader behavior: move in whole-week increments from currentWeek
-                    setCurrentWeek(addWeeks(new Date(currentWeek), 1));
+                    const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    setCurrentWeek(newWeek);
+                    try {
+                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
+                      window.dispatchEvent(evt);
+                    } catch {}
                   } else if (viewMode === "monthly") {
                     const nextMonth = new Date(currentDate);
                     nextMonth.setMonth(currentDate.getMonth() + 1);
@@ -247,23 +263,6 @@ function HomeContent() {
               <div className="flex-1 min-w-0">
                 <h2 className="text-2xl font-bold text-gray-800 truncate">
                   {viewMode === "daily" && "Daily Pinboard"}
-                  {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                    // Mirror WeekHeader: compute weekStart/weekEnd using date-fns
-                    const weekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
-                    const weekEnd = endOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
-
-                    const startMonth = weekStart.toLocaleDateString("en-US", { month: "short" });
-                    const startDay = weekStart.getDate();
-                    const endMonth = weekEnd.toLocaleDateString("en-US", { month: "short" });
-                    const endDay = weekEnd.getDate();
-                    const year = weekEnd.getFullYear();
-
-                    if (startMonth === endMonth) {
-                      return `Week of ${startMonth} ${startDay} - ${endDay}, ${year}`;
-                    } else {
-                      return `Week of ${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
-                    }
-                  })()}
                   {viewMode === "monthly" && (
                     <>
                       <Calendar className="w-7 h-7 text-purple-500 mr-3 inline-block align-[-2px]" />

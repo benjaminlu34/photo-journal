@@ -33,11 +33,21 @@ export function WeekHeader({
   const isCurrentWeek = isSameDay(weekStart, startOfWeek(new Date(), { weekStartsOn: 0 }));
 
   const handlePrevWeek = () => {
-    onWeekChange(subWeeks(currentWeek, 1));
+    const newWeek = subWeeks(startOfWeek(currentWeek, { weekStartsOn: 0 }), 1);
+    onWeekChange(newWeek);
+    try {
+      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
+      window.dispatchEvent(evt);
+    } catch {}
   };
 
   const handleNextWeek = () => {
-    onWeekChange(addWeeks(currentWeek, 1));
+    const newWeek = addWeeks(startOfWeek(currentWeek, { weekStartsOn: 0 }), 1);
+    onWeekChange(newWeek);
+    try {
+      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
+      window.dispatchEvent(evt);
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
@@ -65,17 +75,7 @@ export function WeekHeader({
       <div className="flex items-center justify-between px-4 py-3">
         {/* Left section: Week navigation */}
         <div className="flex items-center space-x-4">
-          {/* Previous week button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handlePrevWeek}
-            onKeyDown={(e) => handleKeyDown(e, handlePrevWeek)}
-            className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+          {/* Previous week button - removed to avoid duplicate navigation (home header is source of truth) */}
 
           {/* Week range display */}
           <div 
@@ -97,35 +97,11 @@ export function WeekHeader({
             </div>
           </div>
 
-          {/* Next week button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleNextWeek}
-            onKeyDown={(e) => handleKeyDown(e, handleNextWeek)}
-            className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
-            aria-label="Next week"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          {/* Next week button - removed to avoid duplicate navigation (home header is source of truth) */}
         </div>
 
-        {/* Center section: Today button */}
-        <div className="flex items-center">
-          {!isCurrentWeek && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onTodayClick}
-              onKeyDown={(e) => handleKeyDown(e, onTodayClick)}
-              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-              aria-label="Go to current week"
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Today
-            </Button>
-          )}
-        </div>
+        {/* Center section: Today button - removed to avoid duplicate navigation */}
+        <div className="flex items-center"></div>
 
         {/* Right section: Action buttons */}
         <div className="flex items-center space-x-2">
