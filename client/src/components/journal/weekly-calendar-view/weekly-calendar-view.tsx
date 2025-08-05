@@ -1,57 +1,103 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useCalendar } from "@/contexts/calendar-context";
-import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import { ChevronLeft, ChevronRight, Home, Users, Settings, Plus } from "lucide-react";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isToday } from "date-fns";
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
-import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader } from "@/components/calendar";
-import { applyOpacityToColor } from "@/utils/colorUtils/colorUtils";
+import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader, FriendCalendarSyncModal } from "@/components/calendar";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
+// Unified event type tagging (ported)
+type WithEventType =
+  | (LocalEvent & { eventType: 'local' })
+  | (CalendarEvent & { eventType: 'external' })
+  | (FriendCalendarEvent & { eventType: 'friend' });
 
+// Convert any event to LocalEvent shape for DayColumn (ported)
+function convertToLocalEventFormat(event: WithEventType): LocalEvent {
+  switch (event.eventType) {
+    case 'local':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: event.createdBy,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        linkedJournalEntryId: event.linkedJournalEntryId,
+        reminderMinutes: event.reminderMinutes,
+        collaborators: event.collaborators,
+        tags: event.tags
+      };
+    case 'friend':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: event.friendUsername,
+        createdAt: event.startTime,
+        updatedAt: event.startTime,
+        linkedJournalEntryId: undefined,
+        reminderMinutes: undefined,
+        collaborators: [],
+        tags: []
+      };
+    case 'external':
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        timezone: event.timezone,
+        isAllDay: event.isAllDay,
+        color: event.color,
+        pattern: event.pattern,
+        location: event.location,
+        attendees: event.attendees || [],
+        createdBy: (event as any).feedName,
+        createdAt: event.startTime,
+        updatedAt: event.startTime,
+        linkedJournalEntryId: undefined,
+        reminderMinutes: undefined,
+        collaborators: [],
+        tags: []
+      };
+    default:
+      const _never: never = event;
+      return _never;
+  }
+}
 
-// Helper function to convert external/friend events to LocalEvent format for display
-const convertToLocalEventForDisplay = (
-  event: CalendarEvent | FriendCalendarEvent,
-  type: 'external' | 'friend'
-): LocalEvent => {
-  // Use a stable date reference to avoid creating new Date objects on every render
-  const stableCreatedAt = event.startTime;
-  const stableUpdatedAt = event.startTime;
-
-  return {
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    startTime: event.startTime,
-    endTime: event.endTime,
-    timezone: event.timezone,
-    isAllDay: event.isAllDay,
-    color: event.color,
-    pattern: event.pattern || 'plain',
-    location: event.location,
-    attendees: event.attendees,
-    createdBy: type === 'external' ? 'external' : (event as FriendCalendarEvent).friendUserId,
-    createdAt: stableCreatedAt,
-    updatedAt: stableUpdatedAt,
-    collaborators: [],
-    tags: []
-  };
-};
-
-// Helper function to convert events array to LocalEvent array for a specific day
-const convertEventsForDay = (
-  eventsArray: CalendarEvent[] | FriendCalendarEvent[],
-  type: 'external' | 'friend',
-  day: Date
-): LocalEvent[] => {
-  return eventsArray
-    .filter(event => isSameDay(event.startTime, day))
-    .map(event => convertToLocalEventForDisplay(event, type));
-};
+// Debounce helper (ported)
+function debounce<T extends (...args: any[]) => any>(fn: T, wait: number): T & { cancel: () => void } {
+  let t: ReturnType<typeof setTimeout>;
+  const d = ((...args: any[]) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  }) as T & { cancel: () => void };
+  d.cancel = () => clearTimeout(t);
+  return d;
+}
 
 export function WeeklyCalendarView({
   initialDate,
@@ -60,219 +106,252 @@ export function WeeklyCalendarView({
   feedsEnabled = true,
   syncedFriends = []
 }: WeeklyCalendarViewProps) {
-  // Suppress unused variable warnings for props that will be used in future tasks
-  void username;
-  void collaborationEnabled;
-  void feedsEnabled;
-  void syncedFriends;
+  void collaborationEnabled; // reserved for future
   const { currentWeek, setCurrentWeek } = useJournal();
   const {
     localEvents,
     externalEvents,
     friendEvents,
+    feeds,
     currentWeek: calendarCurrentWeek,
-    actions: calendarActions
+    isLoading,
+    error,
+    actions,
   } = useCalendar();
 
+  // Local UI state
   const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isFeedModalOpen, setIsFeedModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDateForEvent, setSelectedDateForEvent] = useState<Date | null>(null);
-
-  // Use responsive hook for viewport management
-  const {
-    viewMode: responsiveViewMode,
-    currentPadIndex,
-    navigatePad,
-    canNavigatePad,
-  } = useCalendarResponsive();
+  const [isFriendSyncModalOpen, setIsFriendSyncModalOpen] = useState(false);
+  const initializationRef = useRef(false);
+  // Note: CalendarContext doesn't expose friend sync APIs yet.
+  // We keep the modal UX but wire actions to setError as placeholders.
 
   // Initialize with provided date or current week
   useEffect(() => {
     if (initialDate && initialDate.getTime() !== currentWeek.getTime()) {
       setCurrentWeek(initialDate);
-      calendarActions.setCurrentWeek(initialDate);
+      actions.setCurrentWeek(initialDate);
     }
-  }, [initialDate, currentWeek, setCurrentWeek, calendarActions]);
+  }, [initialDate, currentWeek, setCurrentWeek, actions]);
 
-  // Memoize week days calculation to prevent unnecessary re-computations
-  const weekDays = useMemo(() => {
-    const startDate = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
-    const endDate = endOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
-    return eachDayOfInterval({ start: startDate, end: endDate });
-  }, [calendarCurrentWeek]);
+  // Ensure calendar store is initialized once week is known (ported)
+  useEffect(() => {
+    const weekId = format(startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 }), "yyyy-'W'II");
+    actions.init(weekId, username, username, username);
+    initializationRef.current = true;
+    return () => actions.cleanup?.();
+  }, [calendarCurrentWeek, username, actions]);
 
-  // Memoize display days calculation for pad view optimization
-  const displayDays = useMemo(() => {
-    if (responsiveViewMode !== 'pads') return weekDays;
+  // Friend sync features are not available via CalendarContext actions yet.
+  // Placeholder no-ops to preserve UI and avoid type errors.
+  const debouncedLoadEvents = useMemo(
+    () => debounce((..._args: any[]) => { }, CALENDAR_CONFIG.PERFORMANCE.DEBOUNCE_DELAY),
+    []
+  );
+  useEffect(() => {
+    return () => debouncedLoadEvents.cancel?.();
+  }, [debouncedLoadEvents]);
 
-    const padSize = CALENDAR_CONFIG.MOBILE.PAD_SIZE;
-    const startIndex = currentPadIndex * padSize;
-    let endIndex = startIndex + padSize;
+  // Navigation handlers (ported)
+  const handlePreviousWeek = useCallback(() => {
+    const newWeek = subWeeks(calendarCurrentWeek, 1);
+    setCurrentWeek(newWeek);
+    actions.setCurrentWeek(newWeek);
+  }, [calendarCurrentWeek, setCurrentWeek, actions]);
 
-    // Handle the last pad which might have fewer days
-    if (currentPadIndex === 2) {
-      endIndex = weekDays.length;
-    }
+  const handleNextWeek = useCallback(() => {
+    const newWeek = addWeeks(calendarCurrentWeek, 1);
+    setCurrentWeek(newWeek);
+    actions.setCurrentWeek(newWeek);
+  }, [calendarCurrentWeek, setCurrentWeek, actions]);
 
-    return weekDays.slice(startIndex, endIndex);
-  }, [responsiveViewMode, weekDays, currentPadIndex]);
+  const handleTodayClick = useCallback(() => {
+    const today = new Date();
+    setCurrentWeek(today);
+    actions.setCurrentWeek(today);
+  }, [setCurrentWeek, actions]);
 
-  // Memoize events by day to prevent filtering on every render
-  const eventsByDay = useMemo(() => {
-    const eventsMap: Record<string, LocalEvent[]> = {};
+  // Friend sync controls (ported)
+  const handleToggleFriendSync = useCallback(async (_friendUserId: string, _enabled: boolean) => {
+    actions.setError?.('Friend sync is not available in this build yet.');
+  }, [actions]);
 
-    displayDays.forEach(day => {
-      const dayKey = day.toDateString();
+  const handleRefreshFriend = useCallback(async (_friendUserId: string) => {
+    actions.setError?.('Friend events refresh is not available in this build yet.');
+  }, [actions]);
 
-      // Filter local events for the day
-      const localEventsForDay = Object.values(localEvents).filter(event =>
-        isSameDay(event.startTime, day)
-      );
+  // Consolidate all events with tags (ported)
+  const allEvents = useMemo(() => {
+    type CombinedEvent =
+      | (LocalEvent & { eventType: 'local' })
+      | (CalendarEvent & { eventType: 'external' })
+      | (FriendCalendarEvent & { eventType: 'friend' });
 
-      // Filter and convert external events for the day
-      const externalEventsForDay: LocalEvent[] = [];
-      Object.values(externalEvents).forEach(eventsArray => {
-        externalEventsForDay.push(...convertEventsForDay(eventsArray, 'external', day));
-      });
+    const arr: CombinedEvent[] = [];
+    for (const ev of Object.values(localEvents)) arr.push({ ...ev, eventType: 'local' as const });
+    for (const ext of Object.values(externalEvents)) for (const ev of ext) arr.push({ ...ev, eventType: 'external' as const });
+    for (const fr of Object.values(friendEvents)) for (const ev of fr) arr.push({ ...ev, eventType: 'friend' as const });
+    return arr as WithEventType[];
+  }, [localEvents, externalEvents, friendEvents]);
 
-      // Filter and convert friend events for the day
-      const friendEventsForDay: LocalEvent[] = [];
-      Object.values(friendEvents).forEach(eventsArray => {
-        friendEventsForDay.push(...convertEventsForDay(eventsArray, 'friend', day));
-      });
+  // Compute week days (ported structure compatibility)
+  const weekStart = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
+  const weekEnd = endOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
+  const weekDays: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    weekDays.push(d);
+  }
 
-      eventsMap[dayKey] = [...localEventsForDay, ...externalEventsForDay, ...friendEventsForDay];
+  // Bucket events by overlapping days (handles multi-day/overnight) (ported)
+  const eventsByDayKey = useMemo(() => {
+    const map = new Map<string, WithEventType[]>();
+    const dayBounds = weekDays.map((d) => {
+      const start = new Date(d); start.setHours(0, 0, 0, 0);
+      const end = new Date(d); end.setHours(23, 59, 59, 999);
+      const key = format(d, 'yyyy-MM-dd');
+      return { key, start, end };
     });
 
-    return eventsMap;
-  }, [displayDays, localEvents, externalEvents, friendEvents]);
+    for (const ev of allEvents) {
+      const evStart = new Date(ev.startTime);
+      const evEnd = new Date(ev.endTime);
+      for (const { key, start, end } of dayBounds) {
+        if (evStart < end && evEnd > start) {
+          const arr = map.get(key);
+          if (arr) arr.push(ev); else map.set(key, [ev]);
+        }
+      }
+    }
+    return map;
+  }, [allEvents, weekDays]);
 
-  // Create responsive grid template based on display days
-  // Fluid layout: time column fixed, day columns expand equally
-  const gridTemplate = useMemo(() => {
-    const dayCount = displayDays.length;
-    return `64px repeat(${dayCount}, 1fr)`;
-  }, [displayDays.length]);
+  // Responsive days per view (7/5/1) + journal pads integration (merged)
+  const { viewMode: responsiveViewMode, currentPadIndex, navigatePad, canNavigatePad } = useCalendarResponsive();
+  const daysPerView = useMemo(() => {
+    if (typeof window === 'undefined') return 7;
+    const w = window.innerWidth;
+    const { BREAKPOINTS } = CALENDAR_CONFIG;
+    if (w < BREAKPOINTS.SCROLL_VIEW) return 1;
+    if (w < BREAKPOINTS.FULL_VIEW) return 5;
+    return 7;
+  }, [calendarCurrentWeek]);
 
-  const handleEventClick = useCallback((event: LocalEvent) => {
-    setSelectedEvent(event);
+  const [startIndex, setStartIndex] = useState(0);
+  useEffect(() => { setStartIndex(0); }, [weekStart?.toISOString?.()]);
+
+  const canPageLeft = startIndex > 0;
+  const canPageRight = startIndex + daysPerView < 7;
+  const visibleDays = useMemo(() => {
+    if (responsiveViewMode === 'pads') {
+      const padSize = CALENDAR_CONFIG.MOBILE.PAD_SIZE;
+      const s = currentPadIndex * padSize;
+      const e = currentPadIndex === 2 ? weekDays.length : s + padSize;
+      return weekDays.slice(s, e);
+    }
+    return weekDays.slice(startIndex, startIndex + daysPerView);
+  }, [weekDays, startIndex, daysPerView, responsiveViewMode, currentPadIndex]);
+
+  // Handlers for DayColumn (merged)
+  const handleEventClick = useCallback((ev: LocalEvent) => {
+    setSelectedEvent(ev);
     setIsEventModalOpen(true);
   }, []);
-
   const handleEventModalClose = useCallback(() => {
     setIsEventModalOpen(false);
     setSelectedEvent(null);
     setSelectedDateForEvent(null);
   }, []);
-
   const handleTimeSlotClick = useCallback((slotDate: Date) => {
     setSelectedDateForEvent(slotDate);
     setIsEventModalOpen(true);
   }, []);
-
-  const handleEventDragStart = useCallback((eventId: string) => {
-    // TODO: Implement drag start logic
-    console.log('Drag started for event:', eventId);
-  }, []);
-
-  const handleEventDragEnd = useCallback(() => {
-    // TODO: Implement drag end logic
-    console.log('Drag ended');
-  }, []);
-
-  const handleTodayClick = useCallback(() => {
-    const today = new Date();
-    setCurrentWeek(today);
-    calendarActions.setCurrentWeek(today);
-  }, [setCurrentWeek, calendarActions]);
-
-  const handleWeekChange = useCallback((date: Date) => {
-    setCurrentWeek(date);
-    calendarActions.setCurrentWeek(date);
-  }, [setCurrentWeek, calendarActions]);
-
-  // Render mobile pad navigation
-  const renderPadNavigation = () => {
-    if (responsiveViewMode !== 'pads') return null;
-
-    return (
-      <div className="flex items-center justify-between mb-4 px-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigatePad('prev')}
-          disabled={!canNavigatePad('prev')}
-          className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
-          aria-label="Previous 3-day pad"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </Button>
-
-        <div className="flex space-x-2" role="tablist" aria-label="Calendar pads">
-          {[0, 1, 2].map((index) => (
-            <div
-              key={index}
-              role="tab"
-              aria-selected={index === currentPadIndex}
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentPadIndex
-                ? 'bg-[hsl(var(--accent))] shadow-neu-lg transform scale-125'
-                : 'bg-gray-300 shadow-neu-soft'
-                }`}
-              aria-label={`Pad ${index + 1} of 3`}
-            />
-          ))}
-        </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigatePad('next')}
-          disabled={!canNavigatePad('next')}
-          className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
-          aria-label="Next 3-day pad"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </Button>
-      </div>
-    );
-  };
+  const handleEventDragStart = useCallback((_id: string) => { }, []);
+  const handleEventDragEnd = useCallback(() => { }, []);
 
   return (
-    <div className="flex-1 h-full bg-white flex flex-col">
+    <div className="flex-1 bg-white flex flex-col min-h-0">
       {/* Week Header */}
       <WeekHeader
         currentWeek={calendarCurrentWeek}
-        onWeekChange={handleWeekChange}
-        onTodayClick={handleTodayClick}
+        onWeekChange={(d) => { setCurrentWeek(d); actions.setCurrentWeek(d); }}
+        onTodayClick={() => {
+          const today = new Date();
+          setCurrentWeek(today);
+          actions.setCurrentWeek(today);
+        }}
         onCreateEventClick={() => {
           setSelectedDateForEvent(new Date());
           setIsEventModalOpen(true);
         }}
         onSettingsClick={() => setIsSettingsOpen(true)}
         onFeedModalClick={() => setIsFeedModalOpen(true)}
+        showRecurrenceBanner={CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI}
       />
 
-      {renderPadNavigation()}
+      {/* Pad navigation (journal feature) */}
+      {responsiveViewMode === 'pads' && (
+        <div className="flex items-center justify-between mb-4 px-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigatePad('prev')}
+            disabled={!canNavigatePad('prev')}
+            className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
+            aria-label="Previous 3-day pad"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
 
-      {/* Calendar Container with proper height constraints */}
+          <div className="flex space-x-2" role="tablist" aria-label="Calendar pads">
+            {[0, 1, 2].map((index) => (
+              <div
+                key={index}
+                role="tab"
+                aria-selected={index === currentPadIndex}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentPadIndex
+                  ? 'bg-[hsl(var(--accent))] shadow-neu-lg transform scale-125'
+                  : 'bg-gray-300 shadow-neu-soft'
+                  }`}
+                aria-label={`Pad ${index + 1} of 3`}
+              />
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigatePad('next')}
+            disabled={!canNavigatePad('next')}
+            className="neu-card rounded-full shadow-neu hover:shadow-neu-lg transition-all"
+            aria-label="Next 3-day pad"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Calendar Grid */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Day Headers Row - Sticky */}
+        {/* Day Headers */}
         <div
           className="sticky top-0 z-20 border-b border-gray-200 bg-white shadow-sm flex-shrink-0"
           style={{
             display: 'grid',
-            gridTemplateColumns: gridTemplate,
+            gridTemplateColumns: `64px repeat(${visibleDays.length}, 1fr)`,
             paddingRight: '9px',
           }}
         >
-          {/* Time column header */}
           <div className="p-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-r border-gray-200">
             Time
           </div>
-          {displayDays.map((day) => {
-            const isToday = isSameDay(day, new Date());
+          {visibleDays.map((day) => {
+            const isTodayDay = isToday(day);
             const isWeekend = day.getDay() === 0 || day.getDay() === 6;
             const isJank = {
               scrollPadding: {
@@ -285,19 +364,14 @@ export function WeeklyCalendarView({
                 className={`p-3 text-center ${isWeekend ? 'bg-rose-50' : 'bg-white'} ${day.getDay() === 0 ? 'border-l border-gray-200' : ''}`}
                 style={isJank.scrollPadding}
               >
-                {/* We only draw the first day's left border in header to avoid cumulative width differences */}
                 <div className={`text-xs font-bold uppercase tracking-wider ${isWeekend ? 'text-rose-500' : 'text-gray-500'}`}>
                   {format(day, "EEE")}
                 </div>
-                <div className={`text-lg font-bold mt-1 ${isToday ? "text-[hsl(var(--accent))]" : isWeekend ? "text-rose-600" : "text-gray-800"
-                  }`}>
+                <div className={`text-lg font-bold mt-1 ${isTodayDay ? "text-[hsl(var(--accent))]" : isWeekend ? "text-rose-600" : "text-gray-800"}`}>
                   {format(day, "d")}
                 </div>
-                {isToday && (
-                  <Badge
-                    variant="secondary"
-                    className="mt-1 px-2 py-0.5 rounded-full text-[11px] leading-none bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] shadow-neu whitespace-nowrap"
-                  >
+                {isTodayDay && (
+                  <Badge variant="secondary" className="mt-1 px-2 py-0.5 rounded-full text-[11px] leading-none bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] shadow-neu whitespace-nowrap">
                     Today
                   </Badge>
                 )}
@@ -306,22 +380,8 @@ export function WeeklyCalendarView({
           })}
         </div>
 
-        <div
-          className="flex-1 overflow-auto min-h-0"
-          style={{
-            maxHeight: 'calc(100vh - 200px)',
-            scrollbarGutter: 'stable'
-          }}
-        >
-          <div
-            className="relative"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: gridTemplate,
-              height: `${24 * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px`, // 24 hours * configured hour height
-            }}
-          >
-            {/* Time column */}
+        <div className="flex-1 overflow-auto min-h-0" style={{ maxHeight: 'calc(100vh - 260px)', scrollbarGutter: 'stable' }}>
+          <div className="relative" style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleDays.length}, 1fr)`, height: `${24 * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px` }}>
             <div className="border-r border-gray-200 bg-white sticky left-0 z-10">
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={`time-${i}`} className="border-b border-gray-200 flex items-center justify-center bg-white" style={{ height: `${CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px` }}>
@@ -332,18 +392,17 @@ export function WeeklyCalendarView({
               ))}
             </div>
 
-            {/* Day columns using DayColumn component */}
-            {displayDays.map((day) => {
-              const isToday = isSameDay(day, new Date());
+            {visibleDays.map((day) => {
+              const isTodayDay = isToday(day);
               const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-              const dayEvents = eventsByDay[day.toDateString()] || [];
-
+              const key = format(day, 'yyyy-MM-dd');
+              const dayEvents = (eventsByDayKey.get(key) ?? []).map(convertToLocalEventFormat);
               return (
                 <DayColumn
                   key={`day-${day.toISOString()}`}
                   date={day}
                   events={dayEvents}
-                  isToday={isToday}
+                  isToday={isTodayDay}
                   isWeekend={isWeekend}
                   onEventClick={handleEventClick}
                   onTimeSlotClick={handleTimeSlotClick}
@@ -354,9 +413,38 @@ export function WeeklyCalendarView({
             })}
           </div>
         </div>
+
+        {/* Paging controls if not pads and less than 7 days shown */}
+        {responsiveViewMode !== 'pads' && daysPerView < 7 && (
+          <div className="flex items-center justify-between px-4 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="neu-card"
+              disabled={!canPageLeft}
+              aria-disabled={!canPageLeft}
+              onClick={() => setStartIndex((i) => Math.max(0, i - daysPerView))}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div className="text-xs text-gray-600" aria-live="polite">
+              Showing {startIndex + 1}-{Math.min(7, startIndex + daysPerView)} of 7 days
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="neu-card"
+              disabled={!canPageRight}
+              aria-disabled={!canPageRight}
+              onClick={() => setStartIndex((i) => Math.min(7 - daysPerView, i + daysPerView))}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Event Modal */}
+      {/* Event Modal (journal editor) */}
       <EventModal
         isOpen={isEventModalOpen}
         onClose={handleEventModalClose}
@@ -370,10 +458,21 @@ export function WeeklyCalendarView({
         onClose={() => setIsFeedModalOpen(false)}
       />
 
+      {/* Friend Sync Modal (ported) */}
+      <FriendCalendarSyncModal
+        isOpen={isFriendSyncModalOpen}
+        onClose={() => setIsFriendSyncModalOpen(false)}
+        syncedFriends={[]}
+        onToggleSync={async (friendUserId, enabled) => {
+          await handleToggleFriendSync(friendUserId, enabled);
+        }}
+        onRefreshFriend={handleRefreshFriend}
+      />
+
       {/* Calendar Settings */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-h-[90vh] overflow-auto neu-card">
+          <div className="bg-white rounded-xl maxh-[90vh] overflow-auto neu-card">
             <CalendarSettings onClose={() => setIsSettingsOpen(false)} />
           </div>
         </div>

@@ -18,7 +18,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
   const [editContent, setEditContent] = useState(block.content);
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  
+
   // Performance optimization: use refs for live drag state
   const blockRef = useRef<HTMLDivElement>(null);
   const livePosition = useRef(block.position);
@@ -30,12 +30,12 @@ export function ContentBlock({ block }: ContentBlockProps) {
   // GPU-accelerated visual update system
   const updateVisualPosition = useCallback(() => {
     if (!blockRef.current) return;
-    
+
     if (!moveRAF.current) {
       moveRAF.current = requestAnimationFrame(() => {
         if (blockRef.current) {
           const pos = livePosition.current;
-          blockRef.current.style.transform = 
+          blockRef.current.style.transform =
             `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${pos.rotation}deg)`;
         }
         moveRAF.current = 0;
@@ -64,53 +64,53 @@ export function ContentBlock({ block }: ContentBlockProps) {
   // Dedicated move grip system (prevents move/resize conflicts)
   const startMove = (e: React.PointerEvent) => {
     if (e.button !== 0 || isEditing || isResizing) return;
-    
+
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     document.body.classList.add('user-select-none');
     setIsDragging(true);
-    
+
     // Cache workspace geometry once per drag
     const workspace = document.querySelector('[data-workspace="true"]');
     if (!workspace) return;
     workspaceRect.current = workspace.getBoundingClientRect();
-    
+
     dragOffset.current = {
       x: e.clientX - workspaceRect.current!.left - livePosition.current.x,
       y: e.clientY - workspaceRect.current!.top - livePosition.current.y
     };
-    
+
     document.addEventListener('pointermove', moveBlock as any);
     document.addEventListener('pointerup', endMove as any);
   };
 
   const moveBlock = (e: PointerEvent) => {
     if (!isDragging || !workspaceRect.current) return;
-    
+
     e.preventDefault(); // suppress browser drag-select fallback
     const newX = e.clientX - workspaceRect.current.left - dragOffset.current.x;
     const newY = e.clientY - workspaceRect.current.top - dragOffset.current.y;
-    
+
     // Update live position immediately
     livePosition.current = {
       ...livePosition.current,
       x: Math.max(0, Math.min(newX, workspaceRect.current.width - livePosition.current.width)),
       y: Math.max(0, Math.min(newY, workspaceRect.current.height - livePosition.current.height))
     };
-    
+
     // GPU-accelerated visual update
     updateVisualPosition();
   };
 
   const endMove = (e: PointerEvent) => {
     if (!isDragging) return;
-    
+
     document.removeEventListener('pointermove', moveBlock as any);
     document.removeEventListener('pointerup', endMove as any);
     document.body.classList.remove('user-select-none');
     setIsDragging(false);
     workspaceRect.current = null;
-    
+
     // Single server update per drag
     updateBlockPosition(block.id, livePosition.current);
   };
@@ -118,26 +118,26 @@ export function ContentBlock({ block }: ContentBlockProps) {
   // Dedicated resize system with direction-specific handles
   const startResize = (e: React.PointerEvent, direction: string) => {
     if (e.button !== 0 || isEditing || isDragging) return;
-    
+
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsResizing(true);
-    
+
     // Cache workspace geometry once per resize
     const workspace = document.querySelector('[data-workspace="true"]');
     if (!workspace) return;
     workspaceRect.current = workspace.getBoundingClientRect();
-    
+
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = { ...livePosition.current };
-    
+
     const handleResize = (e: PointerEvent) => {
       const deltaX = e.clientX - startX;
       const deltaY = e.clientY - startY;
-      
+
       let newPos = { ...startPos };
-      
+
       // Apply deltas based on resize direction
       if (direction.includes('e')) newPos.width = Math.max(150, startPos.width + deltaX);
       if (direction.includes('w')) {
@@ -151,21 +151,21 @@ export function ContentBlock({ block }: ContentBlockProps) {
         newPos.height = startPos.height - clamped;
         newPos.y = Math.max(0, startPos.y + clamped);
       }
-      
+
       livePosition.current = newPos;
       updateVisualPosition();
     };
-    
+
     const handleResizeEnd = () => {
       document.removeEventListener('pointermove', handleResize);
       document.removeEventListener('pointerup', handleResizeEnd);
       setIsResizing(false);
       workspaceRect.current = null;
-      
+
       // Single server update per resize
       updateBlockPosition(block.id, livePosition.current);
     };
-    
+
     document.addEventListener('pointermove', handleResize);
     document.addEventListener('pointerup', handleResizeEnd);
   };
@@ -252,8 +252,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
             </div>
           </div>
         ) : (
-          <div 
-            className="text-sm cursor-pointer" 
+          <div
+            className="text-sm cursor-pointer"
             onClick={() => setIsEditing(true)}
           >
             {block.content.text || "Click to edit..."}
@@ -270,8 +270,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                   onCheckedChange={(checked) => {
                     const newItems = [...block.content.items];
                     newItems[index] = { ...item, completed: checked };
-                    updateContentBlock(block.id, { 
-                      content: { ...block.content, items: newItems } 
+                    updateContentBlock(block.id, {
+                      content: { ...block.content, items: newItems }
                     });
                   }}
                 />
@@ -309,9 +309,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
           <div className="h-full relative">
             {block.content.url ? (
               <div className="relative h-full group/photo overflow-hidden rounded-lg">
-                <img 
-                  src={block.content.url} 
-                  alt={block.content.caption || "Photo"} 
+                <img
+                  src={block.content.url}
+                  alt={block.content.caption || "Photo"}
                   className="w-full h-full object-cover"
                 />
                 {isEditing ? (
@@ -362,8 +362,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                               const file = (e.target as HTMLInputElement).files?.[0];
                               if (file) {
                                 const url = URL.createObjectURL(file);
-                                updateContentBlock(block.id, { 
-                                  content: { ...block.content, url, fileName: file.name } 
+                                updateContentBlock(block.id, {
+                                  content: { ...block.content, url, fileName: file.name }
                                 });
                               }
                             };
@@ -378,7 +378,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
                 )}
               </div>
             ) : (
-              <div 
+              <div
                 className="border-2 border-dashed border-primary-300 rounded-lg h-full flex flex-col justify-center items-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/30 transition-colors group"
                 onClick={() => {
                   const input = document.createElement('input');
@@ -388,8 +388,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                     const file = (e.target as HTMLInputElement).files?.[0];
                     if (file) {
                       const url = URL.createObjectURL(file);
-                      updateContentBlock(block.id, { 
-                        content: { ...block.content, url, fileName: file.name } 
+                      updateContentBlock(block.id, {
+                        content: { ...block.content, url, fileName: file.name }
                       });
                     }
                   };
@@ -419,9 +419,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
+                  <Button
+                    size="sm"
+                    variant="outline"
                     className="w-10 h-10 p-0 neu-button rounded-full bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white border-none hover:scale-110 transition-transform"
                   >
                     <Play className="w-4 h-4" />
@@ -449,8 +449,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                         const file = (e.target as HTMLInputElement).files?.[0];
                         if (file) {
                           const url = URL.createObjectURL(file);
-                          updateContentBlock(block.id, { 
-                            content: { ...block.content, url, fileName: file.name, duration: "0:00" } 
+                          updateContentBlock(block.id, {
+                            content: { ...block.content, url, fileName: file.name, duration: "0:00" }
                           });
                         }
                       };
@@ -462,7 +462,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
                 </div>
               </div>
             ) : (
-              <div 
+              <div
                 className="h-full border-2 border-dashed border-purple-300 rounded-lg flex flex-col justify-center items-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors group"
                 onClick={() => {
                   const input = document.createElement('input');
@@ -477,8 +477,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                         const minutes = Math.floor(audio.duration / 60);
                         const seconds = Math.floor(audio.duration % 60);
                         const duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                        updateContentBlock(block.id, { 
-                          content: { ...block.content, url, fileName: file.name, duration } 
+                        updateContentBlock(block.id, {
+                          content: { ...block.content, url, fileName: file.name, duration }
                         });
                       });
                     }
@@ -522,8 +522,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                     className="opacity-0 group-hover/drawing:opacity-100 transition-opacity bg-white/90 hover:bg-white text-black text-xs py-1 px-3"
                     onClick={() => {
                       // Placeholder for drawing editor
-                      updateContentBlock(block.id, { 
-                        content: { ...block.content, strokes: [] } 
+                      updateContentBlock(block.id, {
+                        content: { ...block.content, strokes: [] }
                       });
                     }}
                   >
@@ -532,7 +532,7 @@ export function ContentBlock({ block }: ContentBlockProps) {
                 </div>
               </div>
             ) : (
-              <div 
+              <div
                 className="h-full border-2 border-dashed border-green-300 rounded-lg flex flex-col justify-center items-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors group"
                 onClick={() => {
                   // Create a simple drawing placeholder
@@ -540,8 +540,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
                     { path: "M50,150 Q150,50 250,150 T350,150", color: "#10b981", width: 3 },
                     { path: "M100,200 L150,100 L200,200 L250,100 L300,200", color: "#3b82f6", width: 2 }
                   ];
-                  updateContentBlock(block.id, { 
-                    content: { ...block.content, strokes: sampleStrokes } 
+                  updateContentBlock(block.id, {
+                    content: { ...block.content, strokes: sampleStrokes }
                   });
                 }}
               >
@@ -562,11 +562,9 @@ export function ContentBlock({ block }: ContentBlockProps) {
   return (
     <div
       ref={blockRef}
-      className={`absolute rounded-2xl group interactive ${getBlockColor()} hover:sticky-note ${
-        isDragging ? "opacity-80 scale-105" : ""
-      } ${isResizing ? "select-none" : ""} ${
-        !isDragging && !isResizing ? "transition-shadow duration-200" : ""
-      }`}
+      className={`absolute rounded-2xl group interactive ${getBlockColor()} hover:sticky-note ${isDragging ? "opacity-80 scale-105" : ""
+        } ${isResizing ? "select-none" : ""} ${!isDragging && !isResizing ? "transition-shadow duration-200" : ""
+        }`}
       style={{
         width: livePosition.current.width,
         height: livePosition.current.height,
@@ -580,17 +578,16 @@ export function ContentBlock({ block }: ContentBlockProps) {
       {/* Dedicated Move Grip - Top Bar */}
       <div
         onPointerDown={startMove}
-        className={`absolute top-0 left-0 w-full h-8 rounded-t-2xl cursor-grab transition-all ${
-          isDragging ? "cursor-grabbing" : ""
-        }`}
+        className={`absolute top-0 left-0 w-full h-8 rounded-t-2xl cursor-grab transition-all ${isDragging ? "cursor-grabbing" : ""
+          }`}
         style={{
           background: `linear-gradient(135deg, 
-            ${getBlockColor().includes('rose') ? 'rgba(251, 207, 232, 0.3)' : 
-              getBlockColor().includes('blue') ? 'rgba(219, 234, 254, 0.3)' : 
-              getBlockColor().includes('green') ? 'rgba(209, 250, 229, 0.3)' : 
-              getBlockColor().includes('yellow') ? 'rgba(254, 243, 199, 0.3)' : 
-              getBlockColor().includes('purple') ? 'rgba(233, 213, 255, 0.3)' : 
-              'rgba(243, 244, 246, 0.3)'} 0%, 
+            ${getBlockColor().includes('rose') ? 'rgba(251, 207, 232, 0.3)' :
+              getBlockColor().includes('blue') ? 'rgba(219, 234, 254, 0.3)' :
+                getBlockColor().includes('green') ? 'rgba(209, 250, 229, 0.3)' :
+                  getBlockColor().includes('yellow') ? 'rgba(254, 243, 199, 0.3)' :
+                    getBlockColor().includes('purple') ? 'rgba(233, 213, 255, 0.3)' :
+                      'rgba(243, 244, 246, 0.3)'} 0%, 
             rgba(255, 255, 255, 0.15) 100%)`
         }}
       />
@@ -599,9 +596,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
       {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((direction) => (
         <div
           key={direction}
-          className={`absolute w-2 h-2 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${
-            isResizing ? 'opacity-100' : ''
-          }`}
+          className={`absolute w-2 h-2 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${isResizing ? 'opacity-100' : ''
+            }`}
           style={{
             cursor: getResizeCursor(direction),
             ...(direction === 'nw' && { top: -4, left: -4 }),
@@ -620,36 +616,36 @@ export function ContentBlock({ block }: ContentBlockProps) {
       {/* Content Area */}
       <div className="p-4 pt-12 h-full">
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-2">
-          <span className="text-lg filter drop-shadow-lg">{getBlockIcon()}</span>
-          <span className="text-xs text-muted-foreground font-medium">
-            {new Date(block.createdAt).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </span>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-lg filter drop-shadow-lg">{getBlockIcon()}</span>
+            <span className="text-xs text-muted-foreground font-medium">
+              {new Date(block.createdAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          </div>
+          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-7 h-7 p-0 glass-button text-foreground hover:text-primary"
+              onClick={resetRotation}
+            >
+              <RotateCcw className="w-3 h-3" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-7 h-7 p-0 glass-button text-foreground hover:text-destructive"
+              onClick={() => deleteContentBlock(block.id)}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-7 h-7 p-0 glass-button text-foreground hover:text-primary"
-            onClick={resetRotation}
-          >
-            <RotateCcw className="w-3 h-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-7 h-7 p-0 glass-button text-foreground hover:text-destructive"
-            onClick={() => deleteContentBlock(block.id)}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
-      </div>
 
         {/* Content */}
         <div className="flex-1">
