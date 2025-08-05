@@ -202,14 +202,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
         return "sticky-note rose";
       case "photo":
         return "sticky-note blue";
-      case "text" as any:
-        return "sticky-note purple";
       case "checklist":
         return "sticky-note green";
-      case "audio" as any:
-        return "sticky-note yellow";
-      case "drawing" as any:
-        return "sticky-note rose";
       default:
         return "sticky-note purple";
     }
@@ -221,14 +215,8 @@ export function ContentBlock({ block }: ContentBlockProps) {
         return "📝";
       case "photo":
         return "📸";
-      case "text" as any:
-        return "✏️";
       case "checklist":
         return "✅";
-      case "audio" as any:
-        return "🎤";
-      case "drawing" as any:
-        return "🎨";
       default:
         return "📄";
     }
