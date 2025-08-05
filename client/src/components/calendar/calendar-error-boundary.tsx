@@ -32,11 +32,11 @@ export class CalendarErrorBoundary extends Component<Props, State> {
     });
 
     // Log error to analytics service if available
-    if (typeof window !== 'undefined' && (window as any).posthog) {
-      (window as any).posthog.capture('calendar_error', {
+    if (typeof window !== 'undefined' && window.posthog) {
+      window.posthog.capture('calendar_error', {
         error: error.message,
         stack: error.stack,
-        componentStack: errorInfo.componentStack
+        componentStack: errorInfo.componentStack,
       });
     }
   }

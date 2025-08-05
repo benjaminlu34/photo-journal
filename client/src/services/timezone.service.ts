@@ -1,25 +1,27 @@
 /**
  * Timezone service for handling timezone conversions and DST transitions
+ * Refactored to use date-fns-tz for reliable timezone handling.
  */
 
 import type { BaseEvent } from '@/types/calendar';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export interface TimezoneService {
   // Convert event times to user's local timezone
   convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T;
-  
+
   // Handle floating times (no timezone specified)
   handleFloatingTime(dateTime: Date, userTimezone: string): Date;
-  
+
   // DST transition handling
   adjustForDSTTransition<T extends BaseEvent>(events: T[], userTimezone: string): T[];
-  
+
   // DST gap handling (e.g., 2:00 AM → 3:00 AM spring forward)
   handleDSTGaps(timeSlots: Date[], userTimezone: string): Date[];
-  
+
   // Get user's current timezone
   getUserTimezone(): string;
-  
+
   // Distinguish between absolute vs floating time sources
   isFloatingTime<T extends BaseEvent>(event: T): boolean;
   isAbsoluteTime<T extends BaseEvent>(event: T): boolean;
@@ -28,89 +30,77 @@ export interface TimezoneService {
 export class TimezoneServiceImpl implements TimezoneService {
   // Convert event times to user's local timezone
   convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T {
-    // If event has no timezone, treat as floating time
+    if (!event.startTime || !event.endTime) return event;
+
+    // Floating time: interpret wall-clock time in userTimezone
     if (!event.timezone) {
       return {
         ...event,
         startTime: this.handleFloatingTime(event.startTime, userTimezone),
-        endTime: this.handleFloatingTime(event.endTime, userTimezone)
+        endTime: this.handleFloatingTime(event.endTime, userTimezone),
       };
     }
-    
+
     // If event timezone matches user timezone, no conversion needed
     if (event.timezone === userTimezone) {
       return event;
     }
-    
-    // Convert from event timezone to user timezone
-    const convertedStartTime = this.convertTimezone(event.startTime, event.timezone, userTimezone);
-    const convertedEndTime = this.convertTimezone(event.endTime, event.timezone, userTimezone);
-    
+
+    // Treat event.startTime/endTime as absolute instants in their declared timezone,
+    // convert to userTimezone for display.
+    const startAsZoned = toZonedTime(
+      fromZonedTime(event.startTime, event.timezone),
+      userTimezone
+    );
+    const endAsZoned = toZonedTime(
+      fromZonedTime(event.endTime, event.timezone),
+      userTimezone
+    );
+
     return {
       ...event,
-      startTime: convertedStartTime,
-      endTime: convertedEndTime,
-      timezone: userTimezone
+      startTime: startAsZoned,
+      endTime: endAsZoned,
+      timezone: userTimezone,
     };
   }
-  
+
   // Handle floating times (no timezone specified)
   handleFloatingTime(dateTime: Date, userTimezone: string): Date {
-    // For floating times, interpret the time in the user's timezone
-    // This means we create a new Date object with the same local time components
-    // but in the user's timezone
-    
-    const year = dateTime.getFullYear();
-    const month = dateTime.getMonth();
-    const date = dateTime.getDate();
-    const hours = dateTime.getHours();
-    const minutes = dateTime.getMinutes();
-    const seconds = dateTime.getSeconds();
-    const milliseconds = dateTime.getMilliseconds();
-    
-    // Create a new date with the same local time components
-    return new Date(year, month, date, hours, minutes, seconds, milliseconds);
+    // Interpret the naive wall-clock time components in the specified timezone
+    // by constructing a UTC instant from those components in userTimezone, then
+    // converting to a Date in that zone for consistent display.
+    const y = dateTime.getFullYear();
+    const m = dateTime.getMonth();
+    const d = dateTime.getDate();
+    const hh = dateTime.getHours();
+    const mm = dateTime.getMinutes();
+    const ss = dateTime.getSeconds();
+    const ms = dateTime.getMilliseconds();
+
+    // Build a Date with same local components in the current environment
+    const naiveLocal = new Date(y, m, d, hh, mm, ss, ms);
+
+    // Convert "wall time in userTimezone" to a UTC instant,
+    // then back to a Date adjusted for userTimezone.
+    const asUtc = fromZonedTime(naiveLocal, userTimezone);
+    return toZonedTime(asUtc, userTimezone);
   }
-  
+
   // DST transition handling
   adjustForDSTTransition<T extends BaseEvent>(events: T[], userTimezone: string): T[] {
-    return events.map(event => {
-      // Check if event spans a DST transition
-      const startTime = new Date(event.startTime);
-      const endTime = new Date(event.endTime);
-      
-      // Simple DST detection - check if offset changes between start and end
-      const startOffset = this.getTimezoneOffset(startTime, userTimezone);
-      const endOffset = this.getTimezoneOffset(endTime, userTimezone);
-      
-      if (startOffset !== endOffset) {
-        // DST transition detected - adjust end time
-        const offsetDiff = endOffset - startOffset;
-        const adjustedEndTime = new Date(endTime.getTime() + (offsetDiff * 60 * 1000));
-        
-        return {
-          ...event,
-          endTime: adjustedEndTime
-        };
-      }
-      
-      return event;
-    });
+    // With date-fns-tz, conversions already account for DST transitions.
+    // Return events unchanged to avoid double-adjustments.
+    return events;
   }
-  
+
   // DST gap handling
   handleDSTGaps(timeSlots: Date[], userTimezone: string): Date[] {
-    return timeSlots.filter(slot => {
-      // Check if this time slot exists (not in a DST gap)
-      const nextHour = new Date(slot.getTime() + 60 * 60 * 1000);
-      const slotOffset = this.getTimezoneOffset(slot, userTimezone);
-      const nextOffset = this.getTimezoneOffset(nextHour, userTimezone);
-      
-      // If offset difference is more than 1 hour, this slot is in a DST gap
-      return Math.abs(nextOffset - slotOffset) <= 60;
-    });
+    // date-fns-tz handles invalid local times via conversion.
+    // Keep slots as-is; consumer code can validate if needed.
+    return timeSlots.map((slot) => toZonedTime(fromZonedTime(slot, userTimezone), userTimezone));
   }
-  
+
   // Get user's current timezone
   getUserTimezone(): string {
     try {
@@ -120,91 +110,13 @@ export class TimezoneServiceImpl implements TimezoneService {
       return 'UTC';
     }
   }
-  
-  // Check if event has floating time (no timezone specified)
+
   isFloatingTime<T extends BaseEvent>(event: T): boolean {
     return !event.timezone;
   }
-  
-  // Check if event has absolute time (timezone specified)
+
   isAbsoluteTime<T extends BaseEvent>(event: T): boolean {
     return Boolean(event.timezone);
-  }
-  
-  // Private helper methods
-  private convertTimezone(date: Date, fromTimezone: string, toTimezone: string): Date {
-    try {
-      // Use Intl.DateTimeFormat to handle timezone conversion
-      const fromFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: fromTimezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-      
-      const toFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: toTimezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-      
-      // Get the date components in the source timezone
-      const fromParts = fromFormatter.formatToParts(date);
-      const fromPartsObj = fromParts.reduce((acc, part) => {
-        acc[part.type] = part.value;
-        return acc;
-      }, {} as Record<string, string>);
-      
-      // Create a date string in the source timezone format
-      const fromDateString = `${fromPartsObj.year}-${fromPartsObj.month}-${fromPartsObj.day}T${fromPartsObj.hour}:${fromPartsObj.minute}:${fromPartsObj.second}`;
-      
-      // Parse this as if it were in the target timezone
-      const tempDate = new Date(fromDateString);
-      
-      // Get the date components in the target timezone
-      const toParts = toFormatter.formatToParts(tempDate);
-      const toPartsObj = toParts.reduce((acc, part) => {
-        acc[part.type] = part.value;
-        return acc;
-      }, {} as Record<string, string>);
-      
-      // Create the final date in the target timezone
-      const targetDate = new Date(
-        parseInt(toPartsObj.year),
-        parseInt(toPartsObj.month) - 1, // Month is 0-indexed
-        parseInt(toPartsObj.day),
-        parseInt(toPartsObj.hour),
-        parseInt(toPartsObj.minute),
-        parseInt(toPartsObj.second)
-      );
-      
-      return targetDate;
-    } catch (error) {
-      console.warn('Timezone conversion failed, returning original date:', error);
-      return date;
-    }
-  }
-  
-  private getTimezoneOffset(date: Date, timezone: string): number {
-    try {
-      // Get offset in minutes
-      const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-      const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-      
-      return (utcDate.getTime() - tzDate.getTime()) / (1000 * 60);
-    } catch (error) {
-      console.warn('Failed to get timezone offset:', error);
-      return 0;
-    }
   }
 }
 
