@@ -6,14 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Clock, Bell, Palette, Users, X } from "lucide-react";
+import { Settings, Clock, Bell, Palette, Users } from "lucide-react";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface CalendarSettingsProps {
+  isOpen: boolean;
   onClose: () => void;
 }
 
-export function CalendarSettings({ onClose }: CalendarSettingsProps) {
+export function CalendarSettings({ isOpen, onClose }: CalendarSettingsProps) {
   const [settings, setSettings] = useState({
     // Time grid settings
     hourHeight: CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT,
@@ -67,29 +69,22 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Settings className="w-6 h-6 text-blue-600" />
-          <h2 className="text-2xl font-bold text-gray-800">Calendar Settings</h2>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="neu-card p-2"
-        >
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3 text-2xl font-bold text-gray-800">
+            <Settings className="w-6 h-6 text-blue-600" />
+            Calendar Settings
+          </DialogTitle>
+        </DialogHeader>
 
-      <Tabs defaultValue="display" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 neu-card">
-          <TabsTrigger value="display">Display</TabsTrigger>
-          <TabsTrigger value="time">Time Grid</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="features">Features</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="display" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 neu-card shadow-sm">
+            <TabsTrigger value="display">Display</TabsTrigger>
+            <TabsTrigger value="time">Time Grid</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="features">Features</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="display" className="space-y-4">
           <Card className="neu-card">
@@ -120,7 +115,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                 <Label htmlFor="time-format">Time format</Label>
                 <Select
                   value={settings.timeFormat}
-                  onValueChange={(value) => handleSettingChange('timeFormat', value)}
+                  onValueChange={(value: '12h' | '24h') => handleSettingChange('timeFormat', value)}
                 >
                   <SelectTrigger className="w-32 neu-input">
                     <SelectValue />
@@ -166,7 +161,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                 <Label htmlFor="hour-height">Hour height</Label>
                 <Select
                   value={settings.hourHeight.toString()}
-                  onValueChange={(value) => handleSettingChange('hourHeight', parseInt(value))}
+                  onValueChange={(value) => handleSettingChange('hourHeight', parseInt(value, 10) as typeof settings.hourHeight)}
                 >
                   <SelectTrigger className="w-32 neu-input">
                     <SelectValue />
@@ -183,7 +178,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                 <Label htmlFor="minute-interval">Grid lines</Label>
                 <Select
                   value={settings.minuteInterval.toString()}
-                  onValueChange={(value) => handleSettingChange('minuteInterval', parseInt(value))}
+                  onValueChange={(value) => handleSettingChange('minuteInterval', parseInt(value, 10) as typeof settings.minuteInterval)}
                 >
                   <SelectTrigger className="w-32 neu-input">
                     <SelectValue />
@@ -286,7 +281,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                   <Switch
                     id="friend-sync"
                     checked={settings.enableFriendSync}
-                    onCheckedChange={(checked) => handleSettingChange('enableFriendSync', checked)}
+                    onCheckedChange={(checked: boolean) => handleSettingChange('enableFriendSync', checked as typeof settings.enableFriendSync)}
                   />
                   {settings.enableFriendSync && (
                     <Badge variant="secondary" className="text-xs">Active</Badge>
@@ -303,7 +298,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                   <Switch
                     id="offline-mode"
                     checked={settings.enableOfflineMode}
-                    onCheckedChange={(checked) => handleSettingChange('enableOfflineMode', checked)}
+                    onCheckedChange={(checked: boolean) => handleSettingChange('enableOfflineMode', checked as typeof settings.enableOfflineMode)}
                   />
                   {settings.enableOfflineMode && (
                     <Badge variant="secondary" className="text-xs">Active</Badge>
@@ -320,7 +315,7 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
                   <Switch
                     id="recurrence"
                     checked={settings.enableRecurrence}
-                    onCheckedChange={(checked) => handleSettingChange('enableRecurrence', checked)}
+                    onCheckedChange={(checked: boolean) => handleSettingChange('enableRecurrence', checked as typeof settings.enableRecurrence)}
                     disabled={true}
                   />
                   <Badge variant="outline" className="text-xs">Coming Soon</Badge>
@@ -329,32 +324,35 @@ export function CalendarSettings({ onClose }: CalendarSettingsProps) {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+       </Tabs>
 
-      <div className="flex justify-between pt-6 border-t border-gray-200">
-        <Button
-          variant="outline"
-          onClick={handleReset}
-          className="neu-card"
-        >
-          Reset to Defaults
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="neu-card"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white"
-          >
-            Save Settings
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+       <DialogFooter className="pt-6 border-t border-gray-200">
+         <div className="flex w-full justify-between">
+           <Button
+             variant="outline"
+             onClick={handleReset}
+             className="neu-card"
+           >
+             Reset to Defaults
+           </Button>
+           <div className="flex gap-2">
+             <Button
+               variant="ghost"
+               onClick={onClose}
+               className="neu-card"
+             >
+               Cancel
+             </Button>
+             <Button
+               onClick={handleSave}
+               className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] text-white"
+             >
+               Save Settings
+             </Button>
+           </div>
+         </div>
+       </DialogFooter>
+     </DialogContent>
+   </Dialog>
+ );
 }

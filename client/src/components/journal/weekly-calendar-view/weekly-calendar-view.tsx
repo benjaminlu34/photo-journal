@@ -486,11 +486,9 @@ export function WeeklyCalendarView({
 
       {/* Calendar Settings */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl maxh-[90vh] overflow-auto neu-card">
-            <CalendarSettings onClose={() => setIsSettingsOpen(false)} />
+          <div className="bg-white rounded-xl maxh-[90vh] overflow-auto">
+            <CalendarSettings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
           </div>
-        </div>
       )}
     </div>
   );

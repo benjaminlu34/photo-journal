@@ -30,6 +30,13 @@ export function createWeeklyCalendarDocument(weekId: string): WeeklyCalendarDocu
   };
 }
 
+// CRDT garbage collection configuration
+// We store a tombstone timestamp under this metadata key on the event object.
+const DELETION_TOMBSTONE_KEY = 'deletedAt';
+// Grace period before we hard-delete tombstoned events.
+// Caller can tune; we keep a conservative default to allow sync propagation.
+const DELETION_GRACE_MS = 60 * 1000; // 1 minute
+
 // CRDT conflict resolution utilities
 export class CRDTConflictResolver {
   // Resolve field conflicts using last-writer-wins with timestamp
@@ -44,7 +51,7 @@ export class CRDTConflictResolver {
     return remoteTimestamp > localTimestamp ? remoteValue : localValue;
   }
   
-  // Handle event deletion with timestamp tracking
+  // Handle event deletion with timestamp tracking (tombstone + GC)
   static handleEventDeletion(
     eventId: string,
     deletedBy: string,
@@ -52,22 +59,19 @@ export class CRDTConflictResolver {
     eventsMap: Y.Map<LocalEvent>
   ): void {
     const event = eventsMap.get(eventId);
-    if (event) {
-      // Mark as deleted rather than removing immediately
-      const deletedEvent = {
-        ...event,
-        title: '[DELETED]',
-        description: `Deleted by ${deletedBy} at ${deletedAt.toISOString()}`,
-        updatedAt: deletedAt,
-      };
-      
-      eventsMap.set(eventId, deletedEvent);
-      
-      // Remove after a short delay to allow conflict resolution
-      setTimeout(() => {
-        eventsMap.delete(eventId);
-      }, 1000);
-    }
+    if (!event) return;
+
+    // Mark as deleted (soft delete) and add tombstone timestamp for GC
+    const deletedEvent = {
+      ...event,
+      title: '[DELETED]',
+      description: `Deleted by ${deletedBy} at ${deletedAt.toISOString()}`,
+      updatedAt: deletedAt,
+      // store tombstone in a stable optional field so we can GC later
+      [DELETION_TOMBSTONE_KEY]: deletedAt.toISOString(),
+    } as LocalEvent & { [DELETION_TOMBSTONE_KEY]?: string };
+
+    eventsMap.set(eventId, deletedEvent);
   }
   
   // Handle concurrent event creation
@@ -199,29 +203,32 @@ export class WeeklyCalendarDocumentUtils {
     document.metadata.set('collaborators', updatedCollaborators);
     document.metadata.set('lastModified', new Date());
   }
-  
-  // Update document metadata
-  static updateMetadata(document: WeeklyCalendarDocument, updates: Record<string, any>): void {
-    Object.entries(updates).forEach(([key, value]) => {
-      document.metadata.set(key, value);
-    });
-  }
-  
-  // Get document statistics
-  static getDocumentStats(document: WeeklyCalendarDocument): {
-    eventCount: number;
-    collaboratorCount: number;
-    lastModified: Date | null;
-    weekId: string;
-  } {
-    const collaborators = document.metadata.get('collaborators') as string[] || [];
-    const lastModified = document.metadata.get('lastModified') as Date || null;
-    
-    return {
-      eventCount: document.localEvents.size,
-      collaboratorCount: collaborators.length,
-      lastModified,
-      weekId: document.weekId,
-    };
+
+  // Garbage collection for tombstoned (soft-deleted) events.
+  // Intended to be invoked:
+  // - on document load
+  // - periodically (caller can schedule, e.g., every minute)
+  static garbageCollectDeletedEvents(
+    eventsMap: Y.Map<LocalEvent>,
+    now: Date = new Date()
+  ): number {
+    let removed = 0;
+    const cutoff = now.getTime() - DELETION_GRACE_MS;
+
+    for (const [id, ev] of eventsMap.entries()) {
+      // We only consider entries that contain our tombstone marker
+      const tombstone = (ev as any)?.[DELETION_TOMBSTONE_KEY] as string | undefined;
+      if (!tombstone) continue;
+
+      const deletedAtMs = Date.parse(tombstone);
+      if (!Number.isFinite(deletedAtMs)) continue;
+
+      // If the tombstone is older than the grace period, hard-delete it
+      if (deletedAtMs <= cutoff) {
+        eventsMap.delete(id);
+        removed++;
+      }
+    }
+    return removed;
   }
 }
