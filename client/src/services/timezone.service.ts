@@ -1,6 +1,5 @@
 /**
- * Timezone service for handling timezone conversions and DST transitions
- * Enhanced with explicit DST gap and ambiguity handling.
+ * Timezone service for timezone conversions and DST transitions.
  */
 
 import type { BaseEvent } from '@/types/calendar';
@@ -39,10 +38,7 @@ export interface TimezoneService {
 }
 
 export class TimezoneServiceImpl implements TimezoneService {
-  // Handle non-existent and ambiguous local times across DST transitions
-  // Strategy:
-  // - For nonexistent times (spring-forward gap): shift forward by 1 hour
-  // - For ambiguous times (fall-back overlap): prefer earliest occurrence (configurable if needed)
+  // Handle non-existent (spring-forward) and ambiguous (fall-back) local times
   private normalizeNonexistentLocalTime(date: Date, timezone: string): Date {
     const ONE_MINUTE_IN_MS = 60_000;
     try {
@@ -50,31 +46,25 @@ export class TimezoneServiceImpl implements TimezoneService {
       const utc = fromZonedTime(date, timezone);
       const backToLocal = toZonedTime(utc, timezone);
 
-      // If the time doesn't match after round-trip by > 1 minute, treat as nonexistent time
+      // If mismatch > 1 minute, treat as nonexistent time
       if (Math.abs(backToLocal.getTime() - date.getTime()) > ONE_MINUTE_IN_MS) {
-        // Shift forward by 1 hour to get past the gap and round-trip again
+        // Shift forward by 1 hour and round-trip again
         const shifted = addHours(date, 1);
         const shiftedUtc = fromZonedTime(shifted, timezone);
         return toZonedTime(shiftedUtc, timezone);
       }
 
-      // For ambiguous times, date-fns-tz will pick the first occurrence by default.
-      // We keep this as the default behavior (earliest). If a "latest" strategy is needed
-      // in the future, we can extend this method to accept a strategy parameter.
+      // Ambiguous times: use earliest occurrence (date-fns-tz default)
       return backToLocal;
     } catch (error) {
-      // Propagate RangeError details upward for caller-specific handling if needed,
-      // but return the original date as a conservative fallback to avoid crashing.
       console.warn('Error normalizing local time (DST handling):', error);
       return date;
     }
   }
 
-  // Convert absolute Date object to user's local time safely
+  // Convert an absolute Date to user's local time
   convertAbsoluteDateToLocal(absoluteDate: Date, userTimezone: string): Date {
     try {
-      // absoluteDate is already a proper Date object representing an absolute moment in time
-      // We need to convert this absolute moment to the user's local timezone
       return toZonedTime(absoluteDate, userTimezone);
     } catch (error) {
       console.warn('Error converting absolute date to local time:', error);
@@ -82,11 +72,11 @@ export class TimezoneServiceImpl implements TimezoneService {
     }
   }
 
-  // Safe wrapper for convertToLocalTime with DST handling
+  // Safe conversion with DST handling
   convertToLocalTimeSafe<T extends BaseEvent>(event: T, userTimezone: string): T {
     if (!event.startTime || !event.endTime) return event;
 
-    // For floating times, use enhanced floating time handling
+    // Floating times
     if (!event.timezone) {
       return {
         ...event,
@@ -96,8 +86,7 @@ export class TimezoneServiceImpl implements TimezoneService {
       };
     }
 
-    // Always use safe conversion when timezone is present, even if same as user timezone
-    // This ensures DST gaps and ambiguities are handled properly
+    // Zoned times
     const startUtc = fromZonedTime(event.startTime, event.timezone);
     const endUtc = fromZonedTime(event.endTime, event.timezone);
 
@@ -118,11 +107,11 @@ export class TimezoneServiceImpl implements TimezoneService {
     };
   }
 
-  // Convert event times to user's local timezone
+  // Convert event times to user's local timezone (non-safe)
   convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T {
     if (!event.startTime || !event.endTime) return event;
 
-    // Floating time: interpret wall-clock time in userTimezone
+    // Floating time
     if (!event.timezone) {
       return {
         ...event,
@@ -131,13 +120,11 @@ export class TimezoneServiceImpl implements TimezoneService {
       };
     }
 
-    // If event timezone matches user timezone, no conversion needed
+    // Same timezone
     if (event.timezone === userTimezone) {
       return event;
     }
 
-    // Treat event.startTime/endTime as absolute instants in their declared timezone,
-    // convert to userTimezone for display.
     const startAsZoned = toZonedTime(
       fromZonedTime(event.startTime, event.timezone),
       userTimezone
@@ -155,10 +142,9 @@ export class TimezoneServiceImpl implements TimezoneService {
     };
   }
 
-  // Handle floating times (no timezone specified) with DST awareness
+  // Handle floating times with DST awareness
   handleFloatingTime(dateTime: Date, userTimezone: string): Date {
     try {
-      // Interpret the naive wall-clock time components in the specified timezone
       const y = dateTime.getFullYear();
       const m = dateTime.getMonth();
       const d = dateTime.getDate();
@@ -167,17 +153,13 @@ export class TimezoneServiceImpl implements TimezoneService {
       const ss = dateTime.getSeconds();
       const ms = dateTime.getMilliseconds();
 
-      // Build a Date with same local components
       const naiveLocal = new Date(y, m, d, hh, mm, ss, ms);
 
-      // Handle potential DST gaps/ambiguities when interpreting floating time
+      // Normalize for DST gaps/ambiguities
       const interpreted = this.normalizeNonexistentLocalTime(naiveLocal, userTimezone);
-      // normalizeNonexistentLocalTime already returns a correctly zoned Date.
-      // Additional round-trips are unnecessary.
       return interpreted;
     } catch (error) {
       console.warn('Error handling floating time, using fallback:', error);
-      // Fallback to original implementation
       const naiveLocal = new Date(
         dateTime.getFullYear(), dateTime.getMonth(), dateTime.getDate(),
         dateTime.getHours(), dateTime.getMinutes(), dateTime.getSeconds(), dateTime.getMilliseconds()
@@ -219,32 +201,25 @@ export class TimezoneServiceImpl implements TimezoneService {
     return Boolean(event.timezone);
   }
 
-  // Get local day boundaries for all-day events
+  // Local day boundaries for all-day events
   getLocalDayBounds(date: Date, timezone: string): { start: Date; end: Date } {
     try {
-      // Create start of day in the target timezone
       const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
       const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
       
-      // Handle potential DST transitions at midnight
       const start = this.normalizeNonexistentLocalTime(startOfDay, timezone);
       const end = this.normalizeNonexistentLocalTime(endOfDay, timezone);
       
       return { start, end };
     } catch (error) {
       console.warn('Error getting local day bounds:', error);
-      // Fallback to simple day boundaries
       const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
       const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
       return { start, end };
     }
   }
 
-  // Validate that all-day events don't cross date boundaries
-  // Stricter rule:
-  // - A single-day all-day event must begin and end on the same calendar day (dayDiff === 0).
-  // If callers use an exclusive end (e.g., Google all-day with end.date = next day 00:00),
-  // they should pre-adjust to an inclusive end (e.g., subtract 1 ms) before validation.
+  // Validate single-day all-day events: must start and end on same calendar day
   validateAllDayEvent<T extends BaseEvent>(event: T, timezone: string): boolean {
     if (!event.isAllDay || !event.startTime || !event.endTime) {
       return true; // Not an all-day event or missing times

@@ -1,6 +1,5 @@
 /**
- * Calendar feed service for handling external calendar integration
- * Implements Google Calendar OAuth 2.0 integration, iCal feed parsing, caching, and rate limiting
+ * Calendar feed service for external calendar integration.
  */
 
 import ICAL from 'ical.js';
@@ -761,8 +760,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
 
-    // Handle all-day events: Google provides exclusive end.date (midnight of next day).
-    // Convert to inclusive end by subtracting 1 ms so single-day events validate as same-day.
+    // Google all-day: end.date is exclusive (midnight next day) → convert to inclusive end (-1 ms)
     const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
       : item.end.date
