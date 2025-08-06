@@ -636,9 +636,10 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
         // Determine timezone then perform single safe conversion
         const hasTzDesignator = /Z$|[+-]\d{2}:\d{2}$/.test(event.startTime);
-        const prepared: FriendCalendarEvent = hasTzDesignator
-          ? { ...baseEvent, timezone: 'UTC' }
-          : { ...baseEvent, timezone: undefined as unknown as string | undefined };
+        const prepared: FriendCalendarEvent = {
+          ...baseEvent,
+          timezone: hasTzDesignator ? 'UTC' : undefined
+        };
 
         let calendarEvent: FriendCalendarEvent =
           timezoneService.convertToLocalTimeSafe(prepared, userTimezone);
