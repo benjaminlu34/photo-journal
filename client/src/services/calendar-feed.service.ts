@@ -500,6 +500,34 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     };
   }
 
+  // Handle visibility change refresh (maintains encapsulation)
+  handleVisibilityRefresh(): void {
+    try {
+      // Get cache keys and extract unique feed IDs
+      const keys: string[] = Array.from(this.feedCache.keys());
+      const uniqueFeedIds = new Set<string>();
+      
+      for (const key of keys) {
+        const parts = key.split(':');
+        const feedId = parts[0];
+        if (feedId) {
+          uniqueFeedIds.add(feedId);
+        }
+      }
+
+      // Clear cache for each feed ID to trigger refresh on next access
+      uniqueFeedIds.forEach((feedId) => {
+        try {
+          this.clearCache(feedId);
+        } catch (error) {
+          console.debug('Visibility refresh skip for', feedId, error);
+        }
+      });
+    } catch (error) {
+      console.debug('Visibility refresh encountered an error:', error);
+    }
+  }
+
   // Private helper methods
   private async fetchEventsFromSource(
     feed: CalendarFeed,
@@ -832,38 +860,8 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
     if (now - lastVisibilityRefresh < VISIBILITY_REFRESH_MIN_MS) return;
     lastVisibilityRefresh = now;
 
-    // Best-effort refresh for any cached windows in memory cache
-    try {
-      const keys: string[] = [];
-      for (const k of (feedService as any).feedCache.keys()) {
-        keys.push(k);
-      }
-      // Keys are either feedId or feedId:timeMin:timeMax
-      const uniqueFeedIds = new Set<string>();
-      for (const k of keys) {
-        const parts = k.split(':');
-        const feedId = parts[0];
-        if (feedId) uniqueFeedIds.add(feedId);
-      }
-      // No direct access to feeds list here; rely on cache keys to refresh recent windows
-      uniqueFeedIds.forEach(async (feedId) => {
-        try {
-          // Pull a representative cached entry to infer dateRange
-          const cachedEntry = (feedService as any).feedCache.get(
-            keys.find(k => k.startsWith(feedId + ':')) ?? feedId
-          );
-          // If we have a windowed cache entry, attempt to refetch for that window; else skip
-          if (cachedEntry) {
-            // Attempt a gentle refresh by clearing just this feedId windows; next on-demand fetch will repopulate
-            (feedService as any).clearCache(feedId);
-          }
-        } catch (e) {
-          console.debug('Visibility refresh skip for', feedId, e);
-        }
-      });
-    } catch (e) {
-      console.debug('Visibility refresh encountered an error:', e);
-    }
+    // Use proper method to handle visibility refresh
+    feedService.handleVisibilityRefresh();
   };
   document.addEventListener('visibilitychange', onVisibilityChange);
 

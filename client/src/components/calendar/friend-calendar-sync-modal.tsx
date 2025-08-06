@@ -86,13 +86,13 @@ export function FriendCalendarSyncModal({
       const events = friendEvents[friend.id] ?? [];
       const eventCount = events.length;
 
-      // Best-effort service meta (not strict coupling)
-      const lastSyncMap: Map<string, Date> | undefined = (friendCalendarService as unknown as { lastSyncTimestamps?: Map<string, Date> }).lastSyncTimestamps;
-      const lastSyncAt = lastSyncMap?.get?.(friend.id) as Date | undefined;
-      const lastSyncLabel = lastSyncAt ? `Last synced: ${new Date(lastSyncAt).toLocaleString()}` : undefined;
+      // Use proper getter methods for service metadata
+      const lastSyncTimestamps = friendCalendarService.getSyncTimestamps();
+      const lastSyncAt = lastSyncTimestamps.get(friend.id);
+      const lastSyncLabel = lastSyncAt ? `Last synced: ${lastSyncAt.toLocaleString()}` : undefined;
 
-      const errMap: Map<string, string> | undefined = (friendCalendarService as unknown as { syncErrors?: Map<string, string> }).syncErrors;
-      const syncError = errMap?.get?.(friend.id);
+      const syncErrors = friendCalendarService.getSyncErrors();
+      const syncError = syncErrors.get(friend.id);
 
       return {
         friend,

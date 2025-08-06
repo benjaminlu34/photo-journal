@@ -83,9 +83,9 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   private friendCaches: Map<string, Map<string, { events: FriendCalendarEvent[]; ts: number }>> = new Map();
   private friendFeeds: Map<string, CalendarFeed> = new Map();
 
-  // Expose for UI read (modal uses best-effort)
-  public lastSyncTimestamps: Map<string, Date> = new Map();
-  public syncErrors: Map<string, string> = new Map();
+  // Private sync metadata - use getter methods for access
+  private lastSyncTimestamps: Map<string, Date> = new Map();
+  private syncErrors: Map<string, string> = new Map();
 
   private abortControllers: Map<string, AbortController> = new Map();
 
@@ -496,6 +496,15 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     }
   }
   
+  // Public getter methods for sync metadata (maintains encapsulation)
+  getSyncTimestamps(): ReadonlyMap<string, Date> {
+    return new Map(this.lastSyncTimestamps);
+  }
+
+  getSyncErrors(): ReadonlyMap<string, string> {
+    return new Map(this.syncErrors);
+  }
+
   // Refresh individual friend's events: invalidate all windows, then refetch current window
   async refreshFriendEvents(friendUserId: string): Promise<void> {
     try {

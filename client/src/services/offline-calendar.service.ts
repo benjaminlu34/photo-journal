@@ -67,6 +67,9 @@ export interface OfflineCalendarService {
   isCacheValid(feedId: string, maxAge?: number): Promise<boolean>;
   getFeedSyncStatus(feedId: string): Promise<SyncStatus | null>;
   
+  // Dependency injection
+  setFeedsProvider(provider: () => CalendarFeed[]): void;
+  
   // Lifecycle management
   destroy(): void;
 }
@@ -476,23 +479,39 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
     await this.promisifyRequest(store.put(syncStatus));
   }
   
+  // Set feeds provider function for dependency injection
+  private feedsProvider: (() => CalendarFeed[]) | null = null;
+
+  setFeedsProvider(provider: () => CalendarFeed[]): void {
+    this.feedsProvider = provider;
+  }
+
   private async getFeedsNeedingSync(): Promise<CalendarFeed[]> {
-    // Best-effort fetch of feeds from window-exposed store (avoids hard dep to prevent circular refs)
     try {
-      // Expectation: calendar store may expose feeds on window.__calendarFeeds for background sync
-      const globalFeeds: CalendarFeed[] | undefined = (window as any).__calendarFeeds;
-      if (!globalFeeds || globalFeeds.length === 0) return [];
+      // Use dependency injection instead of global window object
+      if (!this.feedsProvider) {
+        console.warn('No feeds provider set for offline calendar service');
+        return [];
+      }
+
+      const feeds = this.feedsProvider();
+      if (!feeds || feeds.length === 0) {
+        return [];
+      }
 
       // Filter feeds that are likely stale based on sync status
       const stale: CalendarFeed[] = [];
-      for (const feed of globalFeeds) {
+      for (const feed of feeds) {
         const status = await this.getFeedSyncStatus(feed.id);
         const last = status?.lastSuccess ?? status?.lastAttempt;
         const ageMs = last ? Date.now() - new Date(last).getTime() : Infinity;
-        if (ageMs > this.SYNC_INTERVAL) stale.push(feed);
+        if (ageMs > this.SYNC_INTERVAL) {
+          stale.push(feed);
+        }
       }
       return stale;
-    } catch {
+    } catch (error) {
+      console.error('Error getting feeds needing sync:', error);
       return [];
     }
   }

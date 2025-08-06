@@ -95,10 +95,12 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         sdk
       });
 
-      // Expose feeds reference for OfflineCalendarService background sync discovery (best-effort, non-invasive)
-      try {
-        (window as any).__calendarFeeds = get().feeds;
-      } catch {}
+      // Set up proper dependency injection for offline service
+      import('@/services/offline-calendar.service').then(({ offlineCalendarService }) => {
+        offlineCalendarService.setFeedsProvider(() => get().feeds);
+      }).catch(error => {
+        console.warn('Failed to set up offline service dependency injection:', error);
+      });
 
       // Subscribe to changes from the SDK
       sdk.onChange((events: LocalEvent[]) => {
@@ -151,10 +153,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set((state) => ({
         feeds: [...state.feeds, feed]
       }));
-      // Keep window-exposed feeds in sync for background discovery
-      try {
-        (window as any).__calendarFeeds = get().feeds;
-      } catch {}
+      // Feeds are managed through proper store patterns
     },
     
     // Remove a calendar feed
@@ -162,9 +161,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set((state) => ({
         feeds: state.feeds.filter(feed => feed.id !== feedId)
       }));
-      try {
-        (window as any).__calendarFeeds = get().feeds;
-      } catch {}
+      // Feeds are managed through proper store patterns
     },
     
     // Add external events from a feed
@@ -323,6 +320,26 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       }
     },
     
+    // Get feeds for external services (proper dependency injection)
+    getFeeds: () => {
+      return get().feeds;
+    },
+
+    // Update feed metadata (sync status, errors, etc.)
+    updateFeedMeta: (feedId: string, meta: { lastSyncAt?: Date; syncError?: string | null }) => {
+      set((state) => ({
+        feeds: state.feeds.map(feed => 
+          feed.id === feedId 
+            ? { 
+                ...feed, 
+                lastSyncAt: meta.lastSyncAt ?? feed.lastSyncAt,
+                syncError: meta.syncError !== undefined ? (meta.syncError || undefined) : feed.syncError
+              }
+            : feed
+        )
+      }));
+    },
+
     // Cleanup SDK instance
     cleanup: () => {
       const { sdk } = get();

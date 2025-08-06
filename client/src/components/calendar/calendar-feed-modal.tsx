@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,7 +153,6 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       actions.updateFeedMeta?.(googleFeed.id, { lastSyncAt: new Date(), syncError: undefined });
     } catch (error) {
       console.error('Failed to connect Google Calendar:', error);
-      actions.updateFeedMeta?.(undefined as unknown as string, { syncError: 'Failed to connect Google Calendar. Please try again.' });
       actions.setError('Failed to connect Google Calendar. Please try again.');
     } finally {
       setIsConnectingGoogle(false);
