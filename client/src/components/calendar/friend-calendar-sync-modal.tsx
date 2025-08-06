@@ -120,7 +120,7 @@ export function FriendCalendarSyncModal({
         }
         
         // Show consent banner for newly enabled friends (only if not previously dismissed)
-        const hasDismissedConsent = localStorage.getItem('friend-calendar-consent-dismissed') === 'true';
+        const hasDismissedConsent = localStorage.getItem('friendCalendarSyncConsent') === 'true';
         setRecentlyEnabledFriends(prev => {
           // Prevent duplicate friends in the array
           if (!prev.some(f => f.id === friend.id)) {

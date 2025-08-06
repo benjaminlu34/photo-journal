@@ -123,21 +123,25 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
       // Wait for postMessage from the callback page with code
       const code: string = await new Promise((resolve, reject) => {
-        // Cleanup any existing OAuth resources
-        if (oauthTimeoutRef.current) {
-          clearTimeout(oauthTimeoutRef.current);
-        }
-        if (oauthListenerRef.current) {
-          window.removeEventListener('message', oauthListenerRef.current);
-        }
-
-        // Set up timeout with ref for cleanup
-        oauthTimeoutRef.current = setTimeout(() => {
+        // Centralized cleanup function to avoid duplication
+        const cleanup = () => {
+          if (oauthTimeoutRef.current) {
+            clearTimeout(oauthTimeoutRef.current);
+            oauthTimeoutRef.current = null;
+          }
           if (oauthListenerRef.current) {
             window.removeEventListener('message', oauthListenerRef.current);
             oauthListenerRef.current = null;
           }
-          oauthTimeoutRef.current = null;
+        };
+
+        // Cleanup any existing OAuth resources
+        if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current);
+        if (oauthListenerRef.current) window.removeEventListener('message', oauthListenerRef.current);
+
+        // Set up timeout with ref for cleanup
+        oauthTimeoutRef.current = setTimeout(() => {
+          cleanup();
           reject(new Error('OAuth timed out'));
         }, 120000);
 
@@ -150,26 +154,10 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
           try {
             if (typeof ev.data === 'object' && ev.data) {
               if (ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
-                // Success - cleanup resources and resolve
-                if (oauthTimeoutRef.current) {
-                  clearTimeout(oauthTimeoutRef.current);
-                  oauthTimeoutRef.current = null;
-                }
-                if (oauthListenerRef.current) {
-                  window.removeEventListener('message', oauthListenerRef.current);
-                  oauthListenerRef.current = null;
-                }
+                cleanup();
                 resolve(ev.data.code);
               } else if (ev.data.type === 'google-oauth-error') {
-                // Error - cleanup resources and reject with specific error
-                if (oauthTimeoutRef.current) {
-                  clearTimeout(oauthTimeoutRef.current);
-                  oauthTimeoutRef.current = null;
-                }
-                if (oauthListenerRef.current) {
-                  window.removeEventListener('message', oauthListenerRef.current);
-                  oauthListenerRef.current = null;
-                }
+                cleanup();
                 reject(new Error(ev.data.error || 'Authentication failed or was cancelled by user.'));
               }
               // Ignore other message types (don't resolve or reject)
