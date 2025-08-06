@@ -227,7 +227,10 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       tx.commit?.();
       db.close();
     } catch (e) {
-      console.warn('IndexedDB purge failed (friend events):', e);
+      console.error('CRITICAL: Failed to purge friend data from IndexedDB:', e);
+      // Re-throw to ensure calling code is aware of the failure
+      // This is critical for privacy - friend data must be purged when permissions are revoked
+      throw new Error(`Failed to purge friend data for ${friendId}: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
   }
 
@@ -406,8 +409,12 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     this.lastSyncTimestamps.delete(friendId);
     this.syncErrors.delete(friendId);
 
-    // Clear IndexedDB cache for this friend (all windows)
-    void this.deleteAllFriendIDB(friendId);
+    // Clear IndexedDB cache for this friend (all windows) - critical for privacy
+    this.deleteAllFriendIDB(friendId).catch((error) => {
+      console.error(`CRITICAL PRIVACY ISSUE: Failed to purge IndexedDB data for friend ${friendId}:`, error);
+      // Store the error so calling code can be aware of the failure
+      this.syncErrors.set(friendId, `Failed to purge cached data: ${error.message}`);
+    });
 
     console.log(`Purged cache for friend: ${friendId}`);
   }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,22 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
   // Google Calendar form state
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  
+  // OAuth cleanup refs
+  const oauthTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const oauthListenerRef = useRef<((ev: MessageEvent) => void) | null>(null);
+  
+  // Cleanup OAuth resources on unmount
+  useEffect(() => {
+    return () => {
+      if (oauthTimeoutRef.current) {
+        clearTimeout(oauthTimeoutRef.current);
+      }
+      if (oauthListenerRef.current) {
+        window.removeEventListener('message', oauthListenerRef.current);
+      }
+    };
+  }, []);
 
   // Friend calendar state
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -107,25 +123,50 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
       // Wait for postMessage from the callback page with code
       const code: string = await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          window.removeEventListener('message', onMessage);
+        // Cleanup any existing OAuth resources
+        if (oauthTimeoutRef.current) {
+          clearTimeout(oauthTimeoutRef.current);
+        }
+        if (oauthListenerRef.current) {
+          window.removeEventListener('message', oauthListenerRef.current);
+        }
+        
+        // Set up timeout with ref for cleanup
+        oauthTimeoutRef.current = setTimeout(() => {
+          if (oauthListenerRef.current) {
+            window.removeEventListener('message', oauthListenerRef.current);
+            oauthListenerRef.current = null;
+          }
+          oauthTimeoutRef.current = null;
           reject(new Error('OAuth timed out'));
         }, 120000);
-        function onMessage(ev: MessageEvent) {
+        
+        // Create message handler with ref for cleanup
+        const onMessage = (ev: MessageEvent) => {
           // Security: Verify message origin to prevent malicious code injection
           if (ev.origin !== window.location.origin) {
             return;
           }
           try {
             if (typeof ev.data === 'object' && ev.data && ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
-              clearTimeout(timeout);
-              window.removeEventListener('message', onMessage);
+              // Cleanup resources
+              if (oauthTimeoutRef.current) {
+                clearTimeout(oauthTimeoutRef.current);
+                oauthTimeoutRef.current = null;
+              }
+              if (oauthListenerRef.current) {
+                window.removeEventListener('message', oauthListenerRef.current);
+                oauthListenerRef.current = null;
+              }
               resolve(ev.data.code);
             }
           } catch (err) {
             console.error('Error processing OAuth message event:', err);
           }
-        }
+        };
+        
+        // Store listener ref and add event listener
+        oauthListenerRef.current = onMessage;
         window.addEventListener('message', onMessage);
       });
 
