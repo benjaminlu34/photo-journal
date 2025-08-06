@@ -45,34 +45,34 @@ interface FriendEventsResponse {
 export interface FriendCalendarService {
   // Create a friend calendar feed
   createFriendFeed(friend: Friend): CalendarFeed;
-  
+
   // Fetch events from a friend's calendar
   fetchFriendEvents(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]>;
-  
+
   // Validate friend calendar access (viewer+ permissions required)
   validateFriendAccess(friend: Friend): Promise<boolean>;
-  
+
   // Check if user can view friend's calendar
   canViewFriendCalendar(friendUserId: string): Promise<boolean>;
-  
+
   // Handle friend permission changes (auto-unsync if permissions revoked)
   handlePermissionChange(friend: Friend, hasAccess: boolean): void;
-  
+
   // Purge friend cache & revoke encrypted IndexedDB blobs on permission loss
   purgeFriendCache(friendId: string): void;
-  
+
   // Sync friend's calendar events (requires viewer permission)
   syncFriendCalendar(friendUserId: string): Promise<CalendarFeed>;
-  
+
   // Get friend's events for date range
   getFriendEvents(friendUserId: string, dateRange: DateRange): Promise<FriendCalendarEvent[]>;
-  
+
   // Remove friend calendar sync
   unsyncFriendCalendar(friendUserId: string): Promise<void>;
-  
+
   // Get list of friends with calendar access
   getFriendsWithCalendarAccess(): Promise<Friend[]>;
-  
+
   // Refresh individual friend's events
   refreshFriendEvents(friendUserId: string): Promise<void>;
 }
@@ -274,11 +274,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     this.abortControllers.set(friendId, controller);
     return controller.signal;
   }
-  
+
   // Create a friend calendar feed
   createFriendFeed(friend: Friend): CalendarFeed {
     const feedId = `friend-${friend.id}`;
-    
+
     const feed: CalendarFeed = {
       id: feedId,
       name: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
@@ -288,11 +288,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       isEnabled: true,
       lastSyncAt: new Date(),
     };
-    
+
     this.friendFeeds.set(friend.id, feed);
     return feed;
   }
-  
+
   // Fetch events from a friend's calendar with per-window TTL + IDB fallback + retry/backoff
   async fetchFriendEvents(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
     try {
@@ -329,7 +329,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       return [];
     }
   }
-  
+
   // Validate friend calendar access (viewer+ permissions required)
   async validateFriendAccess(friend: Friend): Promise<boolean> {
     try {
@@ -341,11 +341,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         credentials: 'include',
         signal
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to validate access: ${response.statusText}`);
       }
-      
+
       const data: FriendCalendarAccessResponse = await response.json();
       return data.hasAccess && ['viewer', 'contributor', 'editor', 'owner'].includes(data.permission);
     } catch (error) {
@@ -359,7 +359,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.abortControllers.delete(friend.id);
     }
   }
-  
+
   // Check if user can view friend's calendar
   async canViewFriendCalendar(friendUserId: string): Promise<boolean> {
     try {
@@ -371,11 +371,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         credentials: 'include',
         signal
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to check calendar access: ${response.statusText}`);
       }
-      
+
       const data: FriendCalendarAccessResponse = await response.json();
       return data.hasAccess;
     } catch (error) {
@@ -389,7 +389,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.abortControllers.delete(friendUserId);
     }
   }
-  
+
   // Handle friend permission changes (auto-unsync if permissions revoked)
   handlePermissionChange(friend: Friend, hasAccess: boolean): void {
     if (!hasAccess) {
@@ -398,7 +398,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.friendFeeds.delete(friend.id);
     }
   }
-  
+
   // Purge friend cache & revoke encrypted IndexedDB blobs on permission loss
   purgeFriendCache(friendId: string): void {
     // Remove cached events for this friend (all windows)
@@ -411,7 +411,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
     console.log(`Purged cache for friend: ${friendId}`);
   }
-  
+
   // Sync friend's calendar events (requires viewer permission)
   async syncFriendCalendar(friendUserId: string): Promise<CalendarFeed> {
     try {
@@ -420,23 +420,23 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       if (!hasAccess) {
         throw new Error('No permission to sync this friend\'s calendar');
       }
-      
+
       // Fetch friend data
       const friend = await this.getFriendById(friendUserId);
       if (!friend) {
         throw new Error('Friend not found');
       }
-      
+
       // Create or update the friend feed
       const feed = this.createFriendFeed(friend);
-      
+
       return feed;
     } catch (error) {
       console.error('Error syncing friend calendar:', error);
       throw error;
     }
   }
-  
+
   // Get friend's events for date range
   async getFriendEvents(friendUserId: string, dateRange: DateRange): Promise<FriendCalendarEvent[]> {
     try {
@@ -444,14 +444,14 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       if (!friend) {
         throw new Error('Friend not found');
       }
-      
+
       return await this.fetchFriendEvents(friend, dateRange.start, dateRange.end);
     } catch (error) {
       console.error('Error getting friend events:', error);
       throw error;
     }
   }
-  
+
   // Remove friend calendar sync
   async unsyncFriendCalendar(friendUserId: string): Promise<void> {
     try {
@@ -467,7 +467,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       throw error;
     }
   }
-  
+
   // Get list of friends with calendar access
   async getFriendsWithCalendarAccess(): Promise<Friend[]> {
     try {
@@ -479,11 +479,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         credentials: 'include',
         signal
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch friends with calendar access: ${response.statusText}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -496,7 +496,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.abortControllers.delete('friends-list');
     }
   }
-  
+
   // Public getter methods for sync metadata (maintains encapsulation)
   getSyncTimestamps(): ReadonlyMap<string, Date> {
     return new Map(this.lastSyncTimestamps);
@@ -534,7 +534,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       throw error;
     }
   }
-  
+
   // Private helper methods
   private async fetchAndCacheFriendWindow(friend: Friend, startDate: Date, endDate: Date, rangeKey: string): Promise<FriendCalendarEvent[]> {
     let attempt = 0;
@@ -558,6 +558,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       }
     }
     // This point should never be reached due to the throw in the loop
+    throw new Error('Failed to fetch friend events after multiple retries');
   }
 
   private async fetchFriendEventsFromAPI(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
@@ -616,7 +617,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.abortControllers.delete(friend.id);
     }
   }
-  
+
   private async getFriendById(friendUserId: string): Promise<Friend | null> {
     try {
       const signal = this.createAbortController(`friend-${friendUserId}`);
@@ -627,11 +628,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         credentials: 'include',
         signal
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch friend: ${response.statusText}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -644,12 +645,12 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.abortControllers.delete(`friend-${friendUserId}`);
     }
   }
-  
+
   // obsolete: replaced by deleteAllFriendIDB
   private async clearIndexedDBCache(friendId: string): Promise<void> {
     return this.deleteAllFriendIDB(friendId);
   }
-  
+
   // Generate a consistent color for a friend's calendar
   private generateFriendColor(friendId: string): string {
     return sharedGenerateFriendColor(friendId);
