@@ -813,9 +813,59 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
   // Lazy load offline service to avoid circular dependency
   import('./offline-calendar.service').then(({ offlineCalendarService }) => {
     feedService.setOfflineService(offlineCalendarService);
+    // Enable background sync for feeds once offline service is available
+    try {
+      feedService.enableOfflineMode();
+    } catch (err) {
+      console.warn('Unable to enable offline mode:', err);
+    }
   }).catch(error => {
     console.warn('Failed to load offline calendar service:', error);
   });
+
+  // Background refresh on visibility change with simple rate limit (5 min)
+  let lastVisibilityRefresh = 0;
+  const VISIBILITY_REFRESH_MIN_MS = 5 * 60 * 1000;
+  const onVisibilityChange = () => {
+    if (document.hidden) return;
+    const now = Date.now();
+    if (now - lastVisibilityRefresh < VISIBILITY_REFRESH_MIN_MS) return;
+    lastVisibilityRefresh = now;
+
+    // Best-effort refresh for any cached windows in memory cache
+    try {
+      const keys: string[] = [];
+      for (const k of (feedService as any).feedCache.keys()) {
+        keys.push(k);
+      }
+      // Keys are either feedId or feedId:timeMin:timeMax
+      const uniqueFeedIds = new Set<string>();
+      for (const k of keys) {
+        const parts = k.split(':');
+        const feedId = parts[0];
+        if (feedId) uniqueFeedIds.add(feedId);
+      }
+      // No direct access to feeds list here; rely on cache keys to refresh recent windows
+      uniqueFeedIds.forEach(async (feedId) => {
+        try {
+          // Pull a representative cached entry to infer dateRange
+          const cachedEntry = (feedService as any).feedCache.get(
+            keys.find(k => k.startsWith(feedId + ':')) ?? feedId
+          );
+          // If we have a windowed cache entry, attempt to refetch for that window; else skip
+          if (cachedEntry) {
+            // Attempt a gentle refresh by clearing just this feedId windows; next on-demand fetch will repopulate
+            (feedService as any).clearCache(feedId);
+          }
+        } catch (e) {
+          console.debug('Visibility refresh skip for', feedId, e);
+        }
+      });
+    } catch (e) {
+      console.debug('Visibility refresh encountered an error:', e);
+    }
+  };
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   return feedService;
 }

@@ -204,16 +204,21 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
     if (this.backgroundSyncEnabled) {
       return;
     }
-    
+
     this.backgroundSyncEnabled = true;
-    
+
     // Set up periodic sync
     this.backgroundSyncInterval = window.setInterval(() => {
       this.triggerBackgroundSync().catch(error => {
         console.error('Background sync failed:', error);
       });
     }, this.SYNC_INTERVAL);
-    
+
+    // Also trigger an initial deferred sync shortly after enabling
+    setTimeout(() => {
+      this.triggerBackgroundSync().catch(() => void 0);
+    }, 2000);
+
     console.log('Background sync enabled');
   }
   
@@ -472,9 +477,24 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
   }
   
   private async getFeedsNeedingSync(): Promise<CalendarFeed[]> {
-    // This would integrate with the main feed management system
-    // For now, return an empty array
-    return [];
+    // Best-effort fetch of feeds from window-exposed store (avoids hard dep to prevent circular refs)
+    try {
+      // Expectation: calendar store may expose feeds on window.__calendarFeeds for background sync
+      const globalFeeds: CalendarFeed[] | undefined = (window as any).__calendarFeeds;
+      if (!globalFeeds || globalFeeds.length === 0) return [];
+
+      // Filter feeds that are likely stale based on sync status
+      const stale: CalendarFeed[] = [];
+      for (const feed of globalFeeds) {
+        const status = await this.getFeedSyncStatus(feed.id);
+        const last = status?.lastSuccess ?? status?.lastAttempt;
+        const ageMs = last ? Date.now() - new Date(last).getTime() : Infinity;
+        if (ageMs > this.SYNC_INTERVAL) stale.push(feed);
+      }
+      return stale;
+    } catch {
+      return [];
+    }
   }
   
   private setupVisibilityChangeHandler(): void {

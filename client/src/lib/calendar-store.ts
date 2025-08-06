@@ -94,7 +94,12 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         localEvents: Object.fromEntries((sdk.getLocalEvents() as LocalEvent[]).map((event: LocalEvent) => [event.id, event])),
         sdk
       });
-      
+
+      // Expose feeds reference for OfflineCalendarService background sync discovery (best-effort, non-invasive)
+      try {
+        (window as any).__calendarFeeds = get().feeds;
+      } catch {}
+
       // Subscribe to changes from the SDK
       sdk.onChange((events: LocalEvent[]) => {
         set({ localEvents: Object.fromEntries(events.map((event: LocalEvent) => [event.id, event])) });
@@ -128,6 +133,12 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     // Set the current week
     setCurrentWeek: (date: Date) => {
       set({ currentWeek: date });
+      // After updating the current week, load friend events if any friends are synced
+      const { syncedFriends, actions } = get();
+      if (syncedFriends.length > 0) {
+        // fire and forget; internal action handles its own errors
+        void actions.loadFriendEventsForWeek(date);
+      }
     },
     
     // Set the selected event ID
@@ -140,6 +151,10 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set((state) => ({
         feeds: [...state.feeds, feed]
       }));
+      // Keep window-exposed feeds in sync for background discovery
+      try {
+        (window as any).__calendarFeeds = get().feeds;
+      } catch {}
     },
     
     // Remove a calendar feed
@@ -147,6 +162,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set((state) => ({
         feeds: state.feeds.filter(feed => feed.id !== feedId)
       }));
+      try {
+        (window as any).__calendarFeeds = get().feeds;
+      } catch {}
     },
     
     // Add external events from a feed

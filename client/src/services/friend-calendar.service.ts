@@ -78,11 +78,172 @@ export interface FriendCalendarService {
 }
 
 export class FriendCalendarServiceImpl implements FriendCalendarService {
-  private friendCaches: Map<string, FriendCalendarEvent[]> = new Map();
+  // Per friend → per-window cache entries with TTL
+  // friendId → (rangeKey → { events, ts })
+  private friendCaches: Map<string, Map<string, { events: FriendCalendarEvent[]; ts: number }>> = new Map();
   private friendFeeds: Map<string, CalendarFeed> = new Map();
-  private lastSyncTimestamps: Map<string, Date> = new Map();
-  private syncErrors: Map<string, string> = new Map();
+
+  // Expose for UI read (modal uses best-effort)
+  public lastSyncTimestamps: Map<string, Date> = new Map();
+  public syncErrors: Map<string, string> = new Map();
+
   private abortControllers: Map<string, AbortController> = new Map();
+
+  // Backoff configuration
+  private readonly BASE_BACKOFF_MS = 500;
+  private readonly MAX_BACKOFF_MS = 8000;
+
+  // Range key helper (date-only clamped ISO) to produce stable window keys
+  private getRangeKey(start: Date, end: Date): string {
+    const clamp = (d: Date) => {
+      const copy = new Date(d);
+      // Normalize to minutes to avoid second-level jitter
+      copy.setSeconds(0, 0);
+      return copy.toISOString();
+    };
+    return `${clamp(start)}..${clamp(end)}`;
+  }
+
+  private getFriendWindowCache(friendId: string): Map<string, { events: FriendCalendarEvent[]; ts: number }> {
+    let map = this.friendCaches.get(friendId);
+    if (!map) {
+      map = new Map();
+      this.friendCaches.set(friendId, map);
+    }
+    return map;
+  }
+
+  private isFresh(ts: number): boolean {
+    return Date.now() - ts < CACHE_TTL_MS;
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private computeBackoff(attempt: number): number {
+    const exp = Math.min(this.MAX_BACKOFF_MS, this.BASE_BACKOFF_MS * Math.pow(2, attempt));
+    const jitter = Math.random() * (exp * 0.25);
+    return Math.min(this.MAX_BACKOFF_MS, exp + jitter);
+  }
+
+  // Deduplicate by canonical/external id, prefer latest lastModified; ensure stable friend color
+  private dedupeAndColorize(friend: Friend, events: FriendCalendarEvent[]): FriendCalendarEvent[] {
+    const map = new Map<string, FriendCalendarEvent>();
+    for (const ev of events) {
+      const key = ev.canonicalEventId || ev.externalId || ev.id;
+      const prev = map.get(key);
+      if (!prev) {
+        map.set(key, {
+          ...ev,
+          color: ev.color || this.generateFriendColor(friend.id),
+          source: 'friend',
+          isFromFriend: true,
+          friendUserId: friend.id,
+          friendUsername: friend.username ?? friend.id,
+          feedId: `friend-${friend.id}`,
+          feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
+          sourceId: friend.id,
+        });
+      } else {
+        const prevLm = prev.lastModified ? new Date(prev.lastModified).getTime() : 0;
+        const curLm = ev.lastModified ? new Date(ev.lastModified).getTime() : 0;
+        if (curLm >= prevLm) {
+          map.set(key, {
+            ...prev,
+            ...ev,
+            color: ev.color || prev.color || this.generateFriendColor(friend.id),
+          });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  // IndexedDB helpers per friend+rangeKey
+  private async saveToIndexedDB(friendId: string, rangeKey: string, events: FriendCalendarEvent[]): Promise<void> {
+    try {
+      const db = await this.openIDB();
+      const tx = db.transaction(['friendEvents'], 'readwrite');
+      const store = tx.objectStore('friendEvents');
+      await new Promise((res, rej) => {
+        const req = store.put({ friendId, rangeKey, events, savedAt: Date.now() }, `${friendId}::${rangeKey}`);
+        req.onsuccess = () => res(null);
+        req.onerror = () => rej(req.error);
+      });
+      tx.commit?.();
+      db.close();
+    } catch (e) {
+      console.warn('IndexedDB save failed (friend events):', e);
+    }
+  }
+
+  private async loadFromIndexedDB(friendId: string, rangeKey: string): Promise<FriendCalendarEvent[] | null> {
+    try {
+      const db = await this.openIDB();
+      const tx = db.transaction(['friendEvents'], 'readonly');
+      const store = tx.objectStore('friendEvents');
+      const record = await new Promise<any>((res, rej) => {
+        const req = store.get(`${friendId}::${rangeKey}`);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => rej(req.error);
+      });
+      db.close();
+      if (record?.events && Array.isArray(record.events)) {
+        return record.events as FriendCalendarEvent[];
+      }
+      return null;
+    } catch (e) {
+      console.warn('IndexedDB load failed (friend events):', e);
+      return null;
+    }
+  }
+
+  private async deleteAllFriendIDB(friendId: string): Promise<void> {
+    try {
+      const db = await this.openIDB();
+      const tx = db.transaction(['friendEvents'], 'readwrite');
+      const store = tx.objectStore('friendEvents');
+      // Iterate all keys and delete those matching friendId::
+      await new Promise<void>((res, rej) => {
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result as IDBCursorWithValue | null;
+          if (!cursor) {
+            res();
+            return;
+          }
+          const keyStr = String(cursor.key);
+          if (keyStr.startsWith(`${friendId}::`)) {
+            const delReq = cursor.delete();
+            delReq.onsuccess = () => cursor.continue();
+            delReq.onerror = () => rej(delReq.error);
+          } else {
+            cursor.continue();
+          }
+        };
+        req.onerror = () => rej(req.error);
+      });
+      tx.commit?.();
+      db.close();
+    } catch (e) {
+      console.warn('IndexedDB purge failed (friend events):', e);
+    }
+  }
+
+  private openIDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('FriendCalendarCache', 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('friendEvents')) {
+          db.createObjectStore('friendEvents');
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
 
   // Create secure headers for API calls
   private getSecureHeaders(): HeadersInit {
@@ -128,7 +289,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     return feed;
   }
   
-  // Fetch events from a friend's calendar
+  // Fetch events from a friend's calendar with per-window TTL + IDB fallback + retry/backoff
   async fetchFriendEvents(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
     try {
       // Check permissions first
@@ -137,33 +298,31 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         throw new Error(`No permission to access ${friend.firstName || friend.lastName || friend.id}'s calendar`);
       }
 
-      // Check cache
-      const cacheKey = friend.id;
-      const cachedEvents = this.friendCaches.get(cacheKey);
-      const lastSync = this.lastSyncTimestamps.get(cacheKey);
-
-      if (cachedEvents && lastSync && (Date.now() - lastSync.getTime()) < CACHE_TTL_MS) {
-        return cachedEvents.filter(event => {
-          const eventStart = new Date(event.startTime);
-          const eventEnd = new Date(event.endTime);
-          return eventStart < endDate && eventEnd > startDate;
-        });
+      const rangeKey = this.getRangeKey(startDate, endDate);
+      const windowCache = this.getFriendWindowCache(friend.id);
+      const cached = windowCache.get(rangeKey);
+      if (cached && this.isFresh(cached.ts)) {
+        return cached.events;
       }
 
-      // Fetch fresh events from API, pass full friend to preserve username and other props downstream
-      const events = await this.fetchFriendEventsFromAPI(friend, startDate, endDate);
+      // Attempt IDB when cache is missing/stale
+      const idbEvents = await this.loadFromIndexedDB(friend.id, rangeKey);
+      if (idbEvents) {
+        // serve IDB immediately while attempting background refresh (fire-and-forget)
+        queueMicrotask(() => {
+          this.fetchAndCacheFriendWindow(friend, startDate, endDate, rangeKey).catch(() => void 0);
+        });
+        return idbEvents as FriendCalendarEvent[];
+      }
 
-      // Cache and timestamps
-      this.friendCaches.set(cacheKey, events);
-      this.lastSyncTimestamps.set(cacheKey, new Date());
-      this.syncErrors.delete(cacheKey);
-
-      return events;
+      // Otherwise fetch network with retries/backoff
+      const fresh = await this.fetchAndCacheFriendWindow(friend, startDate, endDate, rangeKey);
+      return fresh;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.syncErrors.set(friend.id, errorMessage);
       console.error(`Failed to fetch events for friend ${friend.firstName || friend.lastName || friend.id}:`, error);
-      throw error;
+      return [];
     }
   }
   
@@ -238,14 +397,14 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   
   // Purge friend cache & revoke encrypted IndexedDB blobs on permission loss
   purgeFriendCache(friendId: string): void {
-    // Remove cached events for this friend
+    // Remove cached events for this friend (all windows)
     this.friendCaches.delete(friendId);
     this.lastSyncTimestamps.delete(friendId);
     this.syncErrors.delete(friendId);
-    
-    // Clear IndexedDB cache for this friend
-    this.clearIndexedDBCache(friendId);
-    
+
+    // Clear IndexedDB cache for this friend (all windows)
+    void this.deleteAllFriendIDB(friendId);
+
     console.log(`Purged cache for friend: ${friendId}`);
   }
   
@@ -294,10 +453,13 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     try {
       // Remove feed
       this.friendFeeds.delete(friendUserId);
-      
+
       // Purge all cached data
       this.purgeFriendCache(friendUserId);
-      
+
+      // Also clear per-window cache map explicitly
+      this.friendCaches.delete(friendUserId);
+
       console.log(`Unsynced friend calendar: ${friendUserId}`);
     } catch (error) {
       console.error('Error unsyncing friend calendar:', error);
@@ -334,25 +496,28 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     }
   }
   
-  // Refresh individual friend's events
+  // Refresh individual friend's events: invalidate all windows, then refetch current window
   async refreshFriendEvents(friendUserId: string): Promise<void> {
     try {
-      // Clear cache to force fresh fetch
-      this.friendCaches.delete(friendUserId);
+      // Invalidate per-window cache for friend
+      const windowCache = this.friendCaches.get(friendUserId);
+      if (windowCache) {
+        windowCache.clear();
+      }
       this.lastSyncTimestamps.delete(friendUserId);
-      
+
       const friend = await this.getFriendById(friendUserId);
       if (!friend) {
         throw new Error('Friend not found');
       }
-      
-      // Fetch fresh events for the current week (±2 weeks window)
+
+      // Fetch fresh events for the current focus window (±2 weeks from now)
       const now = new Date();
       const twoWeeksAgo = sub(now, { days: 14 });
       const twoWeeksFromNow = add(now, { days: 14 });
-      
+
       await this.fetchFriendEvents(friend, twoWeeksAgo, twoWeeksFromNow);
-      
+
       console.log(`Refreshed events for friend: ${friendUserId}`);
     } catch (error) {
       console.error('Error refreshing friend events:', error);
@@ -361,6 +526,30 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   }
   
   // Private helper methods
+  private async fetchAndCacheFriendWindow(friend: Friend, startDate: Date, endDate: Date, rangeKey: string): Promise<FriendCalendarEvent[]> {
+    let attempt = 0;
+    while (attempt < 4) {
+      try {
+        const raw = await this.fetchFriendEventsFromAPI(friend, startDate, endDate);
+        const events = this.dedupeAndColorize(friend, raw);
+        const windowCache = this.getFriendWindowCache(friend.id);
+        windowCache.set(rangeKey, { events, ts: Date.now() });
+        this.lastSyncTimestamps.set(friend.id, new Date());
+        this.syncErrors.delete(friend.id);
+        // persist to IDB
+        this.saveToIndexedDB(friend.id, rangeKey, events).catch(() => void 0);
+        return events;
+      } catch (e) {
+        attempt++;
+        if (attempt >= 4) {
+          throw e;
+        }
+        await this.sleep(this.computeBackoff(attempt));
+      }
+    }
+    return [];
+  }
+
   private async fetchFriendEventsFromAPI(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
     try {
       const signal = this.createAbortController(friend.id);
@@ -446,32 +635,9 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     }
   }
   
+  // obsolete: replaced by deleteAllFriendIDB
   private async clearIndexedDBCache(friendId: string): Promise<void> {
-    try {
-      // Open IndexedDB and clear friend-specific data
-      const dbName = 'FriendCalendarCache';
-      const request = indexedDB.open(dbName, 1);
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains('friendEvents')) {
-          db.createObjectStore('friendEvents');
-        }
-      };
-      
-      request.onsuccess = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        const transaction = db.transaction(['friendEvents'], 'readwrite');
-        const store = transaction.objectStore('friendEvents');
-        store.delete(friendId);
-      };
-      
-      request.onerror = (event) => {
-        console.error('Error opening IndexedDB for cache clearing:', event);
-      };
-    } catch (error) {
-      console.error('Error clearing IndexedDB cache:', error);
-    }
+    return this.deleteAllFriendIDB(friendId);
   }
   
   // Generate a consistent color for a friend's calendar
