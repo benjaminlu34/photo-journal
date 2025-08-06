@@ -151,29 +151,16 @@ export class TimezoneServiceImpl implements TimezoneService {
 
   // Handle floating times with DST awareness
   handleFloatingTime(dateTime: Date, userTimezone: string): Date {
-    try {
-      const y = dateTime.getFullYear();
-      const m = dateTime.getMonth();
-      const d = dateTime.getDate();
-      const hh = dateTime.getHours();
-      const mm = dateTime.getMinutes();
-      const ss = dateTime.getSeconds();
-      const ms = dateTime.getMilliseconds();
+    const y = dateTime.getFullYear();
+    const m = dateTime.getMonth();
+    const d = dateTime.getDate();
+    const hh = dateTime.getHours();
+    const mm = dateTime.getMinutes();
+    const ss = dateTime.getSeconds();
+    const ms = dateTime.getMilliseconds();
 
-      const naiveLocal = new Date(y, m, d, hh, mm, ss, ms);
-
-      // Normalize for DST gaps/ambiguities
-      const interpreted = this.normalizeNonexistentLocalTime(naiveLocal, userTimezone);
-      return interpreted;
-    } catch (error) {
-      console.warn('Error handling floating time, using fallback:', error);
-      const naiveLocal = new Date(
-        dateTime.getFullYear(), dateTime.getMonth(), dateTime.getDate(),
-        dateTime.getHours(), dateTime.getMinutes(), dateTime.getSeconds(), dateTime.getMilliseconds()
-      );
-      const asUtc = fromZonedTime(naiveLocal, userTimezone);
-      return toZonedTime(asUtc, userTimezone);
-    }
+    const naiveLocal = new Date(y, m, d, hh, mm, ss, ms);
+    return this.normalizeNonexistentLocalTime(naiveLocal, userTimezone);
   }
 
   // DST transition handling

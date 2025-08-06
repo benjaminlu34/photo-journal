@@ -634,25 +634,14 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
           isRecurring: false
         };
 
-        // Conversion
-        let calendarEvent: FriendCalendarEvent;
-        // Detect absolute ISO strings with timezone designator: Z suffix or ±HH:MM
+        // Determine timezone then perform single safe conversion
         const hasTzDesignator = /Z$|[+-]\d{2}:\d{2}$/.test(event.startTime);
-        if (hasTzDesignator) {
-          // Absolute time → convert safely assuming provided instant is UTC or offset-normalized on server
-          calendarEvent = timezoneService.convertToLocalTimeSafe(
-            { ...baseEvent, timezone: 'UTC' },
-            userTimezone
-          );
-        } else {
-          // Floating/local-aware → interpret in user timezone
-          calendarEvent = {
-            ...baseEvent,
-            startTime: timezoneService.handleFloatingTime(baseEvent.startTime, userTimezone),
-            endTime: timezoneService.handleFloatingTime(baseEvent.endTime, userTimezone),
-            timezone: userTimezone,
-          };
-        }
+        const prepared: FriendCalendarEvent = hasTzDesignator
+          ? { ...baseEvent, timezone: 'UTC' }
+          : { ...baseEvent, timezone: undefined as unknown as string | undefined };
+
+        let calendarEvent: FriendCalendarEvent =
+          timezoneService.convertToLocalTimeSafe(prepared, userTimezone);
 
         // Validate all-day event boundaries post-conversion
         if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {

@@ -436,22 +436,9 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
 
-        // Apply timezone conversion with DST handling
+        // Apply timezone conversion with DST handling (safe handles floating vs zoned)
         const userTimezone = timezoneService.getUserTimezone();
-        let calendarEvent = baseEvent;
-
-        if (event.startDate.timezone) {
-          // Event has explicit timezone, always use safe conversion
-          calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
-        } else {
-          // Floating time, interpret in user's timezone
-          calendarEvent = {
-            ...baseEvent,
-            startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
-            endTime: timezoneService.handleFloatingTime(endTime, userTimezone),
-            timezone: userTimezone,
-          };
-        }
+        let calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
 
         // Validate all-day events don't cross date boundaries
         if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
@@ -790,18 +777,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
     const userTimezone = timezoneService.getUserTimezone();
 
-    // Perform conversion first (explicit tz → safe conversion, no tz → floating handling)
-    let calendarEvent: CalendarEvent = baseEvent;
-    if (item.start.timeZone) {
-      calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
-    } else {
-      calendarEvent = {
-        ...baseEvent,
-        startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
-        endTime: timezoneService.handleFloatingTime(endTime, userTimezone),
-        timezone: userTimezone,
-      };
-    }
+    // Safe conversion handles floating vs zoned based on timezone property
+    let calendarEvent: CalendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
 
     // Validate all-day events don't cross date boundaries after conversion
     if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
