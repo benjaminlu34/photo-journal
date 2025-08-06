@@ -30,7 +30,21 @@ export function useCalendarResponsive(): UseCalendarResponsiveReturn {
   const [currentPadIndex, setCurrentPadIndex] = useState(0);
 
   // Determine view mode based on viewport width
+  // Enhancement: start pagination earlier to avoid Today pill squish/misalignment
   const getViewMode = (width: number): 'full' | 'scroll' | 'pads' => {
+    // Estimate per-day width after subtracting time column and minimal gutters
+    const timeCol = 64; // px
+    const gutters = 24; // px allowance
+    const perDay = (width - timeCol - gutters) / 7;
+
+    // Safe minimum per-day width that fits weekday label + date + Today pill
+    const PILL_SAFE_MIN_DAY_WIDTH = 112;
+
+    if (perDay < PILL_SAFE_MIN_DAY_WIDTH) {
+      return 'pads';
+    }
+
+    // fallback to existing breakpoints when there is enough room for the pill
     if (width >= CALENDAR_CONFIG.BREAKPOINTS.FULL_VIEW) {
       return 'full';
     } else if (width >= CALENDAR_CONFIG.BREAKPOINTS.SCROLL_VIEW) {

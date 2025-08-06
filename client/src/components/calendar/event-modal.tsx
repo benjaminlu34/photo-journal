@@ -10,15 +10,32 @@ import { Calendar, Clock, MapPin, Tag } from "lucide-react";
 import { format } from "date-fns";
 import type { CalendarEvent, LocalEvent } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { useCalendar } from "@/contexts/calendar-context";
 
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
   event?: CalendarEvent | LocalEvent;
   initialDate?: Date;
+  mode?: 'create' | 'edit'; // Explicit mode to avoid accidental create-on-edit paths
+  onSubmit?: (payload: {
+    title: string;
+    description: string;
+    startTime: Date;
+    endTime: Date;
+    isAllDay: boolean;
+    location: string;
+    color: string;
+    reminderMinutes: number;
+    tags: string[];
+    timezone?: string;
+    pattern?: 'plain';
+    attendees?: string[];
+  }) => Promise<void> | void; // Delegate side-effects to wrappers
 }
 
-export function EventModal({ isOpen, onClose, event, initialDate }: EventModalProps) {
+export function EventModal({ isOpen, onClose, event, initialDate, mode, onSubmit }: EventModalProps) {
+  const { actions } = useCalendar();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -43,7 +60,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
         isAllDay: event.isAllDay,
         location: event.location || "",
         color: event.color,
-        reminderMinutes: 'reminderMinutes' in event ? event.reminderMinutes || 30 : 30,
+        reminderMinutes: 'reminderMinutes' in event ? (typeof event.reminderMinutes === 'number' ? event.reminderMinutes : 30) : 30,
         tags: 'tags' in event ? event.tags || [] : [],
       });
     } else if (initialDate) {
@@ -85,11 +102,8 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.title.trim()) {
-      return;
-    }
-    
+    if (!formData.title.trim()) return;
+
     const eventData = {
       title: formData.title,
       description: formData.description,
@@ -100,20 +114,37 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
       color: formData.color,
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
+      timezone: undefined,
+      pattern: 'plain' as const,
+      attendees: []
     };
-    
-    // Mock functionality for UI purposes
-    console.log("Event submitted:", eventData);
-    onClose();
+
+    try {
+      // If a wrapper provides onSubmit, delegate to it (preferred)
+      if (typeof onSubmit === 'function') {
+        await onSubmit(eventData);
+      } else {
+        // Backward compatibility: infer by presence of local event (has createdBy)
+        if (event && 'createdBy' in event) {
+          await actions.updateLocalEvent(event.id, eventData);
+        } else {
+          await actions.createLocalEvent(eventData);
+        }
+      }
+      onClose();
+    } catch (error) {
+      console.error('Failed to save event:', error);
+      actions.setError('Failed to save event. Please try again.');
+    }
   };
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md neu-card">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-purple-600" />
-            {event ? "Edit Event" : "Create Event"}
+            <Calendar className="w-5 h-5 text-orange-600" />
+            {mode === 'edit' || (event && 'createdBy' in event) ? "Edit Event" : "Create Event"}
           </DialogTitle>
         </DialogHeader>
         
@@ -126,7 +157,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="title"
               value={formData.title}
               onChange={(e) => handleInputChange("title", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
               placeholder="Event title"
               required
             />
@@ -140,7 +171,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="description"
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
               placeholder="Event description"
               rows={3}
             />
@@ -159,7 +190,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                   ? format(formData.startTime, "yyyy-MM-dd")
                   : format(formData.startTime, "yyyy-MM-dd'T'HH:mm")}
                 onChange={(e) => handleDateChange("startTime", e.target.value)}
-                className="mt-1 neu-inset"
+                className="mt-1 neu-input"
               />
             </div>
             
@@ -175,7 +206,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                   ? format(formData.endTime, "yyyy-MM-dd")
                   : format(formData.endTime, "yyyy-MM-dd'T'HH:mm")}
                 onChange={(e) => handleDateChange("endTime", e.target.value)}
-                className="mt-1 neu-inset"
+                className="mt-1 neu-input"
               />
             </div>
           </div>
@@ -185,6 +216,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="allDay"
               checked={formData.isAllDay}
               onCheckedChange={(checked) => handleInputChange("isAllDay", checked)}
+              className="all-day-toggle"
             />
             <Label htmlFor="allDay" className="text-sm font-medium text-gray-700">
               All day event
@@ -200,7 +232,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               id="location"
               value={formData.location}
               onChange={(e) => handleInputChange("location", e.target.value)}
-              className="mt-1 neu-inset"
+              className="mt-1 neu-input"
             placeholder="Add location"
             />
           </div>
@@ -212,10 +244,10 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                 <button
                   key={color.value}
                   type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
+                  className={`w-8 h-8 rounded-full border-2 transition-all ${
                     formData.color === color.value
-                      ? "border-gray-800 scale-110 shadow-neu-lg"
-                      : "border-gray-300 hover:scale-105"
+                      ? "border-gray-800 ring-2 ring-gray-400"
+                      : "border-gray-300 hover:border-gray-500"
                   }`}
                   style={{ backgroundColor: color.value }}
                   onClick={() => handleInputChange("color", color.value)}
@@ -231,10 +263,15 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
             </Label>
             <Select
               value={formData.reminderMinutes.toString()}
-              onValueChange={(value) => handleInputChange("reminderMinutes", parseInt(value))}
+              onValueChange={(value) => {
+                const numValue = parseInt(value, 10);
+                if (!isNaN(numValue)) {
+                  handleInputChange("reminderMinutes", numValue);
+                }
+              }}
             >
-              <SelectTrigger className="mt-1 neu-inset">
-                <SelectValue />
+              <SelectTrigger className="mt-1 neu-input">
+                <SelectValue placeholder="Select reminder time" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">No reminder</SelectItem>
@@ -257,7 +294,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               <Input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                className="neu-inset flex-1"
+                className="flex-1 neu-input"
                 placeholder="Add tag"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -280,7 +317,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
                 {formData.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 neu-inset"
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 shadow-neu-inset"
                   >
                     {tag}
                     <button
@@ -309,9 +346,9 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
             <Button
               type="submit"
               disabled={!formData.title.trim()}
-              className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
             >
-              {event ? "Update" : "Create"} Event
+              {(mode === 'edit' || (event && 'createdBy' in event)) ? "Update" : "Create"} Event
             </Button>
           </DialogFooter>
         </form>

@@ -11,8 +11,8 @@ export default function NotFound() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-indigo-50">
-      <Card className="w-full max-w-md mx-4 border-purple-100 shadow-xl">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-amber-50">
+      <Card className="w-full max-w-md mx-4 border-orange-100 shadow-xl">
         <CardContent className="pt-8 text-center">
           <div className="mb-6">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -27,7 +27,7 @@ export default function NotFound() {
           <div className="space-y-3">
             <Button
               onClick={handleGoHome}
-              className="w-full bg-gradient-to-r from-purple-500 to-indigo-500"
+              className="w-full bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))]"
             >
               <Home className="w-4 h-4 mr-2" />
               Go to Home

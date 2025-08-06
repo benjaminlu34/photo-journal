@@ -17,6 +17,10 @@ interface EditEventModalProps {
   event: LocalEvent;
   onSubmit: (id: string, updates: Partial<LocalEvent>) => void;
   isReadOnly?: boolean;
+  currentUser?: {
+    id: string;
+    username?: string;
+  } | null;
 }
 
 export function EditEventModal({ 
@@ -24,7 +28,8 @@ export function EditEventModal({
   onClose, 
   event,
   onSubmit,
-  isReadOnly = false
+  isReadOnly = false,
+  currentUser
 }: EditEventModalProps) {
   const [formData, setFormData] = useState({
     title: event.title,
@@ -100,11 +105,14 @@ export function EditEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
     });
+    
+    // Close modal after successful submission
+    onClose();
   };
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md neu-card">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-purple-600" />
@@ -312,7 +320,11 @@ export function EditEventModal({
           {event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
               <User className="w-4 h-4 mr-1" />
-              Created by: {event.createdBy}
+              Created By: 
+              {currentUser && currentUser.id === event.createdBy && currentUser.username 
+                  ? ` @${currentUser.username}`
+                  : event.createdBy
+                }
             </div>
           )}
           
@@ -337,7 +349,7 @@ export function EditEventModal({
               <Button
                 type="submit"
                 disabled={!formData.title.trim()}
-                className="neu-card bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-neu hover:shadow-neu-lg transition-all"
+                className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
               >
                 Update Event
               </Button>

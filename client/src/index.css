@@ -132,6 +132,31 @@
     box-shadow: 2px 2px 4px var(--shadow-light), -2px -2px 4px var(--shadow-dark);
   }
 
+  /* Neumorphic shadow definitions */
+  .shadow-neu {
+    box-shadow:
+      4px 4px 8px rgba(0, 0, 0, 0.1),
+      -4px -4px 8px rgba(255, 255, 255, 0.8);
+  }
+
+  .shadow-neu-lg {
+    box-shadow:
+      6px 6px 12px rgba(0, 0, 0, 0.15),
+      -6px -6px 12px rgba(255, 255, 255, 0.9);
+  }
+
+  .shadow-neu-inset {
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  }
+
+  .shadow-neu-active {
+    box-shadow:
+      2px 2px 4px rgba(0, 0, 0, 0.15),
+      -2px -2px 4px rgba(255, 255, 255, 0.9);
+  }
+
   .neu-tab-list-bg {
     @apply bg-surface-elevated rounded-md shadow-neu-soft p-1;
   }
@@ -155,14 +180,63 @@
 
   /* Neumorphic input with inset shadow */
   .neu-input {
-    @apply w-full rounded-sm shadow-neu-inset bg-surface-elevated px-4 py-2;
+    @apply w-full rounded-sm bg-surface-elevated px-4 py-2;
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.8) !important;
     transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    outline: none;
   }
 
   .neu-input:focus {
-    @apply shadow-neu ring-2;
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.8),
+      0 0 0 2px hsl(var(--ring)) !important;
     filter: drop-shadow(0 0 2px var(--ring-primary-40));
-    /* Using filter for glow effect */
+    outline: none;
+    /* Keep inset shadow on focus and add glow effect */
+  }
+
+  /* All day event toggle styling */
+  .all-day-toggle {
+    box-shadow:
+      inset 2px 2px 4px rgba(0, 0, 0, 0.1),
+      inset -2px -2px 4px rgba(255, 255, 255, 0.8) !important;
+    background-color: hsl(var(--muted)) !important;
+  }
+
+  .all-day-toggle:hover {
+    box-shadow:
+      inset 3px 3px 6px rgba(0, 0, 0, 0.12),
+      inset -3px -3px 6px rgba(255, 255, 255, 0.9) !important;
+  }
+
+  .all-day-toggle[data-state="checked"] {
+    background-color: hsl(var(--primary)) !important;
+    box-shadow:
+      0 2px 4px rgba(251, 146, 60, 0.3),
+      inset 0 1px 2px rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .all-day-toggle[data-state="checked"]:hover {
+    background-color: hsl(var(--primary) / 0.9) !important;
+    box-shadow:
+      0 4px 8px rgba(251, 146, 60, 0.4),
+      inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .all-day-toggle[data-state="checked"] span[data-state="checked"] {
+    background-color: white !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .all-day-toggle span {
+    background-color: white !important;
+    box-shadow:
+      1px 1px 2px rgba(0, 0, 0, 0.15),
+      -1px -1px 2px rgba(255, 255, 255, 0.8) !important;
   }
 
   /* Navigation pills */

@@ -1,7 +1,11 @@
 export { EventModal } from "./event-modal";
+export { CreateEventModal } from "./create-event-modal";
+export { EditEventModal } from "./edit-event-modal";
 export { CalendarFeedModal } from "./calendar-feed-modal";
 export { FriendCalendarSyncModal } from "./friend-calendar-sync-modal";
-export { WeeklyCalendarView } from "./weekly-calendar-view";
 export { CalendarErrorBoundary, withCalendarErrorBoundary } from "./calendar-error-boundary";
 export { TimeGrid } from "./time-grid";
 export { CalendarSettings } from "./calendar-settings";
+export { DayColumn } from "./day-column";
+export { EventCard } from "./event-card";
+export { WeekHeader } from "./week-header";

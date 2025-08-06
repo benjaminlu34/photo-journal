@@ -68,7 +68,7 @@ export function JournalWorkspace() {
         <FloatingCollaborationCursors />
       </div>
 
-      <div className={viewMode === "weekly-calendar" ? "flex-1" : "hidden"}>
+      <div className={viewMode === "weekly-calendar" ? "flex-1 flex flex-col min-h-0" : "hidden"}>
         <CalendarProvider initialDate={currentEntry?.createdAt ? new Date(currentEntry.createdAt) : new Date()}>
           <WeeklyCalendarView username={user?.username || ''} />
         </CalendarProvider>
