@@ -112,6 +112,10 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
           reject(new Error('OAuth timed out'));
         }, 120000);
         function onMessage(ev: MessageEvent) {
+          // Security: Verify message origin to prevent malicious code injection
+          if (ev.origin !== window.location.origin) {
+            return;
+          }
           try {
             if (typeof ev.data === 'object' && ev.data && ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
               clearTimeout(timeout);

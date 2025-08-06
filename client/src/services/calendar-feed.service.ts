@@ -97,6 +97,9 @@ export interface CalendarFeedService {
   // Cache management
   clearCache(feedId?: string): void;
   getCacheStats(): { size: number; maxSize: number };
+
+  // Lifecycle management
+  destroy(): void;
 }
 
 export class CalendarFeedServiceImpl implements CalendarFeedService {
@@ -124,6 +127,9 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   // Optional offline service dependency (injected to avoid circular dependency)
   private offlineService: OfflineCalendarService | null = null;
+
+  // Store reference to visibility change handler for cleanup
+  private visibilityChangeHandler: (() => void) | null = null;
 
   constructor() {
     // Validate Google OAuth configuration
@@ -538,6 +544,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
   }
 
+  // Lifecycle management
+  destroy(): void {
+    // Clean up event listeners to prevent memory leaks
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
+  }
+
   // Private helper methods
   private async fetchEventsFromSource(
     feed: CalendarFeed,
@@ -873,6 +887,9 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
     // Use proper method to handle visibility refresh
     feedService.handleVisibilityRefresh();
   };
+  
+  // Store handler reference for cleanup and add listener
+  (feedService as any).visibilityChangeHandler = onVisibilityChange;
   document.addEventListener('visibilitychange', onVisibilityChange);
 
   return feedService;

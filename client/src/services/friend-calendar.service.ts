@@ -461,9 +461,6 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       // Purge all cached data
       this.purgeFriendCache(friendUserId);
 
-      // Also clear per-window cache map explicitly
-      this.friendCaches.delete(friendUserId);
-
       console.log(`Unsynced friend calendar: ${friendUserId}`);
     } catch (error) {
       console.error('Error unsyncing friend calendar:', error);
@@ -560,7 +557,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         await this.sleep(this.computeBackoff(attempt));
       }
     }
-    return [];
+    // This point should never be reached due to the throw in the loop
   }
 
   private async fetchFriendEventsFromAPI(friend: Friend, startDate: Date, endDate: Date): Promise<FriendCalendarEvent[]> {
