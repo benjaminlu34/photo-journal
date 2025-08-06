@@ -51,11 +51,14 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
     // Determine current ±2 week window
     const { now, start: windowStart, end: windowEnd } = computeTwoWeekWindow();
+
+    // Generate feedId outside try so we can use it in catch
+    const feedId = crypto.randomUUID();
   
     try {
       // Persist feed first in store
       const newFeed: CalendarFeed = {
-        id: crypto.randomUUID(),
+        id: feedId,
         name: icalFormData.name.trim(),
         type: 'ical',
         url: icalFormData.url.trim(),
@@ -66,20 +69,17 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       };
       actions.addFeed(newFeed);
 
-      // Fetch + parse + filter + recurrence expansion
-      const raw = await calendarFeedService.fetchICalFeed(newFeed.url!);
-      const parsed = calendarFeedService.parseICalContent(raw, newFeed.id, newFeed.name);
-      const inWindow = parsed.filter(ev => ev.startTime <= windowEnd && ev.endTime >= windowStart);
-      const expanded = await calendarFeedService.expandRecurringEvents(inWindow as CalendarEvent[], now);
+      // Use unified service to fetch events for the window
+      const events = await calendarFeedService.fetchFeedEvents(newFeed, { start: windowStart, end: windowEnd });
 
-      // Deduplicate across feeds/sources
+      // Recurrence expansion and de-duplication
+      const expanded = await calendarFeedService.expandRecurringEvents(events, now);
       const deduped = calendarFeedService.resolveEventDuplicates(expanded);
 
       // Merge into store
       actions.addExternalEvents(newFeed.id, deduped);
 
       // Update last sync meta if store exposes it
-      // @ts-ignore optional action
       actions.updateFeedMeta?.(newFeed.id, { lastSyncAt: new Date(), syncError: undefined });
 
       // Reset form
@@ -87,8 +87,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
     } catch (error) {
       console.error('Failed to add iCal feed:', error);
       // Surface sync error if store supports it
-      // @ts-ignore optional action
-      actions.updateFeedMeta?.(newFeed.id, { syncError: 'Failed to add calendar feed. Please check the URL and try again.' });
+      actions.updateFeedMeta?.(feedId, { syncError: 'Failed to add calendar feed. Please check the URL and try again.' });
       actions.setError('Failed to add calendar feed. Please check the URL and try again.');
     }
   };
@@ -119,7 +118,9 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
               window.removeEventListener('message', onMessage);
               resolve(ev.data.code);
             }
-          } catch {}
+          } catch (err) {
+            console.error('Error processing OAuth message event:', err);
+          }
         }
         window.addEventListener('message', onMessage);
       });
@@ -149,12 +150,10 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       actions.addExternalEvents(googleFeed.id, deduped);
 
       // Update last sync meta if available
-      // @ts-ignore optional action
       actions.updateFeedMeta?.(googleFeed.id, { lastSyncAt: new Date(), syncError: undefined });
     } catch (error) {
       console.error('Failed to connect Google Calendar:', error);
-      // @ts-ignore optional action
-      actions.updateFeedMeta?.(undefined, { syncError: 'Failed to connect Google Calendar. Please try again.' });
+      actions.updateFeedMeta?.(undefined as unknown as string, { syncError: 'Failed to connect Google Calendar. Please try again.' });
       actions.setError('Failed to connect Google Calendar. Please try again.');
     } finally {
       setIsConnectingGoogle(false);
@@ -173,27 +172,17 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       const feed = feeds.find(f => f.id === feedId);
       if (!feed) throw new Error('Feed not found');
 
-      let events: CalendarEvent[] = [];
-      if (feed.type === 'ical' && feed.url) {
-        const raw = await calendarFeedService.fetchICalFeed(feed.url);
-        const parsed = calendarFeedService.parseICalContent(raw, feed.id, feed.name);
-        const inWindow = parsed.filter(ev => ev.startTime <= windowEnd && ev.endTime >= windowStart);
-        events = inWindow as CalendarEvent[];
-      } else {
-        // google or other sources use unified fetch
-        events = await calendarFeedService.fetchFeedEvents(feed, { start: windowStart, end: windowEnd });
-      }
+      // Use unified fetch for all feed types (ical, google, etc.)
+      const events: CalendarEvent[] = await calendarFeedService.fetchFeedEvents(feed, { start: windowStart, end: windowEnd });
 
       const expanded = await calendarFeedService.expandRecurringEvents(events, now);
       const deduped = calendarFeedService.resolveEventDuplicates(expanded);
       actions.addExternalEvents(feed.id, deduped);
 
       // Update feed meta if available
-      // @ts-ignore optional action
       actions.updateFeedMeta?.(feed.id, { lastSyncAt: new Date(), syncError: undefined });
     } catch (error) {
       console.error('Failed to refresh feed:', error);
-      // @ts-ignore optional action
       actions.updateFeedMeta?.(feedId, { syncError: 'Failed to refresh calendar feed.' });
       actions.setError('Failed to refresh calendar feed.');
     }
