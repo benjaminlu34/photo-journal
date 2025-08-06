@@ -394,29 +394,38 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   }
 
   // Handle friend permission changes (auto-unsync if permissions revoked)
-  handlePermissionChange(friend: Friend, hasAccess: boolean): void {
+  async handlePermissionChange(friend: Friend, hasAccess: boolean): Promise<void> {
     if (!hasAccess) {
-      // Purge cache and remove feed when access is revoked
-      this.purgeFriendCache(friend.id);
-      this.friendFeeds.delete(friend.id);
+      try {
+        // Purge cache and remove feed when access is revoked - CRITICAL for privacy
+        await this.purgeFriendCache(friend.id);
+        this.friendFeeds.delete(friend.id);
+      } catch (error) {
+        console.error('CRITICAL: Failed to purge friend data on permission revocation:', error);
+        // Store error for UI to display warning
+        this.syncErrors.set(friend.id, `PRIVACY WARNING: Failed to delete cached data on permission change.`);
+        throw error; // Re-throw so calling code can handle this critical failure
+      }
     }
   }
 
   // Purge friend cache & revoke encrypted IndexedDB blobs on permission loss
-  purgeFriendCache(friendId: string): void {
+  async purgeFriendCache(friendId: string): Promise<void> {
     // Remove cached events for this friend (all windows)
     this.friendCaches.delete(friendId);
     this.lastSyncTimestamps.delete(friendId);
     this.syncErrors.delete(friendId);
 
-    // Clear IndexedDB cache for this friend (all windows) - critical for privacy
-    this.deleteAllFriendIDB(friendId).catch((error) => {
-      console.error(`CRITICAL PRIVACY ISSUE: Failed to purge IndexedDB data for friend ${friendId}:`, error);
-      // Store the error so calling code can be aware of the failure
-      this.syncErrors.set(friendId, `Failed to purge cached data: ${error.message}`);
-    });
-
-    console.log(`Purged cache for friend: ${friendId}`);
+    try {
+      // Clear IndexedDB cache for this friend (all windows) - critical for privacy
+      // This MUST succeed or we have a privacy violation
+      await this.deleteAllFriendIDB(friendId);
+      console.log(`Successfully purged all data for friend: ${friendId}`);
+    } catch (error) {
+      console.error(`CRITICAL PRIVACY FAILURE: Failed to purge IndexedDB data for friend ${friendId}:`, error);
+      // Re-throw to ensure calling code handles this critical failure
+      throw new Error(`PRIVACY VIOLATION: Failed to purge friend data for ${friendId}. User must be notified.`);
+    }
   }
 
   // Sync friend's calendar events (requires viewer permission)
@@ -465,13 +474,19 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       // Remove feed
       this.friendFeeds.delete(friendUserId);
 
-      // Purge all cached data
-      this.purgeFriendCache(friendUserId);
+      // Purge all cached data - CRITICAL for privacy
+      await this.purgeFriendCache(friendUserId);
 
-      console.log(`Unsynced friend calendar: ${friendUserId}`);
+      console.log(`Successfully unsynced friend calendar: ${friendUserId}`);
     } catch (error) {
-      console.error('Error unsyncing friend calendar:', error);
-      throw error;
+      console.error('CRITICAL ERROR: Failed to unsync friend calendar:', error);
+      
+      // This is a critical privacy failure - the user must be informed
+      // Store the error for UI to display persistent warning
+      this.syncErrors.set(friendUserId, `PRIVACY WARNING: Failed to delete cached data. Please contact support.`);
+      
+      // Re-throw to ensure calling code can handle this critical failure
+      throw new Error(`Critical privacy failure when unsyncing friend ${friendUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

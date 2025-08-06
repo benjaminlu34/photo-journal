@@ -30,11 +30,11 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
   // Google Calendar form state
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  
+
   // OAuth cleanup refs
   const oauthTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const oauthListenerRef = useRef<((ev: MessageEvent) => void) | null>(null);
-  
+
   // Cleanup OAuth resources on unmount
   useEffect(() => {
     return () => {
@@ -130,7 +130,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
         if (oauthListenerRef.current) {
           window.removeEventListener('message', oauthListenerRef.current);
         }
-        
+
         // Set up timeout with ref for cleanup
         oauthTimeoutRef.current = setTimeout(() => {
           if (oauthListenerRef.current) {
@@ -140,7 +140,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
           oauthTimeoutRef.current = null;
           reject(new Error('OAuth timed out'));
         }, 120000);
-        
+
         // Create message handler with ref for cleanup
         const onMessage = (ev: MessageEvent) => {
           // Security: Verify message origin to prevent malicious code injection
@@ -148,23 +148,38 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
             return;
           }
           try {
-            if (typeof ev.data === 'object' && ev.data && ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
-              // Cleanup resources
-              if (oauthTimeoutRef.current) {
-                clearTimeout(oauthTimeoutRef.current);
-                oauthTimeoutRef.current = null;
+            if (typeof ev.data === 'object' && ev.data) {
+              if (ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
+                // Success - cleanup resources and resolve
+                if (oauthTimeoutRef.current) {
+                  clearTimeout(oauthTimeoutRef.current);
+                  oauthTimeoutRef.current = null;
+                }
+                if (oauthListenerRef.current) {
+                  window.removeEventListener('message', oauthListenerRef.current);
+                  oauthListenerRef.current = null;
+                }
+                resolve(ev.data.code);
+              } else if (ev.data.type === 'google-oauth-error') {
+                // Error - cleanup resources and reject with specific error
+                if (oauthTimeoutRef.current) {
+                  clearTimeout(oauthTimeoutRef.current);
+                  oauthTimeoutRef.current = null;
+                }
+                if (oauthListenerRef.current) {
+                  window.removeEventListener('message', oauthListenerRef.current);
+                  oauthListenerRef.current = null;
+                }
+                reject(new Error(ev.data.error || 'Authentication failed or was cancelled by user.'));
               }
-              if (oauthListenerRef.current) {
-                window.removeEventListener('message', oauthListenerRef.current);
-                oauthListenerRef.current = null;
-              }
-              resolve(ev.data.code);
+              // Ignore other message types (don't resolve or reject)
             }
           } catch (err) {
             console.error('Error processing OAuth message event:', err);
+            // Don't reject here - let timeout handle it
           }
         };
-        
+
         // Store listener ref and add event listener
         oauthListenerRef.current = onMessage;
         window.addEventListener('message', onMessage);
