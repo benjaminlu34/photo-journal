@@ -167,10 +167,9 @@ export class TimezoneServiceImpl implements TimezoneService {
 
       // Handle potential DST gaps/ambiguities when interpreting floating time
       const interpreted = this.normalizeNonexistentLocalTime(naiveLocal, userTimezone);
-      
-      // Convert to UTC and back to ensure proper timezone handling
-      const asUtc = fromZonedTime(interpreted, userTimezone);
-      return toZonedTime(asUtc, userTimezone);
+      // normalizeNonexistentLocalTime already returns a correctly zoned Date.
+      // Additional round-trips are unnecessary.
+      return interpreted;
     } catch (error) {
       console.warn('Error handling floating time, using fallback:', error);
       // Fallback to original implementation

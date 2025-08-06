@@ -634,25 +634,36 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
           isRecurring: false
         };
 
-        // Handle absolute timestamps correctly
-        // Check if server provided absolute time (ISO string with timezone info)
+        // Conversion (absolute vs floating)
+        let calendarEvent: FriendCalendarEvent;
         if (event.startTime.includes('Z') || event.startTime.includes('+')) {
-          // Server provided absolute time - use convertAbsoluteDateToLocal
-          return {
-            ...baseEvent,
-            startTime: timezoneService.convertAbsoluteDateToLocal(baseEvent.startTime, userTimezone),
-            endTime: timezoneService.convertAbsoluteDateToLocal(baseEvent.endTime, userTimezone),
-            timezone: userTimezone,
-          };
+          // Absolute time → convert safely assuming UTC
+          calendarEvent = timezoneService.convertToLocalTimeSafe(
+            { ...baseEvent, timezone: 'UTC' },
+            userTimezone
+          );
         } else {
-          // Server provided local-aware time, validate and handle floating time
-          return {
+          // Floating/local-aware → interpret in user timezone
+          calendarEvent = {
             ...baseEvent,
             startTime: timezoneService.handleFloatingTime(baseEvent.startTime, userTimezone),
             endTime: timezoneService.handleFloatingTime(baseEvent.endTime, userTimezone),
             timezone: userTimezone,
           };
         }
+
+        // Validate all-day event boundaries post-conversion
+        if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
+          console.warn(`All-day event from friend crosses date boundary, adjusting: ${event.id}`);
+          const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
+          calendarEvent = {
+            ...calendarEvent,
+            startTime: dayBounds.start,
+            endTime: dayBounds.end,
+          };
+        }
+
+        return calendarEvent;
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

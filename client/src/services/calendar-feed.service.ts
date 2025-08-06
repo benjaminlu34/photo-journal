@@ -761,12 +761,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
 
-    // FIXED: Handle all-day events correctly - parse end.date consistently as local date
+    // Handle all-day events: parse end.date consistently as local date (start-of-day)
     const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
       : item.end.date
-        ? new Date(item.end.date + 'T00:00:00') // Parse as local date consistently with startTime
-        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // Fallback: end of start day
+        ? new Date(item.end.date + 'T00:00:00')
+        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
 
     const baseEvent: CalendarEvent = {
       id: `${feed.id}:${item.id}`,
@@ -789,21 +789,33 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       lastModified: new Date(item.updated),
     };
 
-    // Apply timezone conversion with DST handling
     const userTimezone = timezoneService.getUserTimezone();
-    
+
+    // Perform conversion first (explicit tz → safe conversion, no tz → floating handling)
+    let calendarEvent: CalendarEvent = baseEvent;
     if (item.start.timeZone) {
-      // Event has explicit timezone, always use safe conversion
-      return timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
+      calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
     } else {
-      // For floating times (no timezone), interpret in user's timezone
-      return {
+      calendarEvent = {
         ...baseEvent,
         startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
         endTime: timezoneService.handleFloatingTime(endTime, userTimezone),
         timezone: userTimezone,
       };
     }
+
+    // Validate all-day events don't cross date boundaries after conversion
+    if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
+      console.warn(`All-day event from Google crosses date boundary, adjusting: ${item.id}`);
+      const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
+      calendarEvent = {
+        ...calendarEvent,
+        startTime: dayBounds.start,
+        endTime: dayBounds.end,
+      };
+    }
+
+    return calendarEvent;
   }
 
   private generateCacheKey(feedId: string, dateRange?: { start: Date; end: Date }): string {
