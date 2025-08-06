@@ -636,9 +636,12 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
         // Conversion (absolute vs floating)
         let calendarEvent: FriendCalendarEvent;
-        // Detect absolute timestamps: Z (UTC) or explicit offset (+/-HH:MM)
-        if (event.startTime.includes('Z') || event.startTime.includes('+') || event.startTime.includes('-')) {
-          // Absolute time → convert safely assuming UTC
+        // Robust detection of absolute ISO strings with timezone designator:
+        // - 'Z' suffix (UTC)
+        // - explicit offset at the end like +HH:MM or -HH:MM
+        const hasTzDesignator = /Z$|[+-]\d{2}:\d{2}$/.test(event.startTime);
+        if (hasTzDesignator) {
+          // Absolute time → convert safely assuming provided instant is UTC or offset-normalized on server
           calendarEvent = timezoneService.convertToLocalTimeSafe(
             { ...baseEvent, timezone: 'UTC' },
             userTimezone

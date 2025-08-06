@@ -39,24 +39,33 @@ export interface TimezoneService {
 }
 
 export class TimezoneServiceImpl implements TimezoneService {
-  // Handle non-existent local times during spring-forward
+  // Handle non-existent and ambiguous local times across DST transitions
+  // Strategy:
+  // - For nonexistent times (spring-forward gap): shift forward by 1 hour
+  // - For ambiguous times (fall-back overlap): prefer earliest occurrence (configurable if needed)
   private normalizeNonexistentLocalTime(date: Date, timezone: string): Date {
     const ONE_MINUTE_IN_MS = 60_000;
     try {
-      // Try to convert to UTC and back to detect gaps
+      // Round-trip to detect DST gaps
       const utc = fromZonedTime(date, timezone);
       const backToLocal = toZonedTime(utc, timezone);
-      
-      // If the time doesn't match, we hit a DST gap
+
+      // If the time doesn't match after round-trip by > 1 minute, treat as nonexistent time
       if (Math.abs(backToLocal.getTime() - date.getTime()) > ONE_MINUTE_IN_MS) {
-        // Shift forward by 1 hour to get past the gap
+        // Shift forward by 1 hour to get past the gap and round-trip again
         const shifted = addHours(date, 1);
-        return toZonedTime(fromZonedTime(shifted, timezone), timezone);
+        const shiftedUtc = fromZonedTime(shifted, timezone);
+        return toZonedTime(shiftedUtc, timezone);
       }
-      
+
+      // For ambiguous times, date-fns-tz will pick the first occurrence by default.
+      // We keep this as the default behavior (earliest). If a "latest" strategy is needed
+      // in the future, we can extend this method to accept a strategy parameter.
       return backToLocal;
     } catch (error) {
-      console.warn('Error normalizing nonexistent local time:', error);
+      // Propagate RangeError details upward for caller-specific handling if needed,
+      // but return the original date as a conservative fallback to avoid crashing.
+      console.warn('Error normalizing local time (DST handling):', error);
       return date;
     }
   }
@@ -77,41 +86,36 @@ export class TimezoneServiceImpl implements TimezoneService {
   convertToLocalTimeSafe<T extends BaseEvent>(event: T, userTimezone: string): T {
     if (!event.startTime || !event.endTime) return event;
 
-    try {
-      // For floating times, use enhanced floating time handling
-      if (!event.timezone) {
-        return {
-          ...event,
-          startTime: this.handleFloatingTime(event.startTime, userTimezone),
-          endTime: this.handleFloatingTime(event.endTime, userTimezone),
-          timezone: userTimezone,
-        };
-      }
-
-      // Always use safe conversion when timezone is present, even if same as user timezone
-      // This ensures DST gaps and ambiguities are handled properly
-      const startUtc = fromZonedTime(event.startTime, event.timezone);
-      const endUtc = fromZonedTime(event.endTime, event.timezone);
-      
-      const startLocal = this.normalizeNonexistentLocalTime(
-        toZonedTime(startUtc, userTimezone), 
-        userTimezone
-      );
-      const endLocal = this.normalizeNonexistentLocalTime(
-        toZonedTime(endUtc, userTimezone), 
-        userTimezone
-      );
-
+    // For floating times, use enhanced floating time handling
+    if (!event.timezone) {
       return {
         ...event,
-        startTime: startLocal,
-        endTime: endLocal,
+        startTime: this.handleFloatingTime(event.startTime, userTimezone),
+        endTime: this.handleFloatingTime(event.endTime, userTimezone),
         timezone: userTimezone,
       };
-    } catch (error) {
-      console.warn('Error in convertToLocalTimeSafe, returning original event:', error);
-      return event;
     }
+
+    // Always use safe conversion when timezone is present, even if same as user timezone
+    // This ensures DST gaps and ambiguities are handled properly
+    const startUtc = fromZonedTime(event.startTime, event.timezone);
+    const endUtc = fromZonedTime(event.endTime, event.timezone);
+
+    const startLocal = this.normalizeNonexistentLocalTime(
+      toZonedTime(startUtc, userTimezone),
+      userTimezone
+    );
+    const endLocal = this.normalizeNonexistentLocalTime(
+      toZonedTime(endUtc, userTimezone),
+      userTimezone
+    );
+
+    return {
+      ...event,
+      startTime: startLocal,
+      endTime: endLocal,
+      timezone: userTimezone,
+    };
   }
 
   // Convert event times to user's local timezone
@@ -237,17 +241,18 @@ export class TimezoneServiceImpl implements TimezoneService {
   }
 
   // Validate that all-day events don't cross date boundaries
+  // Stricter rule:
+  // - A single-day all-day event must begin and end on the same calendar day (dayDiff === 0).
+  // If callers use an exclusive end (e.g., Google all-day with end.date = next day 00:00),
+  // they should pre-adjust to an inclusive end (e.g., subtract 1 ms) before validation.
   validateAllDayEvent<T extends BaseEvent>(event: T, timezone: string): boolean {
     if (!event.isAllDay || !event.startTime || !event.endTime) {
       return true; // Not an all-day event or missing times
     }
 
     try {
-      // Use differenceInCalendarDays to safely handle DST transitions
       const dayDiff = differenceInCalendarDays(event.endTime, event.startTime);
-      
-      // For all-day events, end should be same day or next day
-      return dayDiff >= 0 && dayDiff <= 1;
+      return dayDiff === 0;
     } catch (error) {
       console.warn('Error validating all-day event:', error);
       return false;

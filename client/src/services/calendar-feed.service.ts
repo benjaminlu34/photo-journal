@@ -761,12 +761,13 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
 
-    // Handle all-day events: parse end.date consistently as local date (start-of-day)
+    // Handle all-day events: Google provides exclusive end.date (midnight of next day).
+    // Convert to inclusive end by subtracting 1 ms so single-day events validate as same-day.
     const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
       : item.end.date
-        ? new Date(item.end.date + 'T00:00:00')
-        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
+        ? new Date(new Date(item.end.date + 'T00:00:00').getTime() - 1)
+        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const baseEvent: CalendarEvent = {
       id: `${feed.id}:${item.id}`,
