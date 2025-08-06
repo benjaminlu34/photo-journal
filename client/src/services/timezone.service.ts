@@ -120,9 +120,16 @@ export class TimezoneServiceImpl implements TimezoneService {
       };
     }
 
-    // Same timezone
+    // Same timezone: still normalize to handle DST gaps/ambiguities
     if (event.timezone === userTimezone) {
-      return event;
+      const startLocal = this.normalizeNonexistentLocalTime(event.startTime, userTimezone);
+      const endLocal = this.normalizeNonexistentLocalTime(event.endTime, userTimezone);
+      return {
+        ...event,
+        startTime: startLocal,
+        endTime: endLocal,
+        timezone: userTimezone,
+      };
     }
 
     const startAsZoned = toZonedTime(
