@@ -98,3 +98,14 @@ export function isLegacyJournalUrl(url: string): boolean {
 export function isValidUsernameForUrl(username: string): boolean {
   return /^[a-z0-9_]{3,20}$/.test(username);
 }
+
+/**
+ * Navigate to home page using client-side routing
+ */
+export function navigateToHome(): void {
+  // Use history API for client-side navigation instead of full page reload
+  window.history.pushState(null, '', '/');
+  
+  // Dispatch a popstate event to trigger router updates
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}

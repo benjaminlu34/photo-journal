@@ -151,20 +151,13 @@ export function WeeklyCalendarView({
     return () => actions.cleanup?.();
   }, [calendarCurrentWeek, username, actions]);
 
-  // Bridge: sync external "pj:calendar:setWeek" events into Calendar store and Journal
+  // Sync journal context currentWeek with calendar store
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { date: Date };
-      if (!detail?.date) return;
-      const normalized = startOfWeek(new Date(detail.date), { weekStartsOn: 0 });
-      setCurrentWeek(normalized);
+    const normalized = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
+    if (calendarCurrentWeek.getTime() !== normalized.getTime()) {
       actions.setCurrentWeek(normalized);
-    };
-    window.addEventListener("pj:calendar:setWeek", handler as EventListener);
-    return () => {
-      window.removeEventListener("pj:calendar:setWeek", handler as EventListener);
-    };
-  }, [actions, setCurrentWeek]);
+    }
+  }, [currentWeek, calendarCurrentWeek, actions]);
 
   // Friend sync features are not available via CalendarContext actions yet.
   // Placeholder no-ops to preserve UI and avoid type errors.
@@ -508,9 +501,9 @@ export function WeeklyCalendarView({
 
       {/* Calendar Settings */}
       {isSettingsOpen && (
-          <div className="bg-white rounded-xl maxh-[90vh] overflow-auto">
-            <CalendarSettings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-          </div>
+        <div className="bg-white rounded-xl maxh-[90vh] overflow-auto">
+          <CalendarSettings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+        </div>
       )}
     </div>
   );

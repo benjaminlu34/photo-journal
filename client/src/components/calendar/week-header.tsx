@@ -35,19 +35,11 @@ export function WeekHeader({
   const handlePrevWeek = () => {
     const newWeek = subWeeks(startOfWeek(currentWeek, { weekStartsOn: 0 }), 1);
     onWeekChange(newWeek);
-    try {
-      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-      window.dispatchEvent(evt);
-    } catch {}
   };
 
   const handleNextWeek = () => {
     const newWeek = addWeeks(startOfWeek(currentWeek, { weekStartsOn: 0 }), 1);
     onWeekChange(newWeek);
-    try {
-      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-      window.dispatchEvent(evt);
-    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {

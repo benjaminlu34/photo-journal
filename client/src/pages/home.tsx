@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
+import { startOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
 import { DndContextProvider } from "@/contexts/dnd-context";
@@ -114,7 +114,7 @@ function HomeContent() {
         throw new Error(errorData.message || 'Failed to send friend request');
       }
 
-      const result = await response.json();
+      await response.json();
 
       toast({
         title: "Friend request sent",
@@ -181,14 +181,8 @@ function HomeContent() {
                     const prevDay = addDays(new Date(currentDate), -1);
                     setCurrentDate(prevDay);
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                    // Keep calendar store in sync with JournalContext
                     const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
-                    try {
-                      // propagate to calendar context if mounted
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-                      window.dispatchEvent(evt);
-                    } catch { }
                   } else if (viewMode === "monthly") {
                     const prevMonth = new Date(currentDate);
                     prevMonth.setMonth(currentDate.getMonth() - 1);
@@ -211,10 +205,6 @@ function HomeContent() {
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
                     const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
                     setCurrentWeek(todayStart);
-                    try {
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: todayStart } });
-                      window.dispatchEvent(evt);
-                    } catch { }
                   } else if (viewMode === "monthly") {
                     const today = new Date();
                     setCurrentDate(today);
@@ -242,10 +232,6 @@ function HomeContent() {
                   } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
                     const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
-                    try {
-                      const evt = new CustomEvent("pj:calendar:setWeek", { detail: { date: newWeek } });
-                      window.dispatchEvent(evt);
-                    } catch { }
                   } else if (viewMode === "monthly") {
                     const nextMonth = new Date(currentDate);
                     nextMonth.setMonth(currentDate.getMonth() + 1);

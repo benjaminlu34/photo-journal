@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { navigateToHome } from '@/lib/navigationUtils';
 
 interface Props {
   children: ReactNode;
@@ -46,7 +47,7 @@ export class CalendarErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/';
+    navigateToHome();
   };
 
   render() {
