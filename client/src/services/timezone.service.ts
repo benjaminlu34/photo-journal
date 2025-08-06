@@ -41,13 +41,14 @@ export interface TimezoneService {
 export class TimezoneServiceImpl implements TimezoneService {
   // Handle non-existent local times during spring-forward
   private normalizeNonexistentLocalTime(date: Date, timezone: string): Date {
+    const ONE_MINUTE_IN_MS = 60_000;
     try {
       // Try to convert to UTC and back to detect gaps
       const utc = fromZonedTime(date, timezone);
       const backToLocal = toZonedTime(utc, timezone);
       
       // If the time doesn't match, we hit a DST gap
-      if (Math.abs(backToLocal.getTime() - date.getTime()) > 60000) { // More than 1 minute difference
+      if (Math.abs(backToLocal.getTime() - date.getTime()) > ONE_MINUTE_IN_MS) {
         // Shift forward by 1 hour to get past the gap
         const shifted = addHours(date, 1);
         return toZonedTime(fromZonedTime(shifted, timezone), timezone);
@@ -108,8 +109,8 @@ export class TimezoneServiceImpl implements TimezoneService {
         timezone: userTimezone,
       };
     } catch (error) {
-      console.warn('Error in convertToLocalTimeSafe, falling back to basic conversion:', error);
-      return this.convertToLocalTime(event, userTimezone);
+      console.warn('Error in convertToLocalTimeSafe, returning original event:', error);
+      return event;
     }
   }
 

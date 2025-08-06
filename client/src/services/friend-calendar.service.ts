@@ -636,7 +636,8 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
         // Conversion (absolute vs floating)
         let calendarEvent: FriendCalendarEvent;
-        if (event.startTime.includes('Z') || event.startTime.includes('+')) {
+        // Detect absolute timestamps: Z (UTC) or explicit offset (+/-HH:MM)
+        if (event.startTime.includes('Z') || event.startTime.includes('+') || event.startTime.includes('-')) {
           // Absolute time → convert safely assuming UTC
           calendarEvent = timezoneService.convertToLocalTimeSafe(
             { ...baseEvent, timezone: 'UTC' },
