@@ -50,11 +50,9 @@ export function FriendCalendarSyncModal({
   const [showConsentBanner, setShowConsentBanner] = useState(false);
   const [recentlyEnabledFriends, setRecentlyEnabledFriends] = useState<Friend[]>([]);
 
-  const { syncedFriends, friendEvents, actions } = useCalendarStore((s) => ({
-    syncedFriends: s.syncedFriends,
-    friendEvents: s.friendEvents,
-    actions: s.actions,
-  }));
+  const syncedFriends = useCalendarStore((s) => s.syncedFriends);
+  const friendEvents = useCalendarStore((s) => s.friendEvents);
+  const actions = useCalendarStore((s) => s.actions);
 
   // Load friends with calendar access on mount
   const loadFriendsWithCalendarAccess = useCallback(async () => {
@@ -81,17 +79,17 @@ export function FriendCalendarSyncModal({
 
   // Memoize syncItems to avoid unnecessary re-renders, now using real store/service data
   const syncItems = useMemo(() => {
+    // Get service metadata once outside the map to avoid creating new objects repeatedly
+    const lastSyncTimestamps = friendCalendarService.getSyncTimestamps();
+    const syncErrors = friendCalendarService.getSyncErrors();
+    
     return friends.map((friend) => {
       const isSynced = syncedFriends.includes(friend.id);
       const events = friendEvents[friend.id] ?? [];
       const eventCount = events.length;
 
-      // Use proper getter methods for service metadata
-      const lastSyncTimestamps = friendCalendarService.getSyncTimestamps();
       const lastSyncAt = lastSyncTimestamps.get(friend.id);
       const lastSyncLabel = lastSyncAt ? `Last synced: ${lastSyncAt.toLocaleString()}` : undefined;
-
-      const syncErrors = friendCalendarService.getSyncErrors();
       const syncError = syncErrors.get(friend.id);
 
       return {

@@ -122,7 +122,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   private readonly retryState = new Map<string, { count: number; lastAttempt: number }>();
 
   // Google OAuth configuration (client-side only)
-  private readonly GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+  private readonly GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   private readonly GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 
   // Optional offline service dependency (injected to avoid circular dependency)
