@@ -5,6 +5,7 @@
 import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
 import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
+import { timezoneService } from './timezone.service';
 import { sub, add } from 'date-fns';
 
 // Configuration constants
@@ -605,30 +606,52 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       const data: FriendEventsResponse = await response.json();
 
       // Transform API response to FriendCalendarEvent format, preserving friend metadata
-      return data.events.map((event): FriendCalendarEvent => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        startTime: new Date(event.startTime),
-        endTime: new Date(event.endTime),
-        isAllDay: event.isAllDay,
-        color: event.color,
-        location: event.location,
-        attendees: event.attendees,
-        feedId: `friend-${friend.id}`,
-        feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
-        externalId: event.id,
-        sequence: 0,
-        source: 'friend' as const,
-        lastModified: new Date(event.startTime),
-        friendUserId: friend.id,
-        friendUsername: friend.username ?? friend.id,
-        isFromFriend: true,
-        sourceId: friend.id,
-        canonicalEventId: event.id,
-        originalEventId: event.id,
-        isRecurring: false
-      }));
+      const userTimezone = timezoneService.getUserTimezone();
+      
+      return data.events.map((event): FriendCalendarEvent => {
+        const baseEvent: FriendCalendarEvent = {
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          startTime: new Date(event.startTime),
+          endTime: new Date(event.endTime),
+          isAllDay: event.isAllDay,
+          color: event.color,
+          location: event.location,
+          attendees: event.attendees,
+          feedId: `friend-${friend.id}`,
+          feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
+          externalId: event.id,
+          sequence: 0,
+          source: 'friend' as const,
+          lastModified: new Date(event.startTime),
+          friendUserId: friend.id,
+          friendUsername: friend.username ?? friend.id,
+          isFromFriend: true,
+          sourceId: friend.id,
+          canonicalEventId: event.id,
+          originalEventId: event.id,
+          isRecurring: false
+        };
+
+        // Apply timezone conversion if server provides ISO in UTC
+        // Assume server provides UTC timestamps that need local conversion
+        if (event.startTime.includes('Z') || event.startTime.includes('+')) {
+          // Server provided absolute time, convert using safe method
+          return timezoneService.convertToLocalTimeSafe({
+            ...baseEvent,
+            timezone: 'UTC' // Assume server times are UTC
+          }, userTimezone);
+        } else {
+          // Server provided local-aware time, validate and handle floating time
+          return {
+            ...baseEvent,
+            startTime: timezoneService.handleFloatingTime(baseEvent.startTime, userTimezone),
+            endTime: timezoneService.handleFloatingTime(baseEvent.endTime, userTimezone),
+            timezone: userTimezone,
+          };
+        }
+      });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('Friend events fetch cancelled');

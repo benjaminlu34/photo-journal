@@ -10,6 +10,7 @@ import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver } from './duplicate-event-resolver.service';
+import { timezoneService } from './timezone.service';
 // Type-only import to avoid circular dependency
 import type { OfflineCalendarService } from './offline-calendar.service';
 
@@ -415,7 +416,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           continue;
         }
 
-        const calendarEvent: CalendarEvent = {
+        const baseEvent: CalendarEvent = {
           id: `${feedId}:${event.uid}`,
           title: event.summary || 'Untitled Event',
           description: this.sanitizeDescription(event.description || ''),
@@ -435,6 +436,34 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           source: 'ical',
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
+
+        // Apply timezone conversion with DST handling
+        const userTimezone = timezoneService.getUserTimezone();
+        let calendarEvent = baseEvent;
+
+        if (event.startDate.timezone && event.startDate.timezone !== userTimezone) {
+          // Event has explicit timezone, convert using safe method
+          calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
+        } else if (!event.startDate.timezone) {
+          // Floating time, interpret in user's timezone
+          calendarEvent = {
+            ...baseEvent,
+            startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
+            endTime: timezoneService.handleFloatingTime(endTime, userTimezone),
+            timezone: userTimezone,
+          };
+        }
+
+        // Validate all-day events don't cross date boundaries
+        if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
+          console.warn(`All-day event crosses date boundary, adjusting: ${event.uid}`);
+          const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
+          calendarEvent = {
+            ...calendarEvent,
+            startTime: dayBounds.start,
+            endTime: dayBounds.end,
+          };
+        }
 
         events.push(calendarEvent);
       }
@@ -739,7 +768,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         ? new Date(item.end.date + 'T00:00:00') // Parse as local date consistently with startTime
         : new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // Fallback: end of start day
 
-    return {
+    const baseEvent: CalendarEvent = {
       id: `${feed.id}:${item.id}`,
       title: item.summary || 'Untitled Event',
       description: this.sanitizeDescription(item.description || ''),
@@ -759,6 +788,24 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       source: 'google',
       lastModified: new Date(item.updated),
     };
+
+    // Apply timezone conversion with DST handling if needed
+    const userTimezone = timezoneService.getUserTimezone();
+    if (item.start.timeZone && item.start.timeZone !== userTimezone) {
+      return timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
+    }
+
+    // For floating times (no timezone), interpret in user's timezone
+    if (!item.start.timeZone) {
+      return {
+        ...baseEvent,
+        startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
+        endTime: timezoneService.handleFloatingTime(endTime, userTimezone),
+        timezone: userTimezone,
+      };
+    }
+
+    return baseEvent;
   }
 
   private generateCacheKey(feedId: string, dateRange?: { start: Date; end: Date }): string {

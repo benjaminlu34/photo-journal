@@ -176,8 +176,8 @@ export function createCalendarSDK({
         
         if (updates.timezone && updates.timezone !== currentEvent.timezone) {
           const userTimezone = timezoneService.getUserTimezone();
-          // The convertToLocalTime method is already generic, so it will preserve the LocalEvent type
-          const convertedEvent = timezoneService.convertToLocalTime(
+          // Use safe conversion method with DST handling
+          const convertedEvent = timezoneService.convertToLocalTimeSafe(
             updatedEvent,
             userTimezone
           );
