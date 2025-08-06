@@ -30,6 +30,7 @@ interface CalendarContextValue {
     addExternalEvents: (feedId: string, events: CalendarEvent[]) => void;
     addFriendEvents: (friendUserId: string, events: FriendCalendarEvent[]) => void;
     setError: (error: string | null) => void;
+    updateFeedMeta?: (feedId: string, meta: { lastSyncAt?: Date; syncError?: string | null }) => void;
     cleanup?: () => void;
   };
 }

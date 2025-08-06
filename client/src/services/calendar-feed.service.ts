@@ -97,6 +97,9 @@ export interface CalendarFeedService {
   // Cache management
   clearCache(feedId?: string): void;
   getCacheStats(): { size: number; maxSize: number };
+
+  // Lifecycle management
+  destroy(): void;
 }
 
 export class CalendarFeedServiceImpl implements CalendarFeedService {
@@ -119,11 +122,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   private readonly retryState = new Map<string, { count: number; lastAttempt: number }>();
 
   // Google OAuth configuration (client-side only)
-  private readonly GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+  private readonly GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   private readonly GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 
   // Optional offline service dependency (injected to avoid circular dependency)
   private offlineService: OfflineCalendarService | null = null;
+
+  // Store reference to visibility change handler for cleanup
+  private visibilityChangeHandler: (() => void) | null = null;
 
   constructor() {
     // Validate Google OAuth configuration
@@ -474,22 +480,32 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   // Cache management
   clearCache(feedId?: string): void {
-    if (feedId) {
-      // FIXED: More efficient cache clearing - collect keys first to avoid iterator issues
-      const keysToDelete: string[] = [];
-      for (const key of this.feedCache.keys()) {
-        if (key === feedId || key.startsWith(`${feedId}:`)) {
-          keysToDelete.push(key);
+    try {
+      if (feedId) {
+        // FIXED: More efficient cache clearing - collect keys first to avoid iterator issues
+        const keysToDelete: string[] = [];
+        for (const key of this.feedCache.keys()) {
+          if (key === feedId || key.startsWith(`${feedId}:`)) {
+            keysToDelete.push(key);
+          }
         }
+        
+        // Delete collected keys
+        for (const key of keysToDelete) {
+          this.feedCache.delete(key);
+        }
+      } else {
+        // Clear all cache
+        this.feedCache.clear();
       }
-      
-      // Delete collected keys
-      for (const key of keysToDelete) {
-        this.feedCache.delete(key);
+    } catch (error) {
+      console.warn('Error clearing cache:', error);
+      // Fallback: try to clear the entire cache if selective clearing fails
+      try {
+        this.feedCache.clear();
+      } catch (fallbackError) {
+        console.error('Failed to clear cache entirely:', fallbackError);
       }
-    } else {
-      // Clear all cache
-      this.feedCache.clear();
     }
   }
 
@@ -498,6 +514,42 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       size: this.feedCache.size,
       maxSize: this.feedCache.max,
     };
+  }
+
+  // Handle visibility change refresh (maintains encapsulation)
+  handleVisibilityRefresh(): void {
+    try {
+      // Get cache keys and extract unique feed IDs
+      const keys: string[] = Array.from(this.feedCache.keys());
+      const uniqueFeedIds = new Set<string>();
+      
+      for (const key of keys) {
+        const parts = key.split(':');
+        const feedId = parts[0];
+        if (feedId) {
+          uniqueFeedIds.add(feedId);
+        }
+      }
+
+      // Clear cache for each feed ID to trigger refresh on next access
+      uniqueFeedIds.forEach((feedId) => {
+        try {
+          this.clearCache(feedId);
+        } catch (error) {
+          console.debug('Visibility refresh skip for', feedId, error);
+        }
+      });
+    } catch (error) {
+      console.debug('Visibility refresh encountered an error:', error);
+    }
+  }
+
+  // Lifecycle management
+  destroy(): void {
+    // Clean up event listeners to prevent memory leaks
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
   }
 
   // Private helper methods
@@ -813,9 +865,32 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
   // Lazy load offline service to avoid circular dependency
   import('./offline-calendar.service').then(({ offlineCalendarService }) => {
     feedService.setOfflineService(offlineCalendarService);
+    // Enable background sync for feeds once offline service is available
+    try {
+      feedService.enableOfflineMode();
+    } catch (err) {
+      console.warn('Unable to enable offline mode:', err);
+    }
   }).catch(error => {
     console.warn('Failed to load offline calendar service:', error);
   });
+
+  // Background refresh on visibility change with simple rate limit (5 min)
+  let lastVisibilityRefresh = 0;
+  const VISIBILITY_REFRESH_MIN_MS = 5 * 60 * 1000;
+  const onVisibilityChange = () => {
+    if (document.hidden) return;
+    const now = Date.now();
+    if (now - lastVisibilityRefresh < VISIBILITY_REFRESH_MIN_MS) return;
+    lastVisibilityRefresh = now;
+
+    // Use proper method to handle visibility refresh
+    feedService.handleVisibilityRefresh();
+  };
+  
+  // Store handler reference for cleanup and add listener
+  (feedService as any).visibilityChangeHandler = onVisibilityChange;
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   return feedService;
 }

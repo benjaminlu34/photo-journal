@@ -17,7 +17,6 @@ import {
   Eye,
   UserX
 } from "lucide-react";
-import { format } from "date-fns";
 import type { Friend } from "@/types/journal";
 import { friendCalendarService } from "@/services/friend-calendar.service";
 import { useCalendarStore } from "@/lib/calendar-store";
@@ -26,7 +25,7 @@ import { generateFriendColor } from "@/utils/colorUtils/colorUtils";
 interface FriendCalendarSyncItem {
   friend: Friend;
   isSynced: boolean;
-  lastSyncAt?: Date;
+  lastSyncLabel?: string;
   syncError?: string;
   eventCount: number;
   canSync: boolean; // Based on friendship permissions (viewer+ required)
@@ -37,17 +36,11 @@ interface FriendCalendarSyncItem {
 interface FriendCalendarSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
-  syncedFriends: string[]; // Currently synced friend user IDs
-  onToggleSync: (friendUserId: string, enabled: boolean) => Promise<void>;
-  onRefreshFriend: (friendUserId: string) => Promise<void>;
 }
 
 export function FriendCalendarSyncModal({
   isOpen,
   onClose,
-  syncedFriends,
-  onToggleSync,
-  onRefreshFriend
 }: FriendCalendarSyncModalProps) {
   const [activeTab, setActiveTab] = useState("sync");
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -57,7 +50,9 @@ export function FriendCalendarSyncModal({
   const [showConsentBanner, setShowConsentBanner] = useState(false);
   const [recentlyEnabledFriends, setRecentlyEnabledFriends] = useState<Friend[]>([]);
 
-  const { actions } = useCalendarStore();
+  const syncedFriends = useCalendarStore((s) => s.syncedFriends);
+  const friendEvents = useCalendarStore((s) => s.friendEvents);
+  const actions = useCalendarStore((s) => s.actions);
 
   // Load friends with calendar access on mount
   const loadFriendsWithCalendarAccess = useCallback(async () => {
@@ -82,25 +77,33 @@ export function FriendCalendarSyncModal({
     }
   }, [isOpen, loadFriendsWithCalendarAccess]);
 
-  // Memoize syncItems to avoid unnecessary re-renders
-  // NOTE: lastSyncAt is mock data until wired to real state (friend lastSync from store).
+  // Memoize syncItems to avoid unnecessary re-renders, now using real store/service data
   const syncItems = useMemo(() => {
-    return friends.map(friend => {
+    // Get service metadata once outside the map to avoid creating new objects repeatedly
+    const lastSyncTimestamps = friendCalendarService.getSyncTimestamps();
+    const syncErrors = friendCalendarService.getSyncErrors();
+    
+    return friends.map((friend) => {
       const isSynced = syncedFriends.includes(friend.id);
+      const events = friendEvents[friend.id] ?? [];
+      const eventCount = events.length;
+
+      const lastSyncAt = lastSyncTimestamps.get(friend.id);
+      const lastSyncLabel = lastSyncAt ? `Last synced: ${lastSyncAt.toLocaleString()}` : undefined;
+      const syncError = syncErrors.get(friend.id);
 
       return {
         friend,
         isSynced,
-        // MOCK: Show a placeholder string rather than a misleading timestamp.
-        lastSyncLabel: isSynced ? 'Last synced: mock' : undefined,
-        syncError: undefined,
-        eventCount: isSynced ? Math.floor(Math.random() * 20) : 0, // Mock data
-        canSync: true, // In real implementation, check permissions from store/service
+        lastSyncLabel,
+        syncError,
+        eventCount,
+        canSync: true,
         assignedColor: generateFriendColor(friend.id),
-        isRefreshing: refreshingFriends.has(friend.id)
-      };
+        isRefreshing: refreshingFriends.has(friend.id),
+      } as FriendCalendarSyncItem;
     });
-  }, [friends, syncedFriends, refreshingFriends, generateFriendColor]);
+  }, [friends, syncedFriends, friendEvents, refreshingFriends]);
 
 
 
@@ -117,7 +120,7 @@ export function FriendCalendarSyncModal({
         }
         
         // Show consent banner for newly enabled friends (only if not previously dismissed)
-        const hasDismissedConsent = localStorage.getItem('friend-calendar-consent-dismissed') === 'true';
+        const hasDismissedConsent = localStorage.getItem('friendCalendarSyncConsent') === 'true';
         setRecentlyEnabledFriends(prev => {
           // Prevent duplicate friends in the array
           if (!prev.some(f => f.id === friend.id)) {
@@ -128,7 +131,11 @@ export function FriendCalendarSyncModal({
         setShowConsentBanner(!hasDismissedConsent);
       }
       
-      await onToggleSync(friend.id, enabled);
+      if (enabled) {
+        await actions.syncFriendCalendar(friend.id);
+      } else {
+        await actions.unsyncFriendCalendar(friend.id);
+      }
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to toggle sync';
@@ -142,7 +149,7 @@ export function FriendCalendarSyncModal({
       setError(null);
       setRefreshingFriends(prev => new Set(prev).add(friend.id));
       
-      await onRefreshFriend(friend.id);
+      await actions.refreshFriendEvents(friend.id);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to refresh';
@@ -180,8 +187,8 @@ export function FriendCalendarSyncModal({
     setShowConsentBanner(false);
     setRecentlyEnabledFriends([]);
     
-    // Store preference in localStorage
-    localStorage.setItem('friend-calendar-consent-dismissed', 'true');
+    // Store preference in localStorage (boolean only; no tokens)
+    localStorage.setItem('friendCalendarSyncConsent', 'true');
   };
 
   return (

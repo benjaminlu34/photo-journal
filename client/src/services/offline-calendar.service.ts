@@ -67,6 +67,9 @@ export interface OfflineCalendarService {
   isCacheValid(feedId: string, maxAge?: number): Promise<boolean>;
   getFeedSyncStatus(feedId: string): Promise<SyncStatus | null>;
   
+  // Dependency injection
+  setFeedsProvider(provider: () => CalendarFeed[]): void;
+  
   // Lifecycle management
   destroy(): void;
 }
@@ -204,16 +207,21 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
     if (this.backgroundSyncEnabled) {
       return;
     }
-    
+
     this.backgroundSyncEnabled = true;
-    
+
     // Set up periodic sync
     this.backgroundSyncInterval = window.setInterval(() => {
       this.triggerBackgroundSync().catch(error => {
         console.error('Background sync failed:', error);
       });
     }, this.SYNC_INTERVAL);
-    
+
+    // Also trigger an initial deferred sync shortly after enabling
+    setTimeout(() => {
+      this.triggerBackgroundSync().catch(() => void 0);
+    }, 2000);
+
     console.log('Background sync enabled');
   }
   
@@ -471,10 +479,41 @@ export class OfflineCalendarServiceImpl implements OfflineCalendarService {
     await this.promisifyRequest(store.put(syncStatus));
   }
   
+  // Set feeds provider function for dependency injection
+  private feedsProvider: (() => CalendarFeed[]) | null = null;
+
+  setFeedsProvider(provider: () => CalendarFeed[]): void {
+    this.feedsProvider = provider;
+  }
+
   private async getFeedsNeedingSync(): Promise<CalendarFeed[]> {
-    // This would integrate with the main feed management system
-    // For now, return an empty array
-    return [];
+    try {
+      // Use dependency injection instead of global window object
+      if (!this.feedsProvider) {
+        console.warn('No feeds provider set for offline calendar service');
+        return [];
+      }
+
+      const feeds = this.feedsProvider();
+      if (!feeds || feeds.length === 0) {
+        return [];
+      }
+
+      // Filter feeds that are likely stale based on sync status
+      const stale: CalendarFeed[] = [];
+      for (const feed of feeds) {
+        const status = await this.getFeedSyncStatus(feed.id);
+        const last = status?.lastSuccess ?? status?.lastAttempt;
+        const ageMs = last ? Date.now() - new Date(last).getTime() : Infinity;
+        if (ageMs > this.SYNC_INTERVAL) {
+          stale.push(feed);
+        }
+      }
+      return stale;
+    } catch (error) {
+      console.error('Error getting feeds needing sync:', error);
+      return [];
+    }
   }
   
   private setupVisibilityChangeHandler(): void {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,10 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Globe, Users, Plus, Trash2, RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
-import { format } from "date-fns";
+import { add, sub, format, startOfWeek, endOfWeek } from "date-fns";
 import { availableColors } from "@shared/config/calendar-config";
-import type { CalendarFeed } from "@/types/calendar";
+import type { CalendarFeed, CalendarEvent } from "@/types/calendar";
 import { useCalendar } from "@/contexts/calendar-context";
+import { calendarFeedService } from "@/services/calendar-feed.service";
 
 interface CalendarFeedModalProps {
   isOpen: boolean;
@@ -19,64 +20,163 @@ interface CalendarFeedModalProps {
 export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
   const { feeds, actions } = useCalendar();
   const [activeTab, setActiveTab] = useState("feeds");
-  
+
   // iCal feed form state
   const [icalFormData, setIcalFormData] = useState({
     name: "",
     url: "",
     color: "#3B82F6"
   });
-  
+
   // Google Calendar form state
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  
+
+  // OAuth cleanup refs
+  const oauthTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const oauthListenerRef = useRef<((ev: MessageEvent) => void) | null>(null);
+
+  // Cleanup OAuth resources on unmount
+  useEffect(() => {
+    return () => {
+      if (oauthTimeoutRef.current) {
+        clearTimeout(oauthTimeoutRef.current);
+      }
+      if (oauthListenerRef.current) {
+        window.removeEventListener('message', oauthListenerRef.current);
+      }
+    };
+  }, []);
+
   // Friend calendar state
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
-  
+
+  // Helper: compute current ±2 week window
+  const computeTwoWeekWindow = useCallback(() => {
+    const now = new Date();
+    const start = sub(startOfWeek(now, { weekStartsOn: 0 }), { days: 14 });
+    const end = add(endOfWeek(now, { weekStartsOn: 0 }), { days: 14 });
+    return { now, start, end };
+  }, []);
+
   const handleAddIcalFeed = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!icalFormData.name.trim() || !icalFormData.url.trim()) {
       return;
     }
-    
+
+    // Determine current ±2 week window
+    const { now, start: windowStart, end: windowEnd } = computeTwoWeekWindow();
+
+    // Generate feedId outside try so we can use it in catch
+    const feedId = crypto.randomUUID();
+
     try {
+      // Persist feed first in store
       const newFeed: CalendarFeed = {
-        id: crypto.randomUUID(),
-        name: icalFormData.name,
+        id: feedId,
+        name: icalFormData.name.trim(),
         type: 'ical',
-        url: icalFormData.url,
+        url: icalFormData.url.trim(),
         color: icalFormData.color,
         isEnabled: true,
         lastSyncAt: new Date(),
         syncError: undefined
       };
-      
       actions.addFeed(newFeed);
-      
+
+      // Use unified service to fetch events for the window
+      const events = await calendarFeedService.fetchFeedEvents(newFeed, { start: windowStart, end: windowEnd });
+
+      // Recurrence expansion and de-duplication
+      const expanded = await calendarFeedService.expandRecurringEvents(events, now);
+      const deduped = calendarFeedService.resolveEventDuplicates(expanded);
+
+      // Merge into store
+      actions.addExternalEvents(newFeed.id, deduped);
+
+      // Update last sync meta if store exposes it
+      actions.updateFeedMeta?.(newFeed.id, { lastSyncAt: new Date(), syncError: undefined });
+
       // Reset form
-      setIcalFormData({
-        name: "",
-        url: "",
-        color: "#3B82F6"
-      });
-      
-      // Mock external events for demo
-      actions.addExternalEvents(newFeed.id, []);
-      
+      setIcalFormData({ name: "", url: "", color: "#3B82F6" });
     } catch (error) {
       console.error('Failed to add iCal feed:', error);
+      // Surface sync error if store supports it
+      actions.updateFeedMeta?.(feedId, { syncError: 'Failed to add calendar feed. Please check the URL and try again.' });
       actions.setError('Failed to add calendar feed. Please check the URL and try again.');
     }
   };
-  
+
   const handleConnectGoogle = async () => {
     setIsConnectingGoogle(true);
-    
     try {
-      // Mock Google Calendar OAuth flow
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Begin OAuth by opening the Google consent page
+      const redirectUri = window.location.origin + '/oauth/google/callback';
+      const authUrl = calendarFeedService.getGoogleAuthUrl(redirectUri);
+
+      // Open a popup for OAuth
+      const popup = window.open(authUrl, 'google-oauth', 'width=480,height=700');
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups and try again.');
+      }
+
+      // Wait for postMessage from the callback page with code
+      const code: string = await new Promise((resolve, reject) => {
+        // Centralized cleanup function to avoid duplication
+        const cleanup = () => {
+          if (oauthTimeoutRef.current) {
+            clearTimeout(oauthTimeoutRef.current);
+            oauthTimeoutRef.current = null;
+          }
+          if (oauthListenerRef.current) {
+            window.removeEventListener('message', oauthListenerRef.current);
+            oauthListenerRef.current = null;
+          }
+        };
+
+        // Cleanup any existing OAuth resources
+        if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current);
+        if (oauthListenerRef.current) window.removeEventListener('message', oauthListenerRef.current);
+
+        // Set up timeout with ref for cleanup
+        oauthTimeoutRef.current = setTimeout(() => {
+          cleanup();
+          reject(new Error('OAuth timed out'));
+        }, 120000);
+
+        // Create message handler with ref for cleanup
+        const onMessage = (ev: MessageEvent) => {
+          // Security: Verify message origin to prevent malicious code injection
+          if (ev.origin !== window.location.origin) {
+            return;
+          }
+          try {
+            if (typeof ev.data === 'object' && ev.data) {
+              if (ev.data.type === 'google-oauth-code' && typeof ev.data.code === 'string') {
+                cleanup();
+                resolve(ev.data.code);
+              } else if (ev.data.type === 'google-oauth-error') {
+                cleanup();
+                reject(new Error(ev.data.error || 'Authentication failed or was cancelled by user.'));
+              }
+              // Ignore other message types (don't resolve or reject)
+            }
+          } catch (err) {
+            console.error('Error processing OAuth message event:', err);
+            // Don't reject here - let timeout handle it
+          }
+        };
+
+        // Store listener ref and add event listener
+        oauthListenerRef.current = onMessage;
+        window.addEventListener('message', onMessage);
+      });
+
+      // Exchange code for encrypted credentials via server
+      const creds = await calendarFeedService.exchangeGoogleAuthCode(code, redirectUri);
+
+      // Create feed and load initial window
       const googleFeed: CalendarFeed = {
         id: crypto.randomUUID(),
         name: "Google Calendar",
@@ -85,14 +185,20 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
         color: "#4285F4",
         isEnabled: true,
         lastSyncAt: new Date(),
-        syncError: undefined
+        syncError: undefined,
+        credentials: creds
       };
-      
       actions.addFeed(googleFeed);
-      
-      // Mock external events for demo
-      actions.addExternalEvents(googleFeed.id, []);
-      
+
+      // Initial load for ±2 weeks
+      const { now, start: windowStart, end: windowEnd } = computeTwoWeekWindow();
+      const events = await calendarFeedService.fetchFeedEvents(googleFeed, { start: windowStart, end: windowEnd });
+      const expanded = await calendarFeedService.expandRecurringEvents(events, now);
+      const deduped = calendarFeedService.resolveEventDuplicates(expanded);
+      actions.addExternalEvents(googleFeed.id, deduped);
+
+      // Update last sync meta if available
+      actions.updateFeedMeta?.(googleFeed.id, { lastSyncAt: new Date(), syncError: undefined });
     } catch (error) {
       console.error('Failed to connect Google Calendar:', error);
       actions.setError('Failed to connect Google Calendar. Please try again.');
@@ -100,22 +206,35 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       setIsConnectingGoogle(false);
     }
   };
-  
+
   const handleRemoveFeed = (feedId: string) => {
     actions.removeFeed(feedId);
   };
-  
+
   const handleRefreshFeed = async (feedId: string) => {
     try {
-      // Mock refresh operation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Refreshed feed:', feedId);
+      const { now, start: windowStart, end: windowEnd } = computeTwoWeekWindow();
+
+      // Find the feed from current state
+      const feed = feeds.find(f => f.id === feedId);
+      if (!feed) throw new Error('Feed not found');
+
+      // Use unified fetch for all feed types (ical, google, etc.)
+      const events: CalendarEvent[] = await calendarFeedService.fetchFeedEvents(feed, { start: windowStart, end: windowEnd });
+
+      const expanded = await calendarFeedService.expandRecurringEvents(events, now);
+      const deduped = calendarFeedService.resolveEventDuplicates(expanded);
+      actions.addExternalEvents(feed.id, deduped);
+
+      // Update feed meta if available
+      actions.updateFeedMeta?.(feed.id, { lastSyncAt: new Date(), syncError: undefined });
     } catch (error) {
       console.error('Failed to refresh feed:', error);
+      actions.updateFeedMeta?.(feedId, { syncError: 'Failed to refresh calendar feed.' });
       actions.setError('Failed to refresh calendar feed.');
     }
   };
-  
+
   const renderFeedItem = (feed: CalendarFeed) => (
     <div key={feed.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl neu-card">
       <div className="flex items-center space-x-3">
@@ -147,7 +266,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
           )}
         </div>
       </div>
-      
+
       <div className="flex items-center space-x-2">
         <Button
           variant="ghost"
@@ -170,7 +289,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       </div>
     </div>
   );
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -180,14 +299,14 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
             Calendar Feeds
           </DialogTitle>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="feeds">My Feeds ({feeds.length})</TabsTrigger>
             <TabsTrigger value="add">Add Feed</TabsTrigger>
             <TabsTrigger value="friends">Friends</TabsTrigger>
           </TabsList>
-          
+
           {/* Existing Feeds */}
           <TabsContent value="feeds" className="space-y-4">
             {feeds.length === 0 ? (
@@ -209,7 +328,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
               </div>
             )}
           </TabsContent>
-          
+
           {/* Add New Feed */}
           <TabsContent value="add" className="space-y-6">
             {/* Google Calendar */}
@@ -245,7 +364,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                 Read-only access to view your events
               </div>
             </div>
-            
+
             {/* iCal Feed */}
             <form onSubmit={handleAddIcalFeed} className="p-4 border border-green-200 rounded-xl bg-green-50">
               <div className="flex items-center space-x-3 mb-4">
@@ -255,7 +374,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                   <p className="text-sm text-green-600">Add any iCal (.ics) calendar feed</p>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="ical-name" className="text-sm font-medium text-gray-700">
@@ -270,7 +389,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="ical-url" className="text-sm font-medium text-gray-700">
                     iCal URL
@@ -285,7 +404,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Color</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -293,11 +412,10 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                       <button
                         key={color.value}
                         type="button"
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          icalFormData.color === color.value
-                            ? "border-gray-800 ring-2 ring-gray-400"
-                            : "border-gray-300 hover:border-gray-500"
-                        }`}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${icalFormData.color === color.value
+                          ? "border-gray-800 ring-2 ring-gray-400"
+                          : "border-gray-300 hover:border-gray-500"
+                          }`}
                         style={{ backgroundColor: color.value }}
                         onClick={() => setIcalFormData(prev => ({ ...prev, color: color.value }))}
                         aria-label={`Select ${color.label} color`}
@@ -305,7 +423,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     ))}
                   </div>
                 </div>
-                
+
                 <Button
                   type="submit"
                   className="w-full neu-card bg-green-600 hover:bg-green-700 text-white mt-4"
@@ -317,7 +435,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
               </div>
             </form>
           </TabsContent>
-          
+
           {/* Friend Calendars */}
           <TabsContent value="friends" className="space-y-4">
             <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
@@ -325,31 +443,32 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                 <Users className="w-6 h-6 text-purple-600" />
                 <div>
                   <h3 className="font-medium text-purple-800">Friend Calendars</h3>
-                  <p className="text-sm text-purple-600">Coming soon - sync calendars with your friends</p>
+                  <p className="text-sm text-purple-600">
+                    Manage friend calendar sync from the Friend Calendar Sync panel in Weekly View.
+                  </p>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <Input
                   value={friendSearchQuery}
                   onChange={(e) => setFriendSearchQuery(e.target.value)}
                   className="neu-input"
-                  placeholder="Search for friends..."
+                  placeholder="Open the Friend Calendar Sync panel from Weekly View"
                   disabled
                 />
-                
+
                 <div className="text-center py-8">
                   <div className="text-gray-500 text-sm">
-                    Friend calendar synchronization will be available in a future update.
-                    <br />
-                    You'll be able to view your friends' calendars with their permission.
+                    To view friends' events, open the Friend Calendar Sync panel in the weekly calendar.
+                    You can request permissions and enable per-friend feeds there.
                   </div>
                 </div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
-        
+
         <DialogFooter>
           <Button
             onClick={onClose}
