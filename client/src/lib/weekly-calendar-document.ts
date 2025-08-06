@@ -123,6 +123,18 @@ export class CRDTConflictResolver {
 
 // Utility functions for working with WeeklyCalendarDocument
 export class WeeklyCalendarDocumentUtils {
+  // Update metadata helper to set fields and bump lastModified
+  static updateMetadata(
+    document: WeeklyCalendarDocument,
+    patch: Record<string, any>
+  ): void {
+    const metadata = document.metadata;
+    for (const [key, value] of Object.entries(patch)) {
+      metadata.set(key, value);
+    }
+    metadata.set('lastModified', new Date());
+  }
+
   // Get events for a specific date
   static getEventsForDate(document: WeeklyCalendarDocument, date: Date): LocalEvent[] {
     const dayStart = startOfDay(date);

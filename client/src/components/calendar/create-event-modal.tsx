@@ -38,6 +38,17 @@ export function CreateEventModal({
     tags: [] as string[],
     linkedJournalEntryId: linkedJournalEntryId || undefined,
   });
+
+  // Update form data when initialDate changes
+  useEffect(() => {
+    if (initialDate) {
+      setFormData(prev => ({
+        ...prev,
+        startTime: new Date(initialDate.getTime()),
+        endTime: addHours(initialDate, 1),
+      }));
+    }
+  }, [initialDate]);
   
   const [tagInput, setTagInput] = useState("");
   
@@ -91,11 +102,14 @@ export function CreateEventModal({
       tags: formData.tags,
       pattern: undefined,
     });
+    
+    // Close modal after successful submission
+    onClose();
   };
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md neu-card">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 " />

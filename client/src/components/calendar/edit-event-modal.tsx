@@ -100,11 +100,14 @@ export function EditEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
     });
+    
+    // Close modal after successful submission
+    onClose();
   };
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md neu-card">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-purple-600" />
@@ -338,7 +341,6 @@ export function EditEventModal({
                 type="submit"
                 disabled={!formData.title.trim()}
                 className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-                onClick={onClose}
               >
                 Update Event
               </Button>

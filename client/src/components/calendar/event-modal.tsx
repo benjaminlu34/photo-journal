@@ -17,9 +17,24 @@ interface EventModalProps {
   onClose: () => void;
   event?: CalendarEvent | LocalEvent;
   initialDate?: Date;
+  mode?: 'create' | 'edit'; // Explicit mode to avoid accidental create-on-edit paths
+  onSubmit?: (payload: {
+    title: string;
+    description: string;
+    startTime: Date;
+    endTime: Date;
+    isAllDay: boolean;
+    location: string;
+    color: string;
+    reminderMinutes: number;
+    tags: string[];
+    timezone?: string;
+    pattern?: 'plain';
+    attendees?: string[];
+  }) => Promise<void> | void; // Delegate side-effects to wrappers
 }
 
-export function EventModal({ isOpen, onClose, event, initialDate }: EventModalProps) {
+export function EventModal({ isOpen, onClose, event, initialDate, mode, onSubmit }: EventModalProps) {
   const { actions } = useCalendar();
   const [formData, setFormData] = useState({
     title: "",
@@ -87,11 +102,8 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.title.trim()) {
-      return;
-    }
-    
+    if (!formData.title.trim()) return;
+
     const eventData = {
       title: formData.title,
       description: formData.description,
@@ -106,14 +118,18 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
       pattern: 'plain' as const,
       attendees: []
     };
-    
+
     try {
-      if (event && 'createdBy' in event) {
-        // Update existing local event
-        await actions.updateLocalEvent(event.id, eventData);
+      // If a wrapper provides onSubmit, delegate to it (preferred)
+      if (typeof onSubmit === 'function') {
+        await onSubmit(eventData);
       } else {
-        // Create new local event
-        await actions.createLocalEvent(eventData);
+        // Backward compatibility: infer by presence of local event (has createdBy)
+        if (event && 'createdBy' in event) {
+          await actions.updateLocalEvent(event.id, eventData);
+        } else {
+          await actions.createLocalEvent(eventData);
+        }
       }
       onClose();
     } catch (error) {
@@ -128,7 +144,7 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-orange-600" />
-            {event ? "Edit Event" : "Create Event"}
+            {mode === 'edit' || (event && 'createdBy' in event) ? "Edit Event" : "Create Event"}
           </DialogTitle>
         </DialogHeader>
         
@@ -331,9 +347,8 @@ export function EventModal({ isOpen, onClose, event, initialDate }: EventModalPr
               type="submit"
               disabled={!formData.title.trim()}
               className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-              onClick={onClose}
             >
-              {event ? "Update" : "Create"} Event
+              {(mode === 'edit' || (event && 'createdBy' in event)) ? "Update" : "Create"} Event
             </Button>
           </DialogFooter>
         </form>

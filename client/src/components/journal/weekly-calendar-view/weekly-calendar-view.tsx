@@ -8,6 +8,8 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isToday } from "dat
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
 import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader, FriendCalendarSyncModal } from "@/components/calendar";
+import { CreateEventModal } from "@/components/calendar/create-event-modal";
+import { EditEventModal } from "@/components/calendar/edit-event-modal";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 
 // Unified event type tagging (ported)
@@ -121,10 +123,11 @@ export function WeeklyCalendarView({
 
   // Local UI state
   const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isFeedModalOpen, setIsFeedModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDateForEvent, setSelectedDateForEvent] = useState<Date | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isFriendSyncModalOpen, setIsFriendSyncModalOpen] = useState(false);
   const initializationRef = useRef(false);
   // Note: CalendarContext doesn't expose friend sync APIs yet.
@@ -275,16 +278,17 @@ export function WeeklyCalendarView({
   // Handlers for DayColumn (merged)
   const handleEventClick = useCallback((ev: LocalEvent) => {
     setSelectedEvent(ev);
-    setIsEventModalOpen(true);
+    setIsEditOpen(true);
   }, []);
   const handleEventModalClose = useCallback(() => {
-    setIsEventModalOpen(false);
+    setIsCreateOpen(false);
+    setIsEditOpen(false);
     setSelectedEvent(null);
     setSelectedDateForEvent(null);
   }, []);
   const handleTimeSlotClick = useCallback((slotDate: Date) => {
     setSelectedDateForEvent(slotDate);
-    setIsEventModalOpen(true);
+    setIsCreateOpen(true);
   }, []);
   const handleEventDragStart = useCallback((_id: string) => { }, []);
   const handleEventDragEnd = useCallback(() => { }, []);
@@ -302,7 +306,7 @@ export function WeeklyCalendarView({
         }}
         onCreateEventClick={() => {
           setSelectedDateForEvent(new Date());
-          setIsEventModalOpen(true);
+          setIsCreateOpen(true);
         }}
         onSettingsClick={() => setIsSettingsOpen(true)}
         onFeedModalClick={() => setIsFeedModalOpen(true)}
@@ -459,13 +463,27 @@ export function WeeklyCalendarView({
         )}
       </div>
 
-      {/* Event Modal (journal editor) */}
-      <EventModal
-        isOpen={isEventModalOpen}
+      {/* Create Event Modal */}
+      <CreateEventModal
+        isOpen={isCreateOpen}
         onClose={handleEventModalClose}
-        event={selectedEvent || undefined}
         initialDate={selectedDateForEvent || undefined}
+        onSubmit={async (payload) => {
+          await actions.createLocalEvent(payload);
+        }}
       />
+
+      {/* Edit Event Modal */}
+      {selectedEvent && (
+        <EditEventModal
+          isOpen={isEditOpen}
+          onClose={handleEventModalClose}
+          event={selectedEvent}
+          onSubmit={async (id, updates) => {
+            await actions.updateLocalEvent(id, updates);
+          }}
+        />
+      )}
 
       {/* Calendar Feed Modal */}
       <CalendarFeedModal

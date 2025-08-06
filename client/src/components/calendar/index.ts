@@ -1,4 +1,6 @@
 export { EventModal } from "./event-modal";
+export { CreateEventModal } from "./create-event-modal";
+export { EditEventModal } from "./edit-event-modal";
 export { CalendarFeedModal } from "./calendar-feed-modal";
 export { FriendCalendarSyncModal } from "./friend-calendar-sync-modal";
 export { CalendarErrorBoundary, withCalendarErrorBoundary } from "./calendar-error-boundary";
