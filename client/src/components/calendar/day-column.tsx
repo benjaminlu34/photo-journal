@@ -40,6 +40,10 @@ interface DayColumnProps {
   onTimeSlotClick: (date: Date) => void;
   onEventDragStart: (eventId: string) => void;
   onEventDragEnd: () => void;
+  currentUser?: {
+    id: string;
+    username?: string;
+  } | null;
 }
 
 type PositionedEvent = {
@@ -66,6 +70,7 @@ export function DayColumn({
   onTimeSlotClick,
   onEventDragStart,
   onEventDragEnd,
+  currentUser,
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
 
@@ -233,6 +238,7 @@ export function DayColumn({
             onDragEnd={onEventDragEnd}
             onFocus={() => { }}
             onBlur={() => { }}
+            currentUser={currentUser}
           />
         </div>
       ))}

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useCalendar } from "@/contexts/calendar-context";
+import { useUser } from "@/hooks/useUser";
 import { ChevronLeft, ChevronRight, Home, Users, Settings, Plus } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isToday } from "date-fns";
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
@@ -109,6 +110,7 @@ export function WeeklyCalendarView({
   syncedFriends = []
 }: WeeklyCalendarViewProps) {
   void collaborationEnabled; // reserved for future
+  const { data: user } = useUser();
   const { currentWeek, setCurrentWeek } = useJournal();
   const {
     localEvents,
@@ -427,6 +429,7 @@ export function WeeklyCalendarView({
                   onTimeSlotClick={handleTimeSlotClick}
                   onEventDragStart={handleEventDragStart}
                   onEventDragEnd={handleEventDragEnd}
+                  currentUser={user}
                 />
               );
             })}
@@ -479,6 +482,7 @@ export function WeeklyCalendarView({
           isOpen={isEditOpen}
           onClose={handleEventModalClose}
           event={selectedEvent}
+          currentUser={user}
           onSubmit={async (id, updates) => {
             await actions.updateLocalEvent(id, updates);
           }}

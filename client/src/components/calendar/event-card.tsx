@@ -15,6 +15,10 @@ interface EventCardProps {
   onDragEnd: () => void;
   onFocus: () => void;
   onBlur: () => void;
+  currentUser?: {
+    id: string;
+    username?: string;
+  } | null;
 }
 
 export function EventCard({
@@ -27,6 +31,7 @@ export function EventCard({
   onDragEnd,
   onFocus,
   onBlur,
+  currentUser,
 }: EventCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dragStartTime, setDragStartTime] = useState<number | null>(null);
@@ -170,7 +175,12 @@ export function EventCard({
           {isLocal && event.createdBy && event.createdBy !== 'external' ? (
             <div className="flex items-center text-xs text-gray-500">
               <User className="w-3 h-3 mr-1" />
-              <span className="truncate">{truncateText(event.createdBy, 10)}</span>
+              <span className="truncate">
+                {currentUser && currentUser.id === event.createdBy && currentUser.username 
+                  ? truncateText(`@${currentUser.username}`, 12)
+                  : truncateText(event.createdBy, 12)
+                }
+              </span>
             </div>
           ) : (
             <div className="flex items-center text-xs text-gray-500">

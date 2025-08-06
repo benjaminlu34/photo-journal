@@ -17,6 +17,10 @@ interface EditEventModalProps {
   event: LocalEvent;
   onSubmit: (id: string, updates: Partial<LocalEvent>) => void;
   isReadOnly?: boolean;
+  currentUser?: {
+    id: string;
+    username?: string;
+  } | null;
 }
 
 export function EditEventModal({ 
@@ -24,7 +28,8 @@ export function EditEventModal({
   onClose, 
   event,
   onSubmit,
-  isReadOnly = false
+  isReadOnly = false,
+  currentUser
 }: EditEventModalProps) {
   const [formData, setFormData] = useState({
     title: event.title,
@@ -315,7 +320,11 @@ export function EditEventModal({
           {event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
               <User className="w-4 h-4 mr-1" />
-              Created by: {event.createdBy}
+              Created By: 
+              {currentUser && currentUser.id === event.createdBy && currentUser.username 
+                  ? ` @${currentUser.username}`
+                  : event.createdBy
+                }
             </div>
           )}
           
