@@ -20,17 +20,17 @@ interface CalendarFeedModalProps {
 export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
   const { feeds, actions } = useCalendar();
   const [activeTab, setActiveTab] = useState("feeds");
-  
+
   // iCal feed form state
   const [icalFormData, setIcalFormData] = useState({
     name: "",
     url: "",
     color: "#3B82F6"
   });
-  
+
   // Google Calendar form state
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  
+
   // Friend calendar state
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
 
@@ -41,7 +41,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
     const end = add(endOfWeek(now, { weekStartsOn: 0 }), { days: 14 });
     return { now, start, end };
   }, []);
-  
+
   const handleAddIcalFeed = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -54,7 +54,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
     // Generate feedId outside try so we can use it in catch
     const feedId = crypto.randomUUID();
-  
+
     try {
       // Persist feed first in store
       const newFeed: CalendarFeed = {
@@ -91,7 +91,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       actions.setError('Failed to add calendar feed. Please check the URL and try again.');
     }
   };
-  
+
   const handleConnectGoogle = async () => {
     setIsConnectingGoogle(true);
     try {
@@ -158,11 +158,11 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       setIsConnectingGoogle(false);
     }
   };
-  
+
   const handleRemoveFeed = (feedId: string) => {
     actions.removeFeed(feedId);
   };
-  
+
   const handleRefreshFeed = async (feedId: string) => {
     try {
       const { now, start: windowStart, end: windowEnd } = computeTwoWeekWindow();
@@ -186,7 +186,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       actions.setError('Failed to refresh calendar feed.');
     }
   };
-  
+
   const renderFeedItem = (feed: CalendarFeed) => (
     <div key={feed.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl neu-card">
       <div className="flex items-center space-x-3">
@@ -218,7 +218,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
           )}
         </div>
       </div>
-      
+
       <div className="flex items-center space-x-2">
         <Button
           variant="ghost"
@@ -241,7 +241,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       </div>
     </div>
   );
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -251,14 +251,14 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
             Calendar Feeds
           </DialogTitle>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="feeds">My Feeds ({feeds.length})</TabsTrigger>
             <TabsTrigger value="add">Add Feed</TabsTrigger>
             <TabsTrigger value="friends">Friends</TabsTrigger>
           </TabsList>
-          
+
           {/* Existing Feeds */}
           <TabsContent value="feeds" className="space-y-4">
             {feeds.length === 0 ? (
@@ -280,7 +280,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
               </div>
             )}
           </TabsContent>
-          
+
           {/* Add New Feed */}
           <TabsContent value="add" className="space-y-6">
             {/* Google Calendar */}
@@ -316,7 +316,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                 Read-only access to view your events
               </div>
             </div>
-            
+
             {/* iCal Feed */}
             <form onSubmit={handleAddIcalFeed} className="p-4 border border-green-200 rounded-xl bg-green-50">
               <div className="flex items-center space-x-3 mb-4">
@@ -326,7 +326,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                   <p className="text-sm text-green-600">Add any iCal (.ics) calendar feed</p>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="ical-name" className="text-sm font-medium text-gray-700">
@@ -341,7 +341,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="ical-url" className="text-sm font-medium text-gray-700">
                     iCal URL
@@ -356,7 +356,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Color</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -364,11 +364,10 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                       <button
                         key={color.value}
                         type="button"
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          icalFormData.color === color.value
-                            ? "border-gray-800 ring-2 ring-gray-400"
-                            : "border-gray-300 hover:border-gray-500"
-                        }`}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${icalFormData.color === color.value
+                          ? "border-gray-800 ring-2 ring-gray-400"
+                          : "border-gray-300 hover:border-gray-500"
+                          }`}
                         style={{ backgroundColor: color.value }}
                         onClick={() => setIcalFormData(prev => ({ ...prev, color: color.value }))}
                         aria-label={`Select ${color.label} color`}
@@ -376,7 +375,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                     ))}
                   </div>
                 </div>
-                
+
                 <Button
                   type="submit"
                   className="w-full neu-card bg-green-600 hover:bg-green-700 text-white mt-4"
@@ -388,7 +387,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
               </div>
             </form>
           </TabsContent>
-          
+
           {/* Friend Calendars */}
           <TabsContent value="friends" className="space-y-4">
             <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
@@ -401,7 +400,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
                   </p>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <Input
                   value={friendSearchQuery}
@@ -421,7 +420,7 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
             </div>
           </TabsContent>
         </Tabs>
-        
+
         <DialogFooter>
           <Button
             onClick={onClose}

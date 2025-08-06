@@ -258,7 +258,11 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   private cancelFriendRequests(friendId: string): void {
     const controller = this.abortControllers.get(friendId);
     if (controller) {
-      controller.abort();
+      try {
+        controller.abort();
+      } catch (error) {
+        console.debug('Error aborting request for friend', friendId, error);
+      }
       this.abortControllers.delete(friendId);
     }
   }

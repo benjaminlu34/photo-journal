@@ -474,22 +474,32 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   // Cache management
   clearCache(feedId?: string): void {
-    if (feedId) {
-      // FIXED: More efficient cache clearing - collect keys first to avoid iterator issues
-      const keysToDelete: string[] = [];
-      for (const key of this.feedCache.keys()) {
-        if (key === feedId || key.startsWith(`${feedId}:`)) {
-          keysToDelete.push(key);
+    try {
+      if (feedId) {
+        // FIXED: More efficient cache clearing - collect keys first to avoid iterator issues
+        const keysToDelete: string[] = [];
+        for (const key of this.feedCache.keys()) {
+          if (key === feedId || key.startsWith(`${feedId}:`)) {
+            keysToDelete.push(key);
+          }
         }
+        
+        // Delete collected keys
+        for (const key of keysToDelete) {
+          this.feedCache.delete(key);
+        }
+      } else {
+        // Clear all cache
+        this.feedCache.clear();
       }
-      
-      // Delete collected keys
-      for (const key of keysToDelete) {
-        this.feedCache.delete(key);
+    } catch (error) {
+      console.warn('Error clearing cache:', error);
+      // Fallback: try to clear the entire cache if selective clearing fails
+      try {
+        this.feedCache.clear();
+      } catch (fallbackError) {
+        console.error('Failed to clear cache entirely:', fallbackError);
       }
-    } else {
-      // Clear all cache
-      this.feedCache.clear();
     }
   }
 
