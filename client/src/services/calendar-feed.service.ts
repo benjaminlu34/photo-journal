@@ -441,10 +441,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         const userTimezone = timezoneService.getUserTimezone();
         let calendarEvent = baseEvent;
 
-        if (event.startDate.timezone && event.startDate.timezone !== userTimezone) {
-          // Event has explicit timezone, convert using safe method
+        if (event.startDate.timezone) {
+          // Event has explicit timezone, always use safe conversion
           calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
-        } else if (!event.startDate.timezone) {
+        } else {
           // Floating time, interpret in user's timezone
           calendarEvent = {
             ...baseEvent,
@@ -789,14 +789,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       lastModified: new Date(item.updated),
     };
 
-    // Apply timezone conversion with DST handling if needed
+    // Apply timezone conversion with DST handling
     const userTimezone = timezoneService.getUserTimezone();
-    if (item.start.timeZone && item.start.timeZone !== userTimezone) {
+    
+    if (item.start.timeZone) {
+      // Event has explicit timezone, always use safe conversion
       return timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
-    }
-
-    // For floating times (no timezone), interpret in user's timezone
-    if (!item.start.timeZone) {
+    } else {
+      // For floating times (no timezone), interpret in user's timezone
       return {
         ...baseEvent,
         startTime: timezoneService.handleFloatingTime(startTime, userTimezone),
@@ -804,8 +804,6 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         timezone: userTimezone,
       };
     }
-
-    return baseEvent;
   }
 
   private generateCacheKey(feedId: string, dateRange?: { start: Date; end: Date }): string {

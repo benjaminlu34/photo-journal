@@ -70,6 +70,48 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
       expect(converted.startTime.getHours()).toBe(12);
       expect(converted.endTime.getHours()).toBe(13);
     });
+
+    it('should handle DST issues even when source and target timezones are the same', () => {
+      // March 10, 2024 - Spring forward in America/New_York
+      const event: BaseEvent = {
+        id: 'dst-same-tz',
+        title: 'Same TZ DST Event',
+        startTime: new Date(2024, 2, 10, 2, 30, 0), // 2:30 AM doesn't exist
+        endTime: new Date(2024, 2, 10, 3, 30, 0),
+        timezone: 'America/New_York',
+        isAllDay: false,
+      };
+
+      const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
+      
+      // Should normalize the non-existent time
+      expect(converted.timezone).toBe('America/New_York');
+      expect(converted.startTime.getHours()).toBe(3); // Should be shifted forward
+    });
+  });
+
+  describe('convertAbsoluteDateToLocal', () => {
+    it('should convert absolute Date objects to local time', () => {
+      // Create an absolute Date object representing 12:00 UTC
+      const absoluteDate = new Date('2024-01-15T12:00:00Z');
+      
+      const localTime = service.convertAbsoluteDateToLocal(absoluteDate, 'America/New_York');
+      
+      // Should be converted to New York time (UTC-5 in January)
+      expect(localTime).toBeInstanceOf(Date);
+      expect(localTime.getHours()).toBe(7); // 12:00 UTC = 07:00 EST
+    });
+
+    it('should handle DST transitions for absolute dates', () => {
+      // Create an absolute Date during DST transition
+      const absoluteDate = new Date('2024-07-15T12:00:00Z'); // Summer time
+      
+      const localTime = service.convertAbsoluteDateToLocal(absoluteDate, 'America/New_York');
+      
+      // Should be converted to New York time (UTC-4 in July)
+      expect(localTime).toBeInstanceOf(Date);
+      expect(localTime.getHours()).toBe(8); // 12:00 UTC = 08:00 EDT
+    });
   });
 
   describe('DST Spring-Forward Handling', () => {

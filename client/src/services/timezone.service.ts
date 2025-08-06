@@ -5,7 +5,7 @@
 
 import type { BaseEvent } from '@/types/calendar';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import { addHours, isValid } from 'date-fns';
+import { addHours, differenceInCalendarDays } from 'date-fns';
 
 export interface TimezoneService {
   // Convert event times to user's local timezone
@@ -13,6 +13,9 @@ export interface TimezoneService {
 
   // Safe wrapper for convertToLocalTime with DST handling
   convertToLocalTimeSafe<T extends BaseEvent>(event: T, userTimezone: string): T;
+
+  // Convert absolute Date object to user's local time safely
+  convertAbsoluteDateToLocal(absoluteDate: Date, userTimezone: string): Date;
 
   // Handle floating times (no timezone specified)
   handleFloatingTime(dateTime: Date, userTimezone: string): Date;
@@ -57,36 +60,15 @@ export class TimezoneServiceImpl implements TimezoneService {
     }
   }
 
-  // Resolve ambiguous local times during fall-back
-  private resolveAmbiguousLocalTime(
-    date: Date, 
-    timezone: string, 
-    strategy: 'earliest' | 'latest' = 'earliest'
-  ): Date {
+  // Convert absolute Date object to user's local time safely
+  convertAbsoluteDateToLocal(absoluteDate: Date, userTimezone: string): Date {
     try {
-      // For ambiguous times, date-fns-tz typically chooses the first occurrence
-      // We'll use this as our 'earliest' strategy
-      const resolved = toZonedTime(fromZonedTime(date, timezone), timezone);
-      
-      if (strategy === 'latest') {
-        // For latest strategy, try adding an hour and see if it's still valid
-        const laterTime = addHours(date, 1);
-        try {
-          const laterResolved = toZonedTime(fromZonedTime(laterTime, timezone), timezone);
-          // If the later time resolves to the same wall clock time, use it
-          if (laterResolved.getHours() === date.getHours() && 
-              laterResolved.getMinutes() === date.getMinutes()) {
-            return laterResolved;
-          }
-        } catch {
-          // If later time fails, stick with earliest
-        }
-      }
-      
-      return resolved;
+      // absoluteDate is already a proper Date object representing an absolute moment in time
+      // We need to convert this absolute moment to the user's local timezone
+      return toZonedTime(absoluteDate, userTimezone);
     } catch (error) {
-      console.warn('Error resolving ambiguous local time:', error);
-      return date;
+      console.warn('Error converting absolute date to local time:', error);
+      return absoluteDate;
     }
   }
 
@@ -105,16 +87,8 @@ export class TimezoneServiceImpl implements TimezoneService {
         };
       }
 
-      // If event timezone matches user timezone, still validate for DST issues
-      if (event.timezone === userTimezone) {
-        return {
-          ...event,
-          startTime: this.normalizeNonexistentLocalTime(event.startTime, userTimezone),
-          endTime: this.normalizeNonexistentLocalTime(event.endTime, userTimezone),
-        };
-      }
-
-      // Convert between different timezones with DST handling
+      // Always use safe conversion when timezone is present, even if same as user timezone
+      // This ensures DST gaps and ambiguities are handled properly
       const startUtc = fromZonedTime(event.startTime, event.timezone);
       const endUtc = fromZonedTime(event.endTime, event.timezone);
       
@@ -269,11 +243,10 @@ export class TimezoneServiceImpl implements TimezoneService {
     }
 
     try {
-      const startDate = new Date(event.startTime.getFullYear(), event.startTime.getMonth(), event.startTime.getDate());
-      const endDate = new Date(event.endTime.getFullYear(), event.endTime.getMonth(), event.endTime.getDate());
+      // Use differenceInCalendarDays to safely handle DST transitions
+      const dayDiff = differenceInCalendarDays(event.endTime, event.startTime);
       
       // For all-day events, end should be same day or next day
-      const dayDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
       return dayDiff >= 0 && dayDiff <= 1;
     } catch (error) {
       console.warn('Error validating all-day event:', error);

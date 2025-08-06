@@ -634,14 +634,16 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
           isRecurring: false
         };
 
-        // Apply timezone conversion if server provides ISO in UTC
-        // Assume server provides UTC timestamps that need local conversion
+        // Handle absolute timestamps correctly
+        // Check if server provided absolute time (ISO string with timezone info)
         if (event.startTime.includes('Z') || event.startTime.includes('+')) {
-          // Server provided absolute time, convert using safe method
-          return timezoneService.convertToLocalTimeSafe({
+          // Server provided absolute time - use convertAbsoluteDateToLocal
+          return {
             ...baseEvent,
-            timezone: 'UTC' // Assume server times are UTC
-          }, userTimezone);
+            startTime: timezoneService.convertAbsoluteDateToLocal(baseEvent.startTime, userTimezone),
+            endTime: timezoneService.convertAbsoluteDateToLocal(baseEvent.endTime, userTimezone),
+            timezone: userTimezone,
+          };
         } else {
           // Server provided local-aware time, validate and handle floating time
           return {
