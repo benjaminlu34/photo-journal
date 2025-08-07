@@ -69,7 +69,8 @@ export class SnapshotServiceImpl implements SnapshotService {
     if (documentItems.length > 0) {
       // Remove document items from the main queue (race condition safe)
       this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
-      await this._processItems(documentItems);
+      // Perform a final attempt without re-queueing failed items
+      await this._processItems(documentItems, /* allowRetry */ false);
     }
 
     // Clean up tracking for this document only AFTER flush completes
@@ -180,12 +181,12 @@ export class SnapshotServiceImpl implements SnapshotService {
     const processedWeekIds = new Set(itemsToProcess.map(item => item.weekId));
     processedWeekIds.forEach(weekId => this.clearDebounceTimer(weekId));
 
-    // Process all items
-    await this._processItems(itemsToProcess);
+    // Process all items with retry enabled for normal flush
+    await this._processItems(itemsToProcess, /* allowRetry */ true);
   }
 
-  // Common processing logic shared by flushQueue and flushDocumentItems
-  private async _processItems(itemsToProcess: QueuedSnapshot[]): Promise<void> {
+  // Common processing logic shared by flushQueue and stopSnapshotBatching
+  private async _processItems(itemsToProcess: QueuedSnapshot[], allowRetry: boolean): Promise<void> {
     // Process all items from the provided list
     const results = await Promise.allSettled(
       itemsToProcess.map(item => this.performSnapshot(item.weekId, item.doc))
@@ -200,31 +201,33 @@ export class SnapshotServiceImpl implements SnapshotService {
       if (result.status === 'rejected') {
         console.error(`Snapshot failed for week ${item.weekId}:`, result.reason);
 
-        // Increment retry count
-        const retryCount = (item.retryCount || 0) + 1;
+        if (allowRetry) {
+          // Increment retry count
+          const retryCount = (item.retryCount || 0) + 1;
 
-        // Re-add to queue for retry if under max attempts
-        if (retryCount < SnapshotServiceImpl.MAX_RETRY_ATTEMPTS) {
-          failedItems.push({
-            ...item,
-            retryCount,
-            timestamp: Date.now(), // Update timestamp for retry
-          });
-        } else {
-          console.error(`Max retry attempts reached for week ${item.weekId}, dropping snapshot`);
+          // Re-add to queue for retry if under max attempts
+          if (retryCount < SnapshotServiceImpl.MAX_RETRY_ATTEMPTS) {
+            failedItems.push({
+              ...item,
+              retryCount,
+              timestamp: Date.now(), // Update timestamp for retry
+            });
+          } else {
+            console.error(`Max retry attempts reached for week ${item.weekId}, dropping snapshot`);
+          }
         }
       }
     });
 
     // Prepend failed items to preserve any new items added during processing
-    if (failedItems.length > 0) {
+    if (allowRetry && failedItems.length > 0) {
       this.snapshotQueue.unshift(...failedItems);
     }
 
     const successCount = results.filter(r => r.status === 'fulfilled').length;
     const failedCount = results.filter(r => r.status === 'rejected').length;
 
-    console.log(`Flushed snapshot queue: ${successCount} succeeded, ${failedCount} failed, ${failedItems.length} queued for retry`);
+    console.log(`Flushed snapshot queue: ${successCount} succeeded, ${failedCount} failed, ${allowRetry ? failedItems.length : 0} queued for retry`);
   }
 
   // Private method to perform the actual snapshot

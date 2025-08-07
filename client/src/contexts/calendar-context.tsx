@@ -101,23 +101,23 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     
     // Create week ID from the date (ISO week format)
     const weekStart = startOfWeek(initialDate, { weekStartsOn: 0 });
-    const weekId = format(weekStart, 'yyyy-\'W\'II'); // e.g., "2024-W03"
+    const weekId = format(weekStart, "yyyy-'W'II"); // e.g., "2024-W03"
     
     // Initialize CRDT with weekId
-    actions.init(weekId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
+    void actions.init(weekId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
   }, [initialDate, user]);
 
   // Add cleanup effect
   React.useEffect(() => {
     return () => {
       // Cleanup on unmount
-      actions.cleanup?.();
+      void actions.cleanup?.();
     };
   }, []);
 
   const value = React.useMemo<CalendarContextValue>(() => ({
     isConnected,
-    weekId: sdk ? format(startOfWeek(currentWeek, { weekStartsOn: 0 }), 'yyyy-\'W\'II') : undefined,
+    weekId: sdk ? format(startOfWeek(currentWeek, { weekStartsOn: 0 }), "yyyy-'W'II") : undefined,
     localEvents,
     externalEvents,
     friendEvents,
