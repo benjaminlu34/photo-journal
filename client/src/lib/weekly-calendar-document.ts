@@ -38,9 +38,9 @@ const DELETION_TOMBSTONE_KEY = 'deletedAt' as const;
 const DELETION_GRACE_MS = 60 * 1000; // 1 minute
 
 // Narrowing helper for tombstoned events (type-safe, no any)
-type TombstonedEvent = LocalEvent & { deletedAt?: string };
+type TombstonedEvent = LocalEvent & { deletedAt: string };
 function hasTombstone(event: LocalEvent): event is TombstonedEvent {
-  return DELETION_TOMBSTONE_KEY in (event as object);
+  return typeof (event as TombstonedEvent).deletedAt === 'string';
 }
 
 // CRDT conflict resolution utilities
