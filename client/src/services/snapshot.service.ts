@@ -4,7 +4,6 @@
  */
 
 import * as Y from 'yjs';
-import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 
 export interface SnapshotService {
   // Start snapshot batching for a document
@@ -38,8 +37,8 @@ export class SnapshotServiceImpl implements SnapshotService {
   private static readonly MAX_QUEUE_SIZE = 10; // Prevent memory leaks
   private static readonly MAX_RETRY_ATTEMPTS = 3; // Maximum retry attempts for failed snapshots
 
-  // Debounce timer per document
-  private batchingTimers = new Map<string, NodeJS.Timeout>();
+  // Debounce timer per document (browser-safe type)
+  private batchingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // Buffered queue system
   private snapshotQueue: QueuedSnapshot[] = [];
@@ -64,11 +63,7 @@ export class SnapshotServiceImpl implements SnapshotService {
 
   // Stop snapshot batching for a specific document and flush only its items
   stopSnapshotBatching(weekId: string): void {
-    const timer = this.batchingTimers.get(weekId);
-    if (timer) {
-      clearTimeout(timer);
-      this.batchingTimers.delete(weekId);
-    }
+    this.clearDebounceTimer(weekId);
 
     // Check if this document has any items in the queue
     const documentItems = this.snapshotQueue.filter(item => item.weekId === weekId);
@@ -96,6 +91,8 @@ export class SnapshotServiceImpl implements SnapshotService {
 
     // Trigger immediate flush if size difference exceeds ~1KB threshold
     if (sizeDiff >= SnapshotServiceImpl.BATCH_SIZE_THRESHOLD) {
+      // Clear any scheduled debounce for this document to avoid duplicate flush later
+      this.clearDebounceTimer(weekId);
       this.flushQueue();
       return; // Don't restart timer if we're flushing immediately
     }
@@ -120,14 +117,19 @@ export class SnapshotServiceImpl implements SnapshotService {
     this.batchingTimers.set(weekId, timer);
   }
 
-  // Force immediate snapshot, bypassing queue
-  async forceSnapshot(weekId: string, doc: Y.Doc): Promise<void> {
-    // Clear any pending timer for this document
+  // Clear debounce timer for a specific document
+  private clearDebounceTimer(weekId: string): void {
     const timer = this.batchingTimers.get(weekId);
     if (timer) {
       clearTimeout(timer);
       this.batchingTimers.delete(weekId);
     }
+  }
+
+  // Force immediate snapshot, bypassing queue
+  async forceSnapshot(weekId: string, doc: Y.Doc): Promise<void> {
+    // Clear any pending timer for this document
+    this.clearDebounceTimer(weekId);
 
     // Perform immediate snapshot
     await this.performSnapshot(weekId, doc);
@@ -153,6 +155,9 @@ export class SnapshotServiceImpl implements SnapshotService {
 
     // Remove document items from the main queue (race condition safe)
     this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
+
+    // Clear any pending timer for this document as we're flushing now
+    this.clearDebounceTimer(weekId);
 
     // Process only the document's items
     const promises = documentItems.map(item =>
@@ -235,6 +240,10 @@ export class SnapshotServiceImpl implements SnapshotService {
     if (itemsToProcess.length === 0) {
       return;
     }
+
+    // Clear timers for all weekIds being processed to avoid duplicate scheduled flushes
+    const processedWeekIds = new Set(itemsToProcess.map(item => item.weekId));
+    processedWeekIds.forEach(weekId => this.clearDebounceTimer(weekId));
 
     // Process all items from the copied queue
     const promises = itemsToProcess.map(item =>
