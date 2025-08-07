@@ -248,11 +248,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           grant_type: 'authorization_code',
           code,
           redirect_uri: redirectUri,
-        } as any);
+        });
 
-        const accessToken = tokenSet.access_token;
-        const refreshToken = tokenSet.refresh_token || undefined;
-        const expiresIn = tokenSet.expires_in || 3600; // default 1h if absent
+        const accessToken = tokenSet.access_token as string | undefined;
+        const refreshToken = (tokenSet.refresh_token as string | undefined) || undefined;
+        const expiresIn = (tokenSet.expires_in as number | undefined) || 3600; // default 1h if absent
 
         if (!accessToken) {
           return res.status(502).json({ message: "Google token exchange did not return access token" });
@@ -290,11 +290,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tokenSet = await client.grant({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
-        } as any);
+        });
 
-        const accessToken = tokenSet.access_token;
-        const newRefreshToken = tokenSet.refresh_token || undefined; // Google may rotate
-        const expiresIn = tokenSet.expires_in || 3600;
+        const accessToken = tokenSet.access_token as string | undefined;
+        const newRefreshToken = (tokenSet.refresh_token as string | undefined) || undefined; // Google may rotate
+        const expiresIn = (tokenSet.expires_in as number | undefined) || 3600;
 
         if (!accessToken) {
           return res.status(502).json({ message: "Google refresh did not return access token" });
@@ -334,8 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err instanceof z.ZodError) {
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
-        console.error("POST /api/calendar/google/decrypt-token:", err);
-        return res.status(400).json({ message: "Failed to decrypt token" });
+        console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);        return res.status(400).json({ message: "Failed to decrypt token" });
       }
     }
   );

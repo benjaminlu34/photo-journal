@@ -150,6 +150,15 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
   }
 
+  private async authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(await this.getAuthHeader()),
+      ...(init?.headers as Record<string, string> | undefined),
+    };
+    return fetch(input, { ...init, headers });
+  }
+
   // Dependency injection method to set offline service
   setOfflineService(offlineService: OfflineCalendarService): void {
     this.offlineService = offlineService;
@@ -300,13 +309,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   async exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials> {
     // SECURITY: OAuth token exchange must happen on the server to protect client secret
-    const authHeader = await this.getAuthHeader();
-    const response = await fetch('/api/calendar/google/exchange-token', {
+    const response = await this.authFetch('/api/calendar/google/exchange-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-      },
       body: JSON.stringify({
         code,
         redirectUri,
@@ -332,13 +336,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
 
     // SECURITY: Token refresh must happen on the server to protect client secret
-    const authHeader = await this.getAuthHeader();
-    const response = await fetch('/api/calendar/google/refresh-token', {
+    const response = await this.authFetch('/api/calendar/google/refresh-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-      },
       body: JSON.stringify({
         refreshToken: credentials.refreshToken,
       }),
@@ -673,13 +672,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
     // SECURITY: Token decryption should happen server-side
     // For now, we'll call the server to get a decrypted token for API calls
-    const authHeader = await this.getAuthHeader();
-    const tokenResponse = await fetch('/api/calendar/google/decrypt-token', {
+    const tokenResponse = await this.authFetch('/api/calendar/google/decrypt-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-      },
       body: JSON.stringify({
         encryptedToken: feed.credentials.encryptedToken,
       }),
