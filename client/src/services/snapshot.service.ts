@@ -4,6 +4,7 @@
  */
 
 import * as Y from 'yjs';
+import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 
 export interface SnapshotService {
   // Start snapshot batching for a document
@@ -35,7 +36,7 @@ export class SnapshotServiceImpl implements SnapshotService {
   private static readonly DEBOUNCE_DELAY_MS = 10000; // 10 seconds as specified
   private static readonly BATCH_SIZE_THRESHOLD = 1024; // ~1KB as specified
   private static readonly MAX_QUEUE_SIZE = 10; // Prevent memory leaks
-  private static readonly MAX_RETRY_ATTEMPTS = 3; // Maximum retry attempts for failed snapshots
+  private static readonly MAX_RETRY_ATTEMPTS = CALENDAR_CONFIG.ERROR_HANDLING.MAX_RETRY_ATTEMPTS; // from shared config
 
   // Debounce timer per document (browser-safe type)
   private batchingTimers = new Map<string, ReturnType<typeof setTimeout>>();

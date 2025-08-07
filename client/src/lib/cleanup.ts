@@ -8,15 +8,24 @@ async function destroyAndClearRegistry(
   registryName: string
 ): Promise<void> {
   try {
-    await Promise.all(
+    const results = await Promise.allSettled(
       Object.values(registry).map(async (sdk) => {
         if (sdk?.destroy) {
           await sdk.destroy();
         }
       })
     );
+
+    // Log individual failures but continue clearing the registry
+    results.forEach((result, idx) => {
+      if (result.status === 'rejected') {
+        console.warn(`${registryName} destroy failed for index ${idx}:`, result.reason);
+      }
+    });
+
     Object.keys(registry).forEach((key) => delete registry[key]);
   } catch (error) {
+    // This catch is defensive; allSettled should not throw
     console.warn(`Failed to clear ${registryName} registry:`, error);
   }
 }
