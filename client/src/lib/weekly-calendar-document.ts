@@ -229,13 +229,9 @@ export class WeeklyCalendarDocumentUtils {
     const lastModified = document.metadata.get('lastModified') as Date || null;
     const weekId = document.metadata.get('weekId') as string || document.weekId;
     
-    // Count tombstoned events
-    let tombstoneCount = 0;
-    for (const event of events) {
-      if ((event as any)?.[DELETION_TOMBSTONE_KEY]) {
-        tombstoneCount++;
-      }
-    }
+    const tombstoneCount = events.filter(event => 
+      (event as any)?.[DELETION_TOMBSTONE_KEY]
+    ).length;
     
     return {
       eventCount: events.length - tombstoneCount, // Active events only

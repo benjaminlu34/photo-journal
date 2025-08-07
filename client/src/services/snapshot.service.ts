@@ -10,17 +10,17 @@ export interface SnapshotService {
   // Start snapshot batching for a document
   startSnapshotBatching(weekId: string, doc: Y.Doc): void;
   
-  // Stop snapshot batching
-  stopSnapshotBatching(): void;
+  // Stop snapshot batching for a specific document
+  stopSnapshotBatching(weekId: string): void;
   
-  // Mark pending changes for batching
-  markPendingChanges(): void;
+  // Mark pending changes for batching (now stateless)
+  markPendingChanges(weekId: string, doc: Y.Doc): void;
   
   // Force immediate snapshot
   forceSnapshot(weekId: string, doc: Y.Doc): Promise<void>;
   
   // Get current queue stats for testing/debugging
-  getQueueStats(): { queueSize: number; pendingChanges: boolean; lastSnapshotSize: number };
+  getQueueStats(): { queueSize: number; pendingChanges: boolean; lastSnapshotSizes: Record<string, number> };
 }
 
 interface QueuedSnapshot {
@@ -28,6 +28,7 @@ interface QueuedSnapshot {
   doc: Y.Doc;
   timestamp: number;
   size: number;
+  retryCount?: number;
 }
 
 export class SnapshotServiceImpl implements SnapshotService {
@@ -35,92 +36,95 @@ export class SnapshotServiceImpl implements SnapshotService {
   private static readonly DEBOUNCE_DELAY_MS = 10000; // 10 seconds as specified
   private static readonly BATCH_SIZE_THRESHOLD = 1024; // ~1KB as specified
   private static readonly MAX_QUEUE_SIZE = 10; // Prevent memory leaks
+  private static readonly MAX_RETRY_ATTEMPTS = 3; // Maximum retry attempts for failed snapshots
   
-  // Debounce timer
-  private batchingTimer: NodeJS.Timeout | null = null;
+  // Debounce timer per document
+  private batchingTimers = new Map<string, NodeJS.Timeout>();
   
   // Buffered queue system
   private snapshotQueue: QueuedSnapshot[] = [];
   private pendingChanges = false;
-  private lastSnapshotSize = 0;
-  private currentWeekId: string | null = null;
-  private currentDoc: Y.Doc | null = null;
+  
+  // Per-document snapshot size tracking to fix race conditions
+  private lastSnapshotSizes = new Map<string, number>();
   
   // Performance tracking
-  private lastFlushTime = 0;
   private totalSnapshots = 0;
 
   // Start snapshot batching with 10s debounce and buffered queue
   startSnapshotBatching(weekId: string, doc: Y.Doc): void {
-    this.currentWeekId = weekId;
-    this.currentDoc = doc;
+    // Initialize snapshot size tracking for this document
+    if (!this.lastSnapshotSizes.has(weekId)) {
+      this.lastSnapshotSizes.set(weekId, 0);
+    }
     
     // Don't start timer immediately - wait for first change
     // Timer will be started when markPendingChanges is called
   }
   
-  // Stop snapshot batching and flush any remaining items
-  stopSnapshotBatching(): void {
-    if (this.batchingTimer) {
-      clearTimeout(this.batchingTimer);
-      this.batchingTimer = null;
+  // Stop snapshot batching for a specific document and flush any remaining items
+  stopSnapshotBatching(weekId: string): void {
+    const timer = this.batchingTimers.get(weekId);
+    if (timer) {
+      clearTimeout(timer);
+      this.batchingTimers.delete(weekId);
     }
     
-    // Flush any remaining items in the queue
-    if (this.snapshotQueue.length > 0 || this.pendingChanges) {
+    // Flush any remaining items in the queue for this document
+    const remainingItems = this.snapshotQueue.filter(item => item.weekId === weekId);
+    if (remainingItems.length > 0 || this.pendingChanges) {
       this.flushQueue();
     }
     
-    this.currentWeekId = null;
-    this.currentDoc = null;
+    // Clean up tracking for this document
+    this.lastSnapshotSizes.delete(weekId);
     this.pendingChanges = false;
   }
   
-  // Mark pending changes and add to buffered queue
-  markPendingChanges(): void {
+  // Mark pending changes and add to buffered queue (now stateless)
+  markPendingChanges(weekId: string, doc: Y.Doc): void {
     this.pendingChanges = true;
     
-    // Add current state to buffered queue if we have a document
-    if (this.currentDoc && this.currentWeekId) {
-      const currentSize = Y.encodeStateAsUpdate(this.currentDoc).length;
-      const sizeDiff = currentSize - this.lastSnapshotSize;
-      
-      // Add to queue
-      this.addToQueue(this.currentWeekId, this.currentDoc, currentSize);
-      
-      // Trigger immediate flush if size difference exceeds ~1KB threshold
-      if (sizeDiff >= SnapshotServiceImpl.BATCH_SIZE_THRESHOLD) {
-        this.flushQueue();
-        return; // Don't restart timer if we're flushing immediately
-      }
+    const currentSize = Y.encodeStateAsUpdate(doc).length;
+    const lastSize = this.lastSnapshotSizes.get(weekId) || 0;
+    const sizeDiff = currentSize - lastSize;
+    
+    // Add to queue
+    this.addToQueue(weekId, doc, currentSize);
+    
+    // Trigger immediate flush if size difference exceeds ~1KB threshold
+    if (sizeDiff >= SnapshotServiceImpl.BATCH_SIZE_THRESHOLD) {
+      this.flushQueue();
+      return; // Don't restart timer if we're flushing immediately
     }
     
-    // Restart the debounce timer
-    this.restartDebounceTimer();
+    // Restart the debounce timer for this document
+    this.restartDebounceTimer(weekId);
   }
   
-  // Restart the debounce timer
-  private restartDebounceTimer(): void {
-    // Clear any existing timer
-    if (this.batchingTimer) {
-      clearTimeout(this.batchingTimer);
+  // Restart the debounce timer for a specific document
+  private restartDebounceTimer(weekId: string): void {
+    // Clear any existing timer for this document
+    const existingTimer = this.batchingTimers.get(weekId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
     
     // Set up new batching timer with 10s debounce
-    this.batchingTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       this.flushQueue();
     }, SnapshotServiceImpl.DEBOUNCE_DELAY_MS);
+    
+    this.batchingTimers.set(weekId, timer);
   }
   
   // Force immediate snapshot, bypassing queue
   async forceSnapshot(weekId: string, doc: Y.Doc): Promise<void> {
-    this.currentWeekId = weekId;
-    this.currentDoc = doc;
-    
-    // Clear any pending timer
-    if (this.batchingTimer) {
-      clearTimeout(this.batchingTimer);
-      this.batchingTimer = null;
+    // Clear any pending timer for this document
+    const timer = this.batchingTimers.get(weekId);
+    if (timer) {
+      clearTimeout(timer);
+      this.batchingTimers.delete(weekId);
     }
     
     // Perform immediate snapshot
@@ -128,11 +132,11 @@ export class SnapshotServiceImpl implements SnapshotService {
   }
   
   // Get current queue stats for testing/debugging
-  getQueueStats(): { queueSize: number; pendingChanges: boolean; lastSnapshotSize: number } {
+  getQueueStats(): { queueSize: number; pendingChanges: boolean; lastSnapshotSizes: Record<string, number> } {
     return {
       queueSize: this.snapshotQueue.length,
       pendingChanges: this.pendingChanges,
-      lastSnapshotSize: this.lastSnapshotSize,
+      lastSnapshotSizes: Object.fromEntries(this.lastSnapshotSizes),
     };
   }
   
@@ -163,27 +167,47 @@ export class SnapshotServiceImpl implements SnapshotService {
       return;
     }
     
-    const now = Date.now();
-    this.lastFlushTime = now;
+    // Process all items in the queue
+    const promises = this.snapshotQueue.map(item => 
+      this.performSnapshot(item.weekId, item.doc)
+    );
     
-    try {
-      // Process all items in the queue
-      const promises = this.snapshotQueue.map(item => 
-        this.performSnapshot(item.weekId, item.doc)
-      );
+    // Wait for all snapshots to complete
+    const results = await Promise.allSettled(promises);
+    
+    // Handle failed snapshots and implement retry logic
+    const failedItems: QueuedSnapshot[] = [];
+    
+    results.forEach((result, index) => {
+      const item = this.snapshotQueue[index];
       
-      // Wait for all snapshots to complete
-      await Promise.allSettled(promises);
-      
-      // Clear the queue after processing
-      this.snapshotQueue = [];
-      this.pendingChanges = false;
-      
-      console.log(`Flushed snapshot queue: ${promises.length} snapshots processed`);
-    } catch (error) {
-      console.error('Failed to flush snapshot queue:', error);
-      // Keep items in queue for retry on next flush
-    }
+      if (result.status === 'rejected') {
+        console.error(`Snapshot failed for week ${item.weekId}:`, result.reason);
+        
+        // Increment retry count
+        const retryCount = (item.retryCount || 0) + 1;
+        
+        // Re-add to queue for retry if under max attempts
+        if (retryCount < SnapshotServiceImpl.MAX_RETRY_ATTEMPTS) {
+          failedItems.push({
+            ...item,
+            retryCount,
+            timestamp: Date.now(), // Update timestamp for retry
+          });
+        } else {
+          console.error(`Max retry attempts reached for week ${item.weekId}, dropping snapshot`);
+        }
+      }
+    });
+    
+    // Clear the queue and re-add failed items for retry
+    this.snapshotQueue = failedItems;
+    this.pendingChanges = failedItems.length > 0;
+    
+    const successCount = results.filter(r => r.status === 'fulfilled').length;
+    const failedCount = results.filter(r => r.status === 'rejected').length;
+    
+    console.log(`Flushed snapshot queue: ${successCount} succeeded, ${failedCount} failed, ${failedItems.length} queued for retry`);
   }
   
   // Private method to perform the actual snapshot
@@ -191,7 +215,9 @@ export class SnapshotServiceImpl implements SnapshotService {
     try {
       // Encode the current state
       const state = Y.encodeStateAsUpdate(doc);
-      this.lastSnapshotSize = state.length;
+      
+      // Update per-document snapshot size tracking
+      this.lastSnapshotSizes.set(weekId, state.length);
       
       // Send to Supabase Edge Function (mock implementation)
       await this.sendToSupabase(weekId, state);
