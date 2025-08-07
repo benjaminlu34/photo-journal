@@ -21,8 +21,23 @@ export async function cleanupUserState() {
   } catch (error) {
     console.warn('Failed to clear SDK registry:', error);
   }
+
+  // 3. Destroy and clear calendar SDK instances as well
+  try {
+    const { calendarSdkRegistry } = await import('./calendar-sdk');
+    await Promise.all(
+      Object.values(calendarSdkRegistry).map(async (sdk) => {
+        if (sdk?.destroy) {
+          await sdk.destroy();
+        }
+      })
+    );
+    Object.keys(calendarSdkRegistry).forEach(key => delete calendarSdkRegistry[key]);
+  } catch (error) {
+    console.warn('Failed to clear calendar SDK registry:', error);
+  }
   
-  // 3. DO NOT delete IndexedDB - this preserves user data
+  // 4. DO NOT delete IndexedDB - this preserves user data
   // The Yjs documents will be re-initialized on next login
 }
 
