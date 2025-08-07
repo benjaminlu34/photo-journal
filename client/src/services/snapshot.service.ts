@@ -42,7 +42,6 @@ export class SnapshotServiceImpl implements SnapshotService {
 
   // Buffered queue system
   private snapshotQueue: QueuedSnapshot[] = [];
-  private pendingChanges = false;
 
   // Per-document snapshot size tracking to fix race conditions
   private lastSnapshotSizes = new Map<string, number>();
@@ -81,8 +80,6 @@ export class SnapshotServiceImpl implements SnapshotService {
 
   // Mark pending changes and add to buffered queue (now stateless)
   markPendingChanges(weekId: string, doc: Y.Doc): void {
-    this.pendingChanges = true;
-
     const currentSize = Y.encodeStateAsUpdate(doc).length;
     const lastSize = this.lastSnapshotSizes.get(weekId) || 0;
     const sizeDiff = currentSize - lastSize;
@@ -133,11 +130,7 @@ export class SnapshotServiceImpl implements SnapshotService {
     this.clearDebounceTimer(weekId);
 
     // Remove any queued item for this document to avoid duplicate snapshot later
-    const originalLength = this.snapshotQueue.length;
     this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
-    if (this.snapshotQueue.length !== originalLength) {
-      this.pendingChanges = this.snapshotQueue.length > 0;
-    }
 
     // Perform immediate snapshot
     await this.performSnapshot(weekId, doc);
@@ -147,7 +140,7 @@ export class SnapshotServiceImpl implements SnapshotService {
   getQueueStats(): { queueSize: number; pendingChanges: boolean; lastSnapshotSizes: Record<string, number> } {
     return {
       queueSize: this.snapshotQueue.length,
-      pendingChanges: this.pendingChanges,
+      pendingChanges: this.snapshotQueue.length > 0,
       lastSnapshotSizes: Object.fromEntries(this.lastSnapshotSizes),
     };
   }
@@ -227,9 +220,6 @@ export class SnapshotServiceImpl implements SnapshotService {
     if (failedItems.length > 0) {
       this.snapshotQueue.unshift(...failedItems);
     }
-
-    // Update pending changes based on current queue state
-    this.pendingChanges = this.snapshotQueue.length > 0;
 
     const successCount = results.filter(r => r.status === 'fulfilled').length;
     const failedCount = results.filter(r => r.status === 'rejected').length;
