@@ -21,6 +21,7 @@ userSearchRateLimit,
   enhancedFriendMutationsRateLimit,
   enhancedSearchRateLimit,
   enhancedSharingRateLimit,
+  calendarOAuthRateLimit,
   roleChangeAuditMiddleware,
   friendshipInputValidation,
   blockedUserSecurityCheck
@@ -46,6 +47,7 @@ import {
 } from "@shared/schema/schema";
 
 import { friendshipEventManager } from "./utils/friendship-events";
+import { encryptToken, decryptToken } from "./utils/token-crypto";
 import {
   trackFriendRequestSent,
   trackFriendAccepted,
@@ -203,6 +205,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+  /* Google Calendar OAuth endpoints */
+  const googleEnvSchema = z.object({
+    clientId: z.string().min(1),
+    clientSecret: z.string().min(1),
+  });
+
+  let cachedGoogleClient: any | null = null;
+  async function getGoogleClient() {
+    if (cachedGoogleClient) return cachedGoogleClient;
+    const env = googleEnvSchema.parse({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    });
+    const openid = await import("openid-client");
+    const googleIssuer = await (openid as any).Issuer.discover("https://accounts.google.com");
+    cachedGoogleClient = new (googleIssuer as any).Client({
+      client_id: env.clientId,
+      client_secret: env.clientSecret,
+      token_endpoint_auth_method: 'client_secret_post',
+    });
+    return cachedGoogleClient;
+  }
+
+  const exchangeSchema = z.object({
+    code: z.string().min(1),
+    redirectUri: z.string().url(),
+  });
+
+  app.post(
+    "/api/calendar/google/exchange-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { code, redirectUri } = exchangeSchema.parse(req.body);
+        const client = await getGoogleClient();
+
+        // Authorization Code exchange (no PKCE for server-side exchange)
+        const tokenSet = await client.grant({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+        } as any);
+
+        const accessToken = tokenSet.access_token;
+        const refreshToken = tokenSet.refresh_token || undefined;
+        const expiresIn = tokenSet.expires_in || 3600; // default 1h if absent
+
+        if (!accessToken) {
+          return res.status(502).json({ message: "Google token exchange did not return access token" });
+        }
+
+        // Bind token to user via AAD to mitigate token swapping between users
+        const userBoundAAD = getUserId(req);
+        const encryptedToken = encryptToken(accessToken, userBoundAAD);
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+        return res.json({ encryptedToken, refreshToken, expiresAt });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid request", errors: err.errors });
+        }
+        console.error("POST /api/calendar/google/exchange-token:", err);
+        return res.status(502).json({ message: "Failed to exchange Google auth code" });
+      }
+    }
+  );
+
+  const refreshSchema = z.object({
+    refreshToken: z.string().min(1),
+  });
+
+  app.post(
+    "/api/calendar/google/refresh-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { refreshToken } = refreshSchema.parse(req.body);
+        const client = await getGoogleClient();
+
+        const tokenSet = await client.grant({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        } as any);
+
+        const accessToken = tokenSet.access_token;
+        const newRefreshToken = tokenSet.refresh_token || undefined; // Google may rotate
+        const expiresIn = tokenSet.expires_in || 3600;
+
+        if (!accessToken) {
+          return res.status(502).json({ message: "Google refresh did not return access token" });
+        }
+
+        const userBoundAAD = getUserId(req);
+        const encryptedToken = encryptToken(accessToken, userBoundAAD);
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+        return res.json({ encryptedToken, refreshToken: newRefreshToken, expiresAt });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid request", errors: err.errors });
+        }
+        console.error("POST /api/calendar/google/refresh-token:", err);
+        return res.status(502).json({ message: "Failed to refresh Google token" });
+      }
+    }
+  );
+
+  const decryptSchema = z.object({
+    encryptedToken: z.string().min(1),
+  });
+
+  app.post(
+    "/api/calendar/google/decrypt-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { encryptedToken } = decryptSchema.parse(req.body);
+        const userBoundAAD = getUserId(req);
+        const accessToken = decryptToken(encryptedToken, userBoundAAD);
+        // Return short-lived access token (Google enforces expiry)
+        return res.json({ accessToken });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid request", errors: err.errors });
+        }
+        console.error("POST /api/calendar/google/decrypt-token:", err);
+        return res.status(400).json({ message: "Failed to decrypt token" });
+      }
+    }
+  );
 
   /* Update user profile */
   app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res, next) => {

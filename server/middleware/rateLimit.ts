@@ -42,6 +42,33 @@ export const usernameCheckRateLimit = rateLimit({
 });
 
 /**
+ * Rate limiting for calendar OAuth token operations (exchange/refresh/decrypt)
+ * Requirements: modest rate, per IP+User
+ */
+export const calendarOAuthRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const userId = req.user?.id;
+    return userId ? `${ip}:oauth:${userId}` : `${ip}:oauth`;
+  },
+  handler: (req, res) => {
+    res.set('Retry-After', '60');
+    res.status(429).json({
+      error: 'RATE_LIMITED',
+      message: 'Too many OAuth requests. Please try again in 60 seconds',
+      retryAfter: 60,
+    });
+  },
+  skip: (req) => {
+    return process.env.NODE_ENV === 'test' && (req.query.skipRateLimit === 'true');
+  },
+});
+
+/**
  * Rate limiting configuration for user search endpoints
  * Requirements: 20/min per IP+User with RFC 6585 compliance
  */

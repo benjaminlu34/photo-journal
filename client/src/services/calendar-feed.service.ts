@@ -10,6 +10,7 @@ import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver } from './duplicate-event-resolver.service';
+import { supabase } from '@/lib/supabase';
 import { timezoneService } from './timezone.service';
 // Type-only import to avoid circular dependency
 import type { OfflineCalendarService } from './offline-calendar.service';
@@ -136,6 +137,16 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     // Validate Google OAuth configuration
     if (!this.GOOGLE_CLIENT_ID) {
       console.warn('Google Calendar integration not configured - client ID missing');
+    }
+  }
+
+  private async getAuthHeader(): Promise<Record<string, string>> {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    } catch (_e) {
+      return {};
     }
   }
 
@@ -289,10 +300,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   async exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials> {
     // SECURITY: OAuth token exchange must happen on the server to protect client secret
+    const authHeader = await this.getAuthHeader();
     const response = await fetch('/api/calendar/google/exchange-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
       },
       body: JSON.stringify({
         code,
@@ -319,10 +332,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
 
     // SECURITY: Token refresh must happen on the server to protect client secret
+    const authHeader = await this.getAuthHeader();
     const response = await fetch('/api/calendar/google/refresh-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
       },
       body: JSON.stringify({
         refreshToken: credentials.refreshToken,
@@ -658,10 +673,12 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
     // SECURITY: Token decryption should happen server-side
     // For now, we'll call the server to get a decrypted token for API calls
+    const authHeader = await this.getAuthHeader();
     const tokenResponse = await fetch('/api/calendar/google/decrypt-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
       },
       body: JSON.stringify({
         encryptedToken: feed.credentials.encryptedToken,
