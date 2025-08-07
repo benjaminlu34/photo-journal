@@ -645,7 +645,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
           timezoneService.normalizeEventForUser(prepared, userTimezone);
 
         // Validate all-day event boundaries post-conversion
-        if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
+        if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent)) {
           console.warn(`All-day event from friend crosses date boundary, adjusting: ${event.id}`);
           const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
           calendarEvent = {

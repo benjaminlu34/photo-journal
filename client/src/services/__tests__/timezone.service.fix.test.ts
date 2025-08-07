@@ -46,6 +46,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-01-15T13:00:00'),
         timezone: 'America/New_York',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/Los_Angeles');
@@ -62,6 +63,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 0, 15, 12, 0, 0),
         endTime: new Date(2024, 0, 15, 13, 0, 0),
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -80,6 +82,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date(2024, 2, 10, 3, 30, 0),
         timezone: 'America/New_York',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -125,6 +128,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: nonExistentTime,
         endTime: new Date(2024, 2, 10, 3, 30, 0),
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -143,6 +147,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 2, 10, 0, 0, 0),
         endTime: new Date(2024, 2, 10, 23, 59, 59),
         isAllDay: true,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -164,6 +169,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: ambiguousTime,
         endTime: new Date(2024, 10, 3, 2, 30, 0),
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -182,6 +188,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 10, 3, 0, 0, 0),
         endTime: new Date(2024, 10, 3, 23, 59, 59),
         isAllDay: true,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(event, 'America/New_York');
@@ -201,6 +208,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-01-15T13:00:00'),
         timezone: 'America/New_York',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       // Convert to different timezone
@@ -219,6 +227,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-01-15T13:00:00'),
         timezone: 'America/New_York',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const londonEvent: BaseEvent = {
@@ -228,6 +237,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-01-15T18:00:00'),
         timezone: 'Europe/London',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const userTz = 'America/Los_Angeles';
@@ -257,6 +267,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 0, 15, 0, 0, 0),
         endTime: new Date(2024, 0, 15, 23, 59, 59),
         isAllDay: true,
+        color: '#3B82F6',
       };
 
       const invalidEvent: BaseEvent = {
@@ -265,10 +276,11 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 0, 15, 0, 0, 0),
         endTime: new Date(2024, 0, 17, 23, 59, 59), // Spans 3 days
         isAllDay: true,
+        color: '#3B82F6',
       };
 
-      expect(service.validateAllDayEvent(validEvent, 'America/New_York')).toBe(true);
-      expect(service.validateAllDayEvent(invalidEvent, 'America/New_York')).toBe(false);
+      expect(service.validateAllDayEvent(validEvent)).toBe(true);
+      expect(service.validateAllDayEvent(invalidEvent)).toBe(false);
     });
   });
 
@@ -281,6 +293,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-03-10T15:00:00'),
         timezone: 'America/New_York',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(googleEvent, 'America/Los_Angeles');
@@ -296,6 +309,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         startTime: new Date(2024, 10, 3, 1, 30, 0), // During fall back
         endTime: new Date(2024, 10, 3, 2, 30, 0),
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(icalEvent, 'America/New_York');
@@ -312,6 +326,7 @@ describe('TimezoneService - Enhanced DST Implementation', () => {
         endTime: new Date('2024-03-10T03:30:00Z'),
         timezone: 'UTC',
         isAllDay: false,
+        color: '#3B82F6',
       };
 
       const converted = service.convertToLocalTimeSafe(friendEvent, 'America/New_York');

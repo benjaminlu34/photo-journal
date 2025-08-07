@@ -6,7 +6,6 @@ import ICAL from 'ical.js';
 import { LRUCache } from 'lru-cache';
 import DOMPurify from 'dompurify';
 import { addDays } from 'date-fns';
-import { add } from 'date-fns';
 import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
@@ -442,17 +441,6 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         const userTimezone = timezoneService.getUserTimezone();
         let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
-        // Validate all-day events don't cross date boundaries
-        if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
-          console.warn(`All-day event crosses date boundary, adjusting: ${event.uid}`);
-          const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
-          calendarEvent = {
-            ...calendarEvent,
-            startTime: dayBounds.start,
-            endTime: dayBounds.end,
-          };
-        }
-
         events.push(calendarEvent);
       }
 
@@ -506,7 +494,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
             keysToDelete.push(key);
           }
         }
-        
+
         // Delete collected keys
         for (const key of keysToDelete) {
           this.feedCache.delete(key);
@@ -539,7 +527,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       // Get cache keys and extract unique feed IDs
       const keys: string[] = Array.from(this.feedCache.keys());
       const uniqueFeedIds = new Set<string>();
-      
+
       for (const key of keys) {
         const parts = key.split(':');
         const feedId = parts[0];
@@ -782,17 +770,6 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     // Normalize for user (safe conversion + all-day clamp if needed)
     let calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
-    // Validate all-day events don't cross date boundaries after conversion
-    if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
-      console.warn(`All-day event from Google crosses date boundary, adjusting: ${item.id}`);
-      const dayBounds = timezoneService.getLocalDayBounds(calendarEvent.startTime, userTimezone);
-      calendarEvent = {
-        ...calendarEvent,
-        startTime: dayBounds.start,
-        endTime: dayBounds.end,
-      };
-    }
-
     return calendarEvent;
   }
 
@@ -922,7 +899,7 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
     // Use proper method to handle visibility refresh
     feedService.handleVisibilityRefresh();
   };
-  
+
   // Store handler reference for cleanup and add listener
   (feedService as any).visibilityChangeHandler = onVisibilityChange;
   document.addEventListener('visibilitychange', onVisibilityChange);

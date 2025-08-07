@@ -34,7 +34,7 @@ export interface TimezoneService {
 
   // All-day event utilities
   getLocalDayBounds(date: Date, timezone: string): { start: Date; end: Date };
-  validateAllDayEvent<T extends BaseEvent>(event: T, timezone: string): boolean;
+  validateAllDayEvent<T extends BaseEvent>(event: T): boolean;
 }
 
 export class TimezoneServiceImpl implements TimezoneService {
@@ -219,7 +219,7 @@ export class TimezoneServiceImpl implements TimezoneService {
     let calendarEvent = this.convertToLocalTimeSafe(event, userTimezone);
 
     if (calendarEvent.isAllDay && calendarEvent.startTime && calendarEvent.endTime) {
-      if (!this.validateAllDayEvent(calendarEvent, userTimezone)) {
+      if (!this.validateAllDayEvent(calendarEvent)) {
         const dayBounds = this.getLocalDayBounds(calendarEvent.startTime, userTimezone);
         calendarEvent = {
           ...calendarEvent,
@@ -233,7 +233,7 @@ export class TimezoneServiceImpl implements TimezoneService {
   }
 
   // Validate single-day all-day events: must start and end on same calendar day
-  validateAllDayEvent<T extends BaseEvent>(event: T, timezone: string): boolean {
+  validateAllDayEvent<T extends BaseEvent>(event: T): boolean {
     if (!event.isAllDay || !event.startTime || !event.endTime) {
       return true;
     }
