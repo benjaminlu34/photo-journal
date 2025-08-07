@@ -273,8 +273,12 @@ export class SnapshotServiceImpl implements SnapshotService {
   private async sendToSupabase(weekId: string, state: Uint8Array): Promise<void> {
     // In real implementation, this would call the Supabase Edge Function
     // For now, we'll just simulate the API call
+    // TODO: Align payload with server SnapshotRequest (e.g., { boardId, version, snapshotBase64 })
+    // Current mock uses { weekId, stateBase64 } which may not match the deployed edge function.
 
     const payload = {
+      // Expected by server: boardId, version, snapshotBase64
+      // Mock fields used locally:
       weekId,
       stateBase64: this.toBase64(state),
       timestamp: new Date().toISOString()

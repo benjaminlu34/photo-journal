@@ -259,10 +259,12 @@ export function createCalendarSDK({
     
     // Cleanup function
     async destroy() {
+      // First, flush any pending snapshots while the document is still valid
+      await snapshotService.stopSnapshotBatching(weekId);
+      // Then tear down providers and the document
       provider.destroy();
       indexeddbProvider.destroy?.();
       doc.destroy();
-      await snapshotService.stopSnapshotBatching(weekId);
     },
   };
 }

@@ -1,5 +1,26 @@
 import { queryClient } from './queryClient';
 
+// Generic SDK shape for destroyable instances
+type DestroyableSdk = { destroy?: () => void | Promise<void> };
+
+async function destroyAndClearRegistry(
+  registry: Record<string, DestroyableSdk>,
+  registryName: string
+): Promise<void> {
+  try {
+    await Promise.all(
+      Object.values(registry).map(async (sdk) => {
+        if (sdk?.destroy) {
+          await sdk.destroy();
+        }
+      })
+    );
+    Object.keys(registry).forEach((key) => delete registry[key]);
+  } catch (error) {
+    console.warn(`Failed to clear ${registryName} registry:`, error);
+  }
+}
+
 // Clear only in-memory state, preserve persisted data
 export async function cleanupUserState() {
   // 1. Clear TanStack Query cache (in-memory only)
@@ -9,32 +30,17 @@ export async function cleanupUserState() {
   // 2. Destroy in-memory SDK instances without deleting persisted data
   try {
     const { sdkRegistry } = await import('./board-sdk');
-    await Promise.all(
-      Object.values(sdkRegistry).map(async (sdk) => {
-        if (sdk?.destroy) {
-          await sdk.destroy();
-        }
-      })
-    );
-    // Clear only the registry, keep IndexedDB intact
-    Object.keys(sdkRegistry).forEach(key => delete sdkRegistry[key]);
+    await destroyAndClearRegistry(sdkRegistry, 'board SDK');
   } catch (error) {
-    console.warn('Failed to clear SDK registry:', error);
+    console.warn('Failed to import board SDK registry:', error);
   }
 
   // 3. Destroy and clear calendar SDK instances as well
   try {
     const { calendarSdkRegistry } = await import('./calendar-sdk');
-    await Promise.all(
-      Object.values(calendarSdkRegistry).map(async (sdk) => {
-        if (sdk?.destroy) {
-          await sdk.destroy();
-        }
-      })
-    );
-    Object.keys(calendarSdkRegistry).forEach(key => delete calendarSdkRegistry[key]);
+    await destroyAndClearRegistry(calendarSdkRegistry, 'calendar SDK');
   } catch (error) {
-    console.warn('Failed to clear calendar SDK registry:', error);
+    console.warn('Failed to import calendar SDK registry:', error);
   }
   
   // 4. DO NOT delete IndexedDB - this preserves user data
