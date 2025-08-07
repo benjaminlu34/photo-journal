@@ -93,8 +93,8 @@ export function createCalendarSDK({
       lastModified: new Date(),
     });
     
-    // Mark pending changes for snapshot service
-    snapshotService.markPendingChanges();
+    // Mark pending changes for snapshot service with weekId and doc
+    snapshotService.markPendingChanges(weekId, doc);
   });
 
   // Start snapshot batching with proper debounce and batch size
@@ -258,11 +258,13 @@ export function createCalendarSDK({
     },
     
     // Cleanup function
-    destroy() {
+    async destroy() {
+      // First, flush any pending snapshots while the document is still valid
+      await snapshotService.stopSnapshotBatching(weekId);
+      // Then tear down providers and the document
       provider.destroy();
       indexeddbProvider.destroy?.();
       doc.destroy();
-      snapshotService.stopSnapshotBatching();
     },
   };
 }

@@ -32,10 +32,16 @@ export function createWeeklyCalendarDocument(weekId: string): WeeklyCalendarDocu
 
 // CRDT garbage collection configuration
 // We store a tombstone timestamp under this metadata key on the event object.
-const DELETION_TOMBSTONE_KEY = 'deletedAt';
+const DELETION_TOMBSTONE_KEY = 'deletedAt' as const;
 // Grace period before we hard-delete tombstoned events.
 // Caller can tune; we keep a conservative default to allow sync propagation.
 const DELETION_GRACE_MS = 60 * 1000; // 1 minute
+
+// Narrowing helper for tombstoned events (type-safe, no any)
+type TombstonedEvent = LocalEvent & { deletedAt?: string };
+function hasTombstone(event: LocalEvent): event is TombstonedEvent {
+  return DELETION_TOMBSTONE_KEY in (event as object);
+}
 
 // CRDT conflict resolution utilities
 export class CRDTConflictResolver {
@@ -62,14 +68,14 @@ export class CRDTConflictResolver {
     if (!event) return;
 
     // Mark as deleted (soft delete) and add tombstone timestamp for GC
-    const deletedEvent = {
+    const deletedEvent: TombstonedEvent = {
       ...event,
       title: '[DELETED]',
       description: `Deleted by ${deletedBy} at ${deletedAt.toISOString()}`,
       updatedAt: deletedAt,
       // store tombstone in a stable optional field so we can GC later
       [DELETION_TOMBSTONE_KEY]: deletedAt.toISOString(),
-    } as LocalEvent & { [DELETION_TOMBSTONE_KEY]?: string };
+    };
 
     eventsMap.set(eventId, deletedEvent);
   }
@@ -216,6 +222,51 @@ export class WeeklyCalendarDocumentUtils {
     document.metadata.set('lastModified', new Date());
   }
 
+  // Get document statistics
+  static getDocumentStats(document: WeeklyCalendarDocument): {
+    eventCount: number;
+    collaboratorCount: number;
+    lastModified: Date | null;
+    weekId: string;
+    tombstoneCount: number;
+  } {
+    const events = Array.from(document.localEvents.values());
+
+    // Safely read collaborators array from metadata
+    const rawCollaborators = document.metadata.get('collaborators');
+    const collaborators = Array.isArray(rawCollaborators)
+      ? (rawCollaborators.filter((v): v is string => typeof v === 'string'))
+      : [];
+
+    // Safely read lastModified as a valid Date
+    const rawLastModified = document.metadata.get('lastModified');
+    let lastModified: Date | null = null;
+    if (rawLastModified instanceof Date) {
+      lastModified = rawLastModified;
+    } else if (typeof rawLastModified === 'string') {
+      const parsed = new Date(rawLastModified);
+      if (!Number.isNaN(parsed.getTime())) {
+        lastModified = parsed;
+      }
+    }
+
+    // Safely read weekId as a non-empty string, fall back to document.weekId
+    const rawWeekId = document.metadata.get('weekId');
+    const weekId = typeof rawWeekId === 'string' && rawWeekId.length > 0
+      ? rawWeekId
+      : document.weekId;
+    
+    const tombstoneCount = events.filter(hasTombstone).length;
+    
+    return {
+      eventCount: events.length - tombstoneCount, // Active events only
+      collaboratorCount: collaborators.length,
+      lastModified,
+      weekId,
+      tombstoneCount,
+    };
+  }
+
   // Garbage collection for tombstoned (soft-deleted) events.
   // Intended to be invoked:
   // - on document load
@@ -229,10 +280,9 @@ export class WeeklyCalendarDocumentUtils {
 
     for (const [id, ev] of eventsMap.entries()) {
       // We only consider entries that contain our tombstone marker
-      const tombstone = (ev as any)?.[DELETION_TOMBSTONE_KEY] as string | undefined;
-      if (!tombstone) continue;
+      if (!hasTombstone(ev) || typeof ev.deletedAt !== 'string') continue;
 
-      const deletedAtMs = Date.parse(tombstone);
+      const deletedAtMs = Date.parse(ev.deletedAt);
       if (!Number.isFinite(deletedAtMs)) continue;
 
       // If the tombstone is older than the grace period, hard-delete it
