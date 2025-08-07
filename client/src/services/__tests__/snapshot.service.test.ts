@@ -19,6 +19,8 @@ describe('SnapshotService - Debounce and Batching', () => {
   let service: SnapshotServiceImpl;
   let mockDoc: Y.Doc;
   let mockSendToSupabase: Mock;
+  let createdWeekIds: Set<string>;
+  let createdDocs: Y.Doc[];
 
   beforeEach(() => {
     // Create fresh service instance
@@ -26,6 +28,10 @@ describe('SnapshotService - Debounce and Batching', () => {
 
     // Create mock Yjs document
     mockDoc = new Y.Doc();
+
+    // Track created weekIds and docs for proper cleanup
+    createdWeekIds = new Set();
+    createdDocs = [mockDoc];
 
     // Mock the private sendToSupabase method
     mockSendToSupabase = vi.fn().mockResolvedValue(undefined);
@@ -40,16 +46,44 @@ describe('SnapshotService - Debounce and Batching', () => {
   });
 
   afterEach(() => {
-    // Clean up
-    service.stopSnapshotBatching('test-week-1');
-    mockDoc.destroy();
+    // Clean up ALL created weekIds to prevent state leaking between tests
+    for (const weekId of createdWeekIds) {
+      try {
+        service.stopSnapshotBatching(weekId);
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+    
+    // Clean up all created documents
+    for (const doc of createdDocs) {
+      try {
+        doc.destroy();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+    
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
+  // Helper function to track weekIds for cleanup
+  const trackWeekId = (weekId: string) => {
+    createdWeekIds.add(weekId);
+    return weekId;
+  };
+
+  // Helper function to create and track documents
+  const createTrackedDoc = () => {
+    const doc = new Y.Doc();
+    createdDocs.push(doc);
+    return doc;
+  };
+
   describe('10 Second Debounce Implementation', () => {
     it('should debounce snapshot calls for 10 seconds', async () => {
-      const weekId = 'test-week-1';
+      const weekId = trackWeekId('test-week-1');
 
       // Start batching
       service.startSnapshotBatching(weekId, mockDoc);
@@ -77,7 +111,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should reset debounce timer on new changes', async () => {
-      const weekId = 'test-week-2';
+      const weekId = trackWeekId('test-week-2');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -102,23 +136,16 @@ describe('SnapshotService - Debounce and Batching', () => {
 
   describe('~1KB Batch Size Threshold', () => {
     it('should trigger immediate flush when size exceeds 1KB threshold', async () => {
-      const weekId = 'test-week-3';
+      const weekId = trackWeekId('test-week-3');
 
-      // Mock the performSnapshot method to track size differences
-      let capturedSizes: number[] = [];
-      const originalPerformSnapshot = (service as any).performSnapshot;
-      (service as any).performSnapshot = vi.fn().mockImplementation(async (weekId: string, doc: Y.Doc) => {
-        const size = Y.encodeStateAsUpdate(doc).length;
-        capturedSizes.push(size);
-        return originalPerformSnapshot.call(service, weekId, doc);
-      });
-
-      // Mock lastSnapshotSize to simulate size difference
-      (service as any).lastSnapshotSize = 500; // Start with 500 bytes
+      // Mock the lastSnapshotSizes Map to simulate size difference
+      const mockSizesMap = new Map<string, number>();
+      mockSizesMap.set(weekId, 500); // Start with 500 bytes for this document
+      (service as any).lastSnapshotSizes = mockSizesMap;
 
       service.startSnapshotBatching(weekId, mockDoc);
 
-      // Add some data to the document to increase its size
+      // Add some data to the document to increase its size significantly
       const map = mockDoc.getMap('test');
       for (let i = 0; i < 200; i++) {
         map.set(`key${i}`, `value${i}`.repeat(10)); // Add substantial data
@@ -134,7 +161,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should track size differences correctly', async () => {
-      const weekId = 'test-week-4';
+      const weekId = trackWeekId('test-week-4');
 
       service.startSnapshotBatching(weekId, mockDoc);
 
@@ -164,7 +191,7 @@ describe('SnapshotService - Debounce and Batching', () => {
 
   describe('Buffered Queue System', () => {
     it('should maintain a buffered queue of pending snapshots', () => {
-      const weekId = 'test-week-5';
+      const weekId = trackWeekId('test-week-5');
 
       service.startSnapshotBatching(weekId, mockDoc);
 
@@ -182,7 +209,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should prevent duplicate entries for the same weekId', () => {
-      const weekId = 'test-week-6';
+      const weekId = trackWeekId('test-week-6');
 
       service.startSnapshotBatching(weekId, mockDoc);
 
@@ -202,22 +229,23 @@ describe('SnapshotService - Debounce and Batching', () => {
 
       // Add more than MAX_QUEUE_SIZE items
       for (let i = 0; i < 15; i++) {
-        const doc = new Y.Doc();
+        const doc = createTrackedDoc();
+        const weekId = trackWeekId(`week-${i}`);
         docs.push(doc);
-        service.startSnapshotBatching(`week-${i}`, doc);
-        service.markPendingChanges(`week-${i}`, doc);
+        service.startSnapshotBatching(weekId, doc);
+        service.markPendingChanges(weekId, doc);
       }
 
       // Queue should be limited to MAX_QUEUE_SIZE (10)
       const stats = service.getQueueStats();
       expect(stats.queueSize).toBeLessThanOrEqual(10);
 
-      // Clean up
-      docs.forEach(doc => doc.destroy());
+      // Clean up (docs will be cleaned up automatically by afterEach)
+      // docs.forEach(doc => doc.destroy()); // Not needed - handled by afterEach
     });
 
     it('should flush queue on stopSnapshotBatching', async () => {
-      const weekId = 'test-week-7';
+      const weekId = trackWeekId('test-week-7');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -237,7 +265,7 @@ describe('SnapshotService - Debounce and Batching', () => {
 
   describe('Timer and Flush Logic', () => {
     it('should clear timer when stopping batching', () => {
-      const weekId = 'test-week-8';
+      const weekId = trackWeekId('test-week-8');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -252,7 +280,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should handle multiple concurrent flush operations', async () => {
-      const weekId = 'test-week-9';
+      const weekId = trackWeekId('test-week-9');
 
       service.startSnapshotBatching(weekId, mockDoc);
 
@@ -272,7 +300,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should handle errors during flush gracefully', async () => {
-      const weekId = 'test-week-10';
+      const weekId = trackWeekId('test-week-10');
 
       // Mock sendToSupabase to throw error
       mockSendToSupabase.mockRejectedValueOnce(new Error('Network error'));
@@ -295,7 +323,7 @@ describe('SnapshotService - Debounce and Batching', () => {
 
   describe('Force Snapshot Functionality', () => {
     it('should bypass queue and debounce for force snapshot', async () => {
-      const weekId = 'test-week-11';
+      const weekId = trackWeekId('test-week-11');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -314,7 +342,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should clear pending timer when forcing snapshot', async () => {
-      const weekId = 'test-week-12';
+      const weekId = trackWeekId('test-week-12');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -336,7 +364,7 @@ describe('SnapshotService - Debounce and Batching', () => {
 
   describe('Performance and Memory Management', () => {
     it('should track performance metrics', async () => {
-      const weekId = 'test-week-13';
+      const weekId = trackWeekId('test-week-13');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
@@ -351,7 +379,7 @@ describe('SnapshotService - Debounce and Batching', () => {
     });
 
     it('should handle rapid successive changes efficiently', async () => {
-      const weekId = 'test-week-14';
+      const weekId = trackWeekId('test-week-14');
 
       service.startSnapshotBatching(weekId, mockDoc);
 
@@ -369,6 +397,71 @@ describe('SnapshotService - Debounce and Batching', () => {
       await vi.runAllTimersAsync();
 
       expect(mockSendToSupabase).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Race Condition Prevention', () => {
+    it('should preserve queue integrity during concurrent operations', async () => {
+      const weekId1 = trackWeekId('test-week-race-1');
+      const weekId2 = trackWeekId('test-week-race-2');
+      const mockDoc2 = createTrackedDoc();
+      
+      service.startSnapshotBatching(weekId1, mockDoc);
+      service.startSnapshotBatching(weekId2, mockDoc2);
+      
+      // Add changes to both documents
+      service.markPendingChanges(weekId1, mockDoc);
+      service.markPendingChanges(weekId2, mockDoc2);
+      
+      // Verify both items are in queue
+      let stats = service.getQueueStats();
+      expect(stats.queueSize).toBe(2);
+      
+      // Trigger flush and verify it processes all items
+      vi.advanceTimersByTime(10000);
+      await vi.runAllTimersAsync();
+      
+      // Both documents should have been processed
+      expect(mockSendToSupabase).toHaveBeenCalledTimes(2);
+      
+      // Queue should be empty
+      stats = service.getQueueStats();
+      expect(stats.queueSize).toBe(0);
+      
+      // Clean up (handled automatically by afterEach)
+      // mockDoc2.destroy(); // Not needed - handled by afterEach
+    });
+
+    it('should handle document-specific operations correctly', async () => {
+      const weekId1 = trackWeekId('test-week-stop-1');
+      const weekId2 = trackWeekId('test-week-stop-2');
+      const mockDoc2 = createTrackedDoc();
+      
+      service.startSnapshotBatching(weekId1, mockDoc);
+      service.startSnapshotBatching(weekId2, mockDoc2);
+      
+      // Add changes to both documents
+      service.markPendingChanges(weekId1, mockDoc);
+      service.markPendingChanges(weekId2, mockDoc2);
+      
+      let stats = service.getQueueStats();
+      expect(stats.queueSize).toBe(2);
+      
+      // Stop batching for first document only
+      service.stopSnapshotBatching(weekId1);
+      await vi.runAllTimersAsync();
+      
+      // Should have processed at least one document
+      expect(mockSendToSupabase).toHaveBeenCalled();
+      
+      // Verify per-document size tracking is maintained
+      const sizeStats = service.getQueueStats();
+      expect(sizeStats.lastSnapshotSizes).not.toHaveProperty(weekId1);
+      expect(sizeStats.lastSnapshotSizes).toHaveProperty(weekId2);
+      
+      // Clean up (handled automatically by afterEach)
+      // service.stopSnapshotBatching(weekId2); // Not needed - handled by afterEach
+      // mockDoc2.destroy(); // Not needed - handled by afterEach
     });
   });
 });
