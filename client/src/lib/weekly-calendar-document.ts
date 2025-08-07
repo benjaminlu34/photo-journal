@@ -231,9 +231,30 @@ export class WeeklyCalendarDocumentUtils {
     tombstoneCount: number;
   } {
     const events = Array.from(document.localEvents.values());
-    const collaborators = document.metadata.get('collaborators') as string[] || [];
-    const lastModified = document.metadata.get('lastModified') as Date || null;
-    const weekId = document.metadata.get('weekId') as string || document.weekId;
+
+    // Safely read collaborators array from metadata
+    const rawCollaborators = document.metadata.get('collaborators');
+    const collaborators = Array.isArray(rawCollaborators)
+      ? (rawCollaborators.filter((v): v is string => typeof v === 'string'))
+      : [];
+
+    // Safely read lastModified as a valid Date
+    const rawLastModified = document.metadata.get('lastModified');
+    let lastModified: Date | null = null;
+    if (rawLastModified instanceof Date) {
+      lastModified = rawLastModified;
+    } else if (typeof rawLastModified === 'string') {
+      const parsed = new Date(rawLastModified);
+      if (!Number.isNaN(parsed.getTime())) {
+        lastModified = parsed;
+      }
+    }
+
+    // Safely read weekId as a non-empty string, fall back to document.weekId
+    const rawWeekId = document.metadata.get('weekId');
+    const weekId = typeof rawWeekId === 'string' && rawWeekId.length > 0
+      ? rawWeekId
+      : document.weekId;
     
     const tombstoneCount = events.filter(hasTombstone).length;
     
