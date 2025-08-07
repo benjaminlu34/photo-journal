@@ -216,6 +216,36 @@ export class WeeklyCalendarDocumentUtils {
     document.metadata.set('lastModified', new Date());
   }
 
+  // Get document statistics
+  static getDocumentStats(document: WeeklyCalendarDocument): {
+    eventCount: number;
+    collaboratorCount: number;
+    lastModified: Date | null;
+    weekId: string;
+    tombstoneCount: number;
+  } {
+    const events = Array.from(document.localEvents.values());
+    const collaborators = document.metadata.get('collaborators') as string[] || [];
+    const lastModified = document.metadata.get('lastModified') as Date || null;
+    const weekId = document.metadata.get('weekId') as string || document.weekId;
+    
+    // Count tombstoned events
+    let tombstoneCount = 0;
+    for (const event of events) {
+      if ((event as any)?.[DELETION_TOMBSTONE_KEY]) {
+        tombstoneCount++;
+      }
+    }
+    
+    return {
+      eventCount: events.length - tombstoneCount, // Active events only
+      collaboratorCount: collaborators.length,
+      lastModified,
+      weekId,
+      tombstoneCount,
+    };
+  }
+
   // Garbage collection for tombstoned (soft-deleted) events.
   // Intended to be invoked:
   // - on document load
