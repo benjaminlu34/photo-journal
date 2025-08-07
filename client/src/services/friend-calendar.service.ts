@@ -642,7 +642,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         };
 
         let calendarEvent: FriendCalendarEvent =
-          timezoneService.convertToLocalTimeSafe(prepared, userTimezone);
+          timezoneService.normalizeEventForUser(prepared, userTimezone);
 
         // Validate all-day event boundaries post-conversion
         if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {

@@ -5,6 +5,8 @@
 import ICAL from 'ical.js';
 import { LRUCache } from 'lru-cache';
 import DOMPurify from 'dompurify';
+import { addDays } from 'date-fns';
+import { add } from 'date-fns';
 import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
@@ -436,9 +438,9 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
 
-        // Apply timezone conversion with DST handling (safe handles floating vs zoned)
+        // Normalize for user (safe conversion + all-day clamp if needed)
         const userTimezone = timezoneService.getUserTimezone();
-        let calendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
+        let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
         // Validate all-day events don't cross date boundaries
         if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {
@@ -752,7 +754,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.end.dateTime)
       : item.end.date
         ? new Date(new Date(item.end.date + 'T00:00:00').getTime() - 1)
-        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000 - 1);
+        : new Date(addDays(startTime, 1).getTime() - 1);
 
     const baseEvent: CalendarEvent = {
       id: `${feed.id}:${item.id}`,
@@ -777,8 +779,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
     const userTimezone = timezoneService.getUserTimezone();
 
-    // Safe conversion handles floating vs zoned based on timezone property
-    let calendarEvent: CalendarEvent = timezoneService.convertToLocalTimeSafe(baseEvent, userTimezone);
+    // Normalize for user (safe conversion + all-day clamp if needed)
+    let calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
     // Validate all-day events don't cross date boundaries after conversion
     if (calendarEvent.isAllDay && !timezoneService.validateAllDayEvent(calendarEvent, userTimezone)) {

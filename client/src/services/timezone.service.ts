@@ -213,19 +213,32 @@ export class TimezoneServiceImpl implements TimezoneService {
     }
   }
 
+
+  // Normalize and adjust event for user timezone with all-day safety
+  normalizeEventForUser<T extends BaseEvent>(event: T, userTimezone: string): T {
+    let calendarEvent = this.convertToLocalTimeSafe(event, userTimezone);
+
+    if (calendarEvent.isAllDay && calendarEvent.startTime && calendarEvent.endTime) {
+      if (!this.validateAllDayEvent(calendarEvent, userTimezone)) {
+        const dayBounds = this.getLocalDayBounds(calendarEvent.startTime, userTimezone);
+        calendarEvent = {
+          ...calendarEvent,
+          startTime: dayBounds.start,
+          endTime: dayBounds.end,
+        };
+      }
+    }
+
+    return calendarEvent;
+  }
+
   // Validate single-day all-day events: must start and end on same calendar day
   validateAllDayEvent<T extends BaseEvent>(event: T, timezone: string): boolean {
     if (!event.isAllDay || !event.startTime || !event.endTime) {
-      return true; // Not an all-day event or missing times
+      return true;
     }
-
-    try {
-      const dayDiff = differenceInCalendarDays(event.endTime, event.startTime);
-      return dayDiff === 0;
-    } catch (error) {
-      console.warn('Error validating all-day event:', error);
-      return false;
-    }
+    const dayDiff = differenceInCalendarDays(event.endTime, event.startTime);
+    return dayDiff === 0;
   }
 }
 
