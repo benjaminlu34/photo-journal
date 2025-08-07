@@ -132,6 +132,13 @@ export class SnapshotServiceImpl implements SnapshotService {
     // Clear any pending timer for this document
     this.clearDebounceTimer(weekId);
 
+    // Remove any queued item for this document to avoid duplicate snapshot later
+    const originalLength = this.snapshotQueue.length;
+    this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
+    if (this.snapshotQueue.length !== originalLength) {
+      this.pendingChanges = this.snapshotQueue.length > 0;
+    }
+
     // Perform immediate snapshot
     await this.performSnapshot(weekId, doc);
   }
@@ -251,6 +258,24 @@ export class SnapshotServiceImpl implements SnapshotService {
     }
   }
 
+  // Cross-environment Uint8Array -> Base64 conversion
+  private toBase64(state: Uint8Array): string {
+    // Node.js
+    if (typeof window === 'undefined') {
+      // eslint-disable-next-line no-undef
+      return Buffer.from(state).toString('base64');
+    }
+    // Browser-safe conversion in chunks
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < state.length; i += chunkSize) {
+      const chunk = state.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    // eslint-disable-next-line no-undef
+    return btoa(binary);
+  }
+
   // Mock implementation of sending to Supabase
   private async sendToSupabase(weekId: string, state: Uint8Array): Promise<void> {
     // In real implementation, this would call the Supabase Edge Function
@@ -258,7 +283,7 @@ export class SnapshotServiceImpl implements SnapshotService {
 
     const payload = {
       weekId,
-      state: Array.from(state), // Convert Uint8Array to regular array for JSON
+      stateBase64: this.toBase64(state),
       timestamp: new Date().toISOString()
     };
 
