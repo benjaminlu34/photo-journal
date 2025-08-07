@@ -1,15 +1,16 @@
 /**
- * Calendar feed service for handling external calendar integration
- * Implements Google Calendar OAuth 2.0 integration, iCal feed parsing, caching, and rate limiting
+ * Calendar feed service for external calendar integration.
  */
 
 import ICAL from 'ical.js';
 import { LRUCache } from 'lru-cache';
 import DOMPurify from 'dompurify';
+import { addDays } from 'date-fns';
 import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/calendar';
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver } from './duplicate-event-resolver.service';
+import { timezoneService } from './timezone.service';
 // Type-only import to avoid circular dependency
 import type { OfflineCalendarService } from './offline-calendar.service';
 
@@ -415,7 +416,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           continue;
         }
 
-        const calendarEvent: CalendarEvent = {
+        const baseEvent: CalendarEvent = {
           id: `${feedId}:${event.uid}`,
           title: event.summary || 'Untitled Event',
           description: this.sanitizeDescription(event.description || ''),
@@ -435,6 +436,10 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           source: 'ical',
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
+
+        // Normalize for user (safe conversion + all-day clamp if needed)
+        const userTimezone = timezoneService.getUserTimezone();
+        let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
         events.push(calendarEvent);
       }
@@ -489,7 +494,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
             keysToDelete.push(key);
           }
         }
-        
+
         // Delete collected keys
         for (const key of keysToDelete) {
           this.feedCache.delete(key);
@@ -522,7 +527,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       // Get cache keys and extract unique feed IDs
       const keys: string[] = Array.from(this.feedCache.keys());
       const uniqueFeedIds = new Set<string>();
-      
+
       for (const key of keys) {
         const parts = key.split(':');
         const feedId = parts[0];
@@ -732,14 +737,14 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ? new Date(item.start.dateTime)
       : new Date(item.start.date + 'T00:00:00');
 
-    // FIXED: Handle all-day events correctly - parse end.date consistently as local date
+    // Google all-day: end.date is exclusive (midnight next day) → convert to inclusive end (-1 ms)
     const endTime = item.end.dateTime
       ? new Date(item.end.dateTime)
       : item.end.date
-        ? new Date(item.end.date + 'T00:00:00') // Parse as local date consistently with startTime
-        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // Fallback: end of start day
+        ? new Date(new Date(item.end.date + 'T00:00:00').getTime() - 1)
+        : new Date(addDays(startTime, 1).getTime() - 1);
 
-    return {
+    const baseEvent: CalendarEvent = {
       id: `${feed.id}:${item.id}`,
       title: item.summary || 'Untitled Event',
       description: this.sanitizeDescription(item.description || ''),
@@ -759,6 +764,13 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       source: 'google',
       lastModified: new Date(item.updated),
     };
+
+    const userTimezone = timezoneService.getUserTimezone();
+
+    // Normalize for user (safe conversion + all-day clamp if needed)
+    let calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
+
+    return calendarEvent;
   }
 
   private generateCacheKey(feedId: string, dateRange?: { start: Date; end: Date }): string {
@@ -887,7 +899,7 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
     // Use proper method to handle visibility refresh
     feedService.handleVisibilityRefresh();
   };
-  
+
   // Store handler reference for cleanup and add listener
   (feedService as any).visibilityChangeHandler = onVisibilityChange;
   document.addEventListener('visibilitychange', onVisibilityChange);

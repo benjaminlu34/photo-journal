@@ -1,14 +1,20 @@
 /**
- * Timezone service for handling timezone conversions and DST transitions
- * Refactored to use date-fns-tz for reliable timezone handling.
+ * Timezone service for timezone conversions and DST transitions.
  */
 
 import type { BaseEvent } from '@/types/calendar';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { addHours, differenceInCalendarDays } from 'date-fns';
 
 export interface TimezoneService {
   // Convert event times to user's local timezone
   convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T;
+
+  // Safe wrapper for convertToLocalTime with DST handling
+  convertToLocalTimeSafe<T extends BaseEvent>(event: T, userTimezone: string): T;
+
+  // Convert absolute Date object to user's local time safely
+  convertAbsoluteDateToLocal(absoluteDate: Date, userTimezone: string): Date;
 
   // Handle floating times (no timezone specified)
   handleFloatingTime(dateTime: Date, userTimezone: string): Date;
@@ -25,14 +31,87 @@ export interface TimezoneService {
   // Distinguish between absolute vs floating time sources
   isFloatingTime<T extends BaseEvent>(event: T): boolean;
   isAbsoluteTime<T extends BaseEvent>(event: T): boolean;
+
+  // All-day event utilities
+  getLocalDayBounds(date: Date, timezone: string): { start: Date; end: Date };
+  validateAllDayEvent<T extends BaseEvent>(event: T): boolean;
 }
 
 export class TimezoneServiceImpl implements TimezoneService {
-  // Convert event times to user's local timezone
+  // Handle non-existent (spring-forward) and ambiguous (fall-back) local times
+  private normalizeNonexistentLocalTime(date: Date, timezone: string): Date {
+    const ONE_MINUTE_IN_MS = 60_000;
+    try {
+      // Round-trip to detect DST gaps
+      const utc = fromZonedTime(date, timezone);
+      const backToLocal = toZonedTime(utc, timezone);
+
+      // If mismatch > 1 minute, treat as nonexistent time
+      if (Math.abs(backToLocal.getTime() - date.getTime()) > ONE_MINUTE_IN_MS) {
+        // Shift forward by 1 hour and round-trip again
+        const shifted = addHours(date, 1);
+        const shiftedUtc = fromZonedTime(shifted, timezone);
+        return toZonedTime(shiftedUtc, timezone);
+      }
+
+      // Ambiguous times: use earliest occurrence (date-fns-tz default)
+      return backToLocal;
+    } catch (error) {
+      console.warn('Error normalizing local time (DST handling):', error);
+      return date;
+    }
+  }
+
+  // Convert an absolute Date to user's local time
+  convertAbsoluteDateToLocal(absoluteDate: Date, userTimezone: string): Date {
+    try {
+      return toZonedTime(absoluteDate, userTimezone);
+    } catch (error) {
+      console.warn('Error converting absolute date to local time:', error);
+      return absoluteDate;
+    }
+  }
+
+  // Safe conversion with DST handling
+  convertToLocalTimeSafe<T extends BaseEvent>(event: T, userTimezone: string): T {
+    if (!event.startTime || !event.endTime) return event;
+
+    // Floating times
+    if (!event.timezone) {
+      return {
+        ...event,
+        startTime: this.handleFloatingTime(event.startTime, userTimezone),
+        endTime: this.handleFloatingTime(event.endTime, userTimezone),
+        timezone: userTimezone,
+      };
+    }
+
+    // Zoned times
+    const startUtc = fromZonedTime(event.startTime, event.timezone);
+    const endUtc = fromZonedTime(event.endTime, event.timezone);
+
+    const startLocal = this.normalizeNonexistentLocalTime(
+      toZonedTime(startUtc, userTimezone),
+      userTimezone
+    );
+    const endLocal = this.normalizeNonexistentLocalTime(
+      toZonedTime(endUtc, userTimezone),
+      userTimezone
+    );
+
+    return {
+      ...event,
+      startTime: startLocal,
+      endTime: endLocal,
+      timezone: userTimezone,
+    };
+  }
+
+  // Convert event times to user's local timezone (non-safe)
   convertToLocalTime<T extends BaseEvent>(event: T, userTimezone: string): T {
     if (!event.startTime || !event.endTime) return event;
 
-    // Floating time: interpret wall-clock time in userTimezone
+    // Floating time
     if (!event.timezone) {
       return {
         ...event,
@@ -41,13 +120,18 @@ export class TimezoneServiceImpl implements TimezoneService {
       };
     }
 
-    // If event timezone matches user timezone, no conversion needed
+    // Same timezone: still normalize to handle DST gaps/ambiguities
     if (event.timezone === userTimezone) {
-      return event;
+      const startLocal = this.normalizeNonexistentLocalTime(event.startTime, userTimezone);
+      const endLocal = this.normalizeNonexistentLocalTime(event.endTime, userTimezone);
+      return {
+        ...event,
+        startTime: startLocal,
+        endTime: endLocal,
+        timezone: userTimezone,
+      };
     }
 
-    // Treat event.startTime/endTime as absolute instants in their declared timezone,
-    // convert to userTimezone for display.
     const startAsZoned = toZonedTime(
       fromZonedTime(event.startTime, event.timezone),
       userTimezone
@@ -65,11 +149,8 @@ export class TimezoneServiceImpl implements TimezoneService {
     };
   }
 
-  // Handle floating times (no timezone specified)
+  // Handle floating times with DST awareness
   handleFloatingTime(dateTime: Date, userTimezone: string): Date {
-    // Interpret the naive wall-clock time components in the specified timezone
-    // by constructing a UTC instant from those components in userTimezone, then
-    // converting to a Date in that zone for consistent display.
     const y = dateTime.getFullYear();
     const m = dateTime.getMonth();
     const d = dateTime.getDate();
@@ -78,13 +159,8 @@ export class TimezoneServiceImpl implements TimezoneService {
     const ss = dateTime.getSeconds();
     const ms = dateTime.getMilliseconds();
 
-    // Build a Date with same local components in the current environment
     const naiveLocal = new Date(y, m, d, hh, mm, ss, ms);
-
-    // Convert "wall time in userTimezone" to a UTC instant,
-    // then back to a Date adjusted for userTimezone.
-    const asUtc = fromZonedTime(naiveLocal, userTimezone);
-    return toZonedTime(asUtc, userTimezone);
+    return this.normalizeNonexistentLocalTime(naiveLocal, userTimezone);
   }
 
   // DST transition handling
@@ -117,6 +193,52 @@ export class TimezoneServiceImpl implements TimezoneService {
 
   isAbsoluteTime<T extends BaseEvent>(event: T): boolean {
     return Boolean(event.timezone);
+  }
+
+  // Local day boundaries for all-day events
+  getLocalDayBounds(date: Date, timezone: string): { start: Date; end: Date } {
+    try {
+      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+      
+      const start = this.normalizeNonexistentLocalTime(startOfDay, timezone);
+      const end = this.normalizeNonexistentLocalTime(endOfDay, timezone);
+      
+      return { start, end };
+    } catch (error) {
+      console.warn('Error getting local day bounds:', error);
+      const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+      return { start, end };
+    }
+  }
+
+
+  // Normalize and adjust event for user timezone with all-day safety
+  normalizeEventForUser<T extends BaseEvent>(event: T, userTimezone: string): T {
+    let calendarEvent = this.convertToLocalTimeSafe(event, userTimezone);
+
+    if (calendarEvent.isAllDay && calendarEvent.startTime && calendarEvent.endTime) {
+      if (!this.validateAllDayEvent(calendarEvent)) {
+        const dayBounds = this.getLocalDayBounds(calendarEvent.startTime, userTimezone);
+        calendarEvent = {
+          ...calendarEvent,
+          startTime: dayBounds.start,
+          endTime: dayBounds.end,
+        };
+      }
+    }
+
+    return calendarEvent;
+  }
+
+  // Validate single-day all-day events: must start and end on same calendar day
+  validateAllDayEvent<T extends BaseEvent>(event: T): boolean {
+    if (!event.isAllDay || !event.startTime || !event.endTime) {
+      return true;
+    }
+    const dayDiff = differenceInCalendarDays(event.endTime, event.startTime);
+    return dayDiff === 0;
   }
 }
 
