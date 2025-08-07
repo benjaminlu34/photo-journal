@@ -32,7 +32,7 @@ interface CalendarState {
   
   // Actions
   actions: {
-    init: (weekId: string, userId?: string, userName?: string, username?: string) => void;
+    init: (weekId: string, userId?: string, userName?: string, username?: string) => Promise<void>;
     createLocalEvent: (event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => Promise<void>;
     updateLocalEvent: (id: string, updates: Partial<LocalEvent>) => Promise<void>;
     deleteLocalEvent: (id: string) => void;
@@ -52,7 +52,7 @@ interface CalendarState {
     loadFriendEventsForWeek: (weekDate: Date) => Promise<void>;
     handleFriendPermissionChange: (friendUserId: string, hasAccess: boolean) => void;
     
-    cleanup?: () => void;
+    cleanup?: () => Promise<void>;
   };
 }
 
@@ -74,7 +74,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   
   actions: {
     // Initialize the calendar store with a specific week
-    init: (weekId, userId = 'anonymous', userName = 'Anonymous', username?: string) => {
+    init: async (weekId, userId = 'anonymous', userName = 'Anonymous', username?: string) => {
       const state = get();
       
       // Prevent re-initialization
@@ -84,7 +84,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       
       // Cleanup existing SDK if any
       if (state.sdk) {
-        state.sdk.destroy();
+        await state.sdk.destroy();
       }
       
       const sdk = getCalendarSdk(weekId, userId, userName, username);
@@ -341,10 +341,10 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     },
 
     // Cleanup SDK instance
-    cleanup: () => {
+    cleanup: async () => {
       const { sdk } = get();
       if (sdk) {
-        sdk.destroy();
+        await sdk.destroy();
         set({ sdk: undefined, isInitialized: false });
       }
     },

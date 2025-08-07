@@ -6,15 +6,6 @@ import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import * as Y from 'yjs';
 import { SnapshotServiceImpl } from '../snapshot.service';
 
-// Mock the calendar config
-vi.mock('@shared/config/calendar-config', () => ({
-  CALENDAR_CONFIG: {
-    PERFORMANCE: {
-      DEBOUNCE_DELAY: 300,
-    },
-  },
-}));
-
 describe('SnapshotService - Debounce and Batching', () => {
   let service: SnapshotServiceImpl;
   let mockDoc: Y.Doc;
@@ -45,11 +36,11 @@ describe('SnapshotService - Debounce and Batching', () => {
     vi.useFakeTimers();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clean up ALL created weekIds to prevent state leaking between tests
     for (const weekId of createdWeekIds) {
       try {
-        service.stopSnapshotBatching(weekId);
+        await service.stopSnapshotBatching(weekId);
       } catch (error) {
         // Ignore cleanup errors
       }
@@ -239,9 +230,6 @@ describe('SnapshotService - Debounce and Batching', () => {
       // Queue should be limited to MAX_QUEUE_SIZE (10)
       const stats = service.getQueueStats();
       expect(stats.queueSize).toBeLessThanOrEqual(10);
-
-      // Clean up (docs will be cleaned up automatically by afterEach)
-      // docs.forEach(doc => doc.destroy()); // Not needed - handled by afterEach
     });
 
     it('should flush queue on stopSnapshotBatching', async () => {
@@ -251,7 +239,7 @@ describe('SnapshotService - Debounce and Batching', () => {
       service.markPendingChanges(weekId, mockDoc);
 
       // Stop batching should flush remaining items
-      service.stopSnapshotBatching(weekId);
+      await service.stopSnapshotBatching(weekId);
       await vi.runAllTimersAsync();
 
       expect(mockSendToSupabase).toHaveBeenCalled();
@@ -264,14 +252,14 @@ describe('SnapshotService - Debounce and Batching', () => {
   });
 
   describe('Timer and Flush Logic', () => {
-    it('should clear timer when stopping batching', () => {
+    it('should clear timer when stopping batching', async () => {
       const weekId = trackWeekId('test-week-8');
 
       service.startSnapshotBatching(weekId, mockDoc);
       service.markPendingChanges(weekId, mockDoc);
 
       // Stop batching should clear timer
-      service.stopSnapshotBatching(weekId);
+      await service.stopSnapshotBatching(weekId);
 
       // Advance time - should not trigger any snapshots
       vi.advanceTimersByTime(15000);
@@ -315,7 +303,7 @@ describe('SnapshotService - Debounce and Batching', () => {
       // Should have attempted to send despite error
       expect(mockSendToSupabase).toHaveBeenCalled();
       expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to save snapshot'),
+        expect.stringContaining('Failed to save snapshot for week'),
         expect.any(Error)
       );
     });
@@ -427,9 +415,6 @@ describe('SnapshotService - Debounce and Batching', () => {
       // Queue should be empty
       stats = service.getQueueStats();
       expect(stats.queueSize).toBe(0);
-      
-      // Clean up (handled automatically by afterEach)
-      // mockDoc2.destroy(); // Not needed - handled by afterEach
     });
 
     it('should handle document-specific operations correctly', async () => {
@@ -448,7 +433,7 @@ describe('SnapshotService - Debounce and Batching', () => {
       expect(stats.queueSize).toBe(2);
       
       // Stop batching for first document only
-      service.stopSnapshotBatching(weekId1);
+      await service.stopSnapshotBatching(weekId1);
       await vi.runAllTimersAsync();
       
       // Should have processed at least one document
@@ -458,10 +443,6 @@ describe('SnapshotService - Debounce and Batching', () => {
       const sizeStats = service.getQueueStats();
       expect(sizeStats.lastSnapshotSizes).not.toHaveProperty(weekId1);
       expect(sizeStats.lastSnapshotSizes).toHaveProperty(weekId2);
-      
-      // Clean up (handled automatically by afterEach)
-      // service.stopSnapshotBatching(weekId2); // Not needed - handled by afterEach
-      // mockDoc2.destroy(); // Not needed - handled by afterEach
     });
   });
 });

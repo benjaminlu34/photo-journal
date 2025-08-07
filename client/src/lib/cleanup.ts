@@ -9,11 +9,13 @@ export async function cleanupUserState() {
   // 2. Destroy in-memory SDK instances without deleting persisted data
   try {
     const { sdkRegistry } = await import('./board-sdk');
-    Object.values(sdkRegistry).forEach(sdk => {
-      if (sdk?.destroy) {
-        sdk.destroy();
-      }
-    });
+    await Promise.all(
+      Object.values(sdkRegistry).map(async (sdk) => {
+        if (sdk?.destroy) {
+          await sdk.destroy();
+        }
+      })
+    );
     // Clear only the registry, keep IndexedDB intact
     Object.keys(sdkRegistry).forEach(key => delete sdkRegistry[key]);
   } catch (error) {

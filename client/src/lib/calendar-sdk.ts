@@ -258,11 +258,11 @@ export function createCalendarSDK({
     },
     
     // Cleanup function
-    destroy() {
+    async destroy() {
       provider.destroy();
       indexeddbProvider.destroy?.();
       doc.destroy();
-      snapshotService.stopSnapshotBatching(weekId);
+      await snapshotService.stopSnapshotBatching(weekId);
     },
   };
 }

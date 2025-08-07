@@ -9,8 +9,8 @@ export interface SnapshotService {
   // Start snapshot batching for a document
   startSnapshotBatching(weekId: string, doc: Y.Doc): void;
 
-  // Stop snapshot batching for a specific document
-  stopSnapshotBatching(weekId: string): void;
+  // Stop snapshot batching for a specific document (awaits flush before cleanup)
+  stopSnapshotBatching(weekId: string): Promise<void>;
 
   // Mark pending changes for batching (now stateless)
   markPendingChanges(weekId: string, doc: Y.Doc): void;
@@ -62,17 +62,18 @@ export class SnapshotServiceImpl implements SnapshotService {
   }
 
   // Stop snapshot batching for a specific document and flush only its items
-  stopSnapshotBatching(weekId: string): void {
+  async stopSnapshotBatching(weekId: string): Promise<void> {
     this.clearDebounceTimer(weekId);
 
-    // Check if this document has any items in the queue
+    // Flush only items for this specific document before cleanup
     const documentItems = this.snapshotQueue.filter(item => item.weekId === weekId);
     if (documentItems.length > 0) {
-      // Flush only items for this specific document
-      this.flushDocumentItems(weekId);
+      // Remove document items from the main queue (race condition safe)
+      this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
+      await this._processItems(documentItems);
     }
 
-    // Clean up tracking for this document only
+    // Clean up tracking for this document only AFTER flush completes
     this.lastSnapshotSizes.delete(weekId);
 
     // Don't modify global pendingChanges flag - other documents may still have pending changes
@@ -144,68 +145,6 @@ export class SnapshotServiceImpl implements SnapshotService {
     };
   }
 
-  // Flush items for a specific document only (used by stopSnapshotBatching)
-  private async flushDocumentItems(weekId: string): Promise<void> {
-    // Find items for this specific document
-    const documentItems = this.snapshotQueue.filter(item => item.weekId === weekId);
-
-    if (documentItems.length === 0) {
-      return;
-    }
-
-    // Remove document items from the main queue (race condition safe)
-    this.snapshotQueue = this.snapshotQueue.filter(item => item.weekId !== weekId);
-
-    // Clear any pending timer for this document as we're flushing now
-    this.clearDebounceTimer(weekId);
-
-    // Process only the document's items
-    const promises = documentItems.map(item =>
-      this.performSnapshot(item.weekId, item.doc)
-    );
-
-    // Wait for all snapshots to complete
-    const results = await Promise.allSettled(promises);
-
-    // Handle failed snapshots for this document
-    const failedItems: QueuedSnapshot[] = [];
-
-    results.forEach((result, index) => {
-      const item = documentItems[index];
-
-      if (result.status === 'rejected') {
-        console.error(`Snapshot failed for week ${item.weekId}:`, result.reason);
-
-        // Increment retry count
-        const retryCount = (item.retryCount || 0) + 1;
-
-        // Re-add to queue for retry if under max attempts
-        if (retryCount < SnapshotServiceImpl.MAX_RETRY_ATTEMPTS) {
-          failedItems.push({
-            ...item,
-            retryCount,
-            timestamp: Date.now(),
-          });
-        } else {
-          console.error(`Max retry attempts reached for week ${item.weekId}, dropping snapshot`);
-        }
-      }
-    });
-
-    // Add failed items back to the main queue
-    if (failedItems.length > 0) {
-      this.snapshotQueue.unshift(...failedItems);
-    }
-
-    // Update pending changes based on current queue state
-    this.pendingChanges = this.snapshotQueue.length > 0;
-
-    const successCount = results.filter(r => r.status === 'fulfilled').length;
-    const failedCount = results.filter(r => r.status === 'rejected').length;
-
-    console.log(`Flushed document ${weekId}: ${successCount} succeeded, ${failedCount} failed, ${failedItems.length} queued for retry`);
-  }
-
   // Add item to buffered queue with size-based management
   private addToQueue(weekId: string, doc: Y.Doc, size: number): void {
     const queueItem: QueuedSnapshot = {
@@ -229,7 +168,7 @@ export class SnapshotServiceImpl implements SnapshotService {
 
   // Flush the buffered queue and perform snapshots (race condition safe)
   private async flushQueue(): Promise<void> {
-    if (this.snapshotQueue.length === 0 && !this.pendingChanges) {
+    if (this.snapshotQueue.length === 0) {
       return;
     }
 
@@ -237,21 +176,20 @@ export class SnapshotServiceImpl implements SnapshotService {
     const itemsToProcess = [...this.snapshotQueue];
     this.snapshotQueue = [];
 
-    if (itemsToProcess.length === 0) {
-      return;
-    }
-
     // Clear timers for all weekIds being processed to avoid duplicate scheduled flushes
     const processedWeekIds = new Set(itemsToProcess.map(item => item.weekId));
     processedWeekIds.forEach(weekId => this.clearDebounceTimer(weekId));
 
-    // Process all items from the copied queue
-    const promises = itemsToProcess.map(item =>
-      this.performSnapshot(item.weekId, item.doc)
-    );
+    // Process all items
+    await this._processItems(itemsToProcess);
+  }
 
-    // Wait for all snapshots to complete
-    const results = await Promise.allSettled(promises);
+  // Common processing logic shared by flushQueue and flushDocumentItems
+  private async _processItems(itemsToProcess: QueuedSnapshot[]): Promise<void> {
+    // Process all items from the provided list
+    const results = await Promise.allSettled(
+      itemsToProcess.map(item => this.performSnapshot(item.weekId, item.doc))
+    );
 
     // Handle failed snapshots and implement retry logic
     const failedItems: QueuedSnapshot[] = [];
@@ -278,7 +216,7 @@ export class SnapshotServiceImpl implements SnapshotService {
       }
     });
 
-    // CRITICAL FIX: Prepend failed items to preserve any new items added during flush
+    // Prepend failed items to preserve any new items added during processing
     if (failedItems.length > 0) {
       this.snapshotQueue.unshift(...failedItems);
     }

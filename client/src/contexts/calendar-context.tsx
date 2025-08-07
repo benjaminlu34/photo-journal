@@ -19,7 +19,7 @@ interface CalendarContextValue {
   isLoading: boolean;
   error: string | null;
   actions: {
-    init: (weekId: string, userId?: string, userName?: string, username?: string) => void;
+    init: (weekId: string, userId?: string, userName?: string, username?: string) => Promise<void>;
     createLocalEvent: (event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => Promise<void>;
     updateLocalEvent: (id: string, updates: Partial<LocalEvent>) => Promise<void>;
     deleteLocalEvent: (id: string) => void;
@@ -31,7 +31,7 @@ interface CalendarContextValue {
     addFriendEvents: (friendUserId: string, events: FriendCalendarEvent[]) => void;
     setError: (error: string | null) => void;
     updateFeedMeta?: (feedId: string, meta: { lastSyncAt?: Date; syncError?: string | null }) => void;
-    cleanup?: () => void;
+    cleanup?: () => Promise<void>;
   };
 }
 
