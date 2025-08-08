@@ -22,7 +22,7 @@ import {
   type InsertFriendshipChange,
 } from "@shared/schema/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte, ilike, sql, or } from "drizzle-orm";
+import { eq, and, desc, gte, lte, ilike, sql, or, inArray } from "drizzle-orm";
 import {
   buildCanonicalFriendshipIds,
   canSendFriendRequest,
@@ -819,7 +819,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number }): Promise<{
+  async getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number; roleFilter?: FriendRole[] }): Promise<{
     friends: (User & {
       friendshipId: string;
       roleUserToFriend: FriendRole;
@@ -832,26 +832,53 @@ export class DatabaseStorage implements IStorage {
   }> {
     const limit = Math.floor(options?.limit || 50);
     const offset = Math.floor(options?.offset || 0);
-    const cacheKey = `friends:${userId}:${offset}:${limit}`;
+    const roleFilter = options?.roleFilter;
+    const cacheKey = `friends:${userId}:${offset}:${limit}:${roleFilter?.join(',') || 'all'}`;
 
     // Check cache first
     if (this.shouldUseCache(cacheKey, this.friendsCache)) {
       return this.getFromCache(cacheKey, this.friendsCache);
     }
 
-    // Get total count of accepted friendships
+    // Build base where condition for accepted friendships
+    const baseWhereCondition = and(
+      eq(friendships.status, 'accepted'),
+      or(
+        eq(friendships.userId, userId),
+        eq(friendships.friendId, userId)
+      )
+    );
+
+    // Add role filtering condition if specified
+    let whereCondition = baseWhereCondition;
+    if (roleFilter && roleFilter.length > 0) {
+      // Filter based on the role that applies to the current user
+      // If current user is userId, they get roleFriendToUser
+      // If current user is friendId, they get roleUserToFriend
+      
+      // Filter out undefined values and create OR conditions for each role
+      const validRoles = roleFilter.filter((role): role is NonNullable<typeof role> => role !== undefined);
+      
+      const userIdRoleConditions = validRoles.map(role => 
+        and(eq(friendships.userId, userId), eq(friendships.roleFriendToUser, role as 'viewer' | 'contributor' | 'editor'))
+      );
+      const friendIdRoleConditions = validRoles.map(role => 
+        and(eq(friendships.friendId, userId), eq(friendships.roleUserToFriend, role as 'viewer' | 'contributor' | 'editor'))
+      );
+      
+      const roleFilterCondition = or(
+        ...userIdRoleConditions,
+        ...friendIdRoleConditions
+      );
+      
+      whereCondition = and(baseWhereCondition, roleFilterCondition);
+    }
+
+    // Get total count with role filtering
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(friendships)
-      .where(
-        and(
-          eq(friendships.status, 'accepted'),
-          or(
-            eq(friendships.userId, userId),
-            eq(friendships.friendId, userId)
-          )
-        )
-      );
+      .where(whereCondition);
 
     const totalCount = Number(countResult?.count || 0);
 
@@ -882,15 +909,7 @@ export class DatabaseStorage implements IStorage {
           and(eq(friendships.friendId, userId), eq(users.id, friendships.userId))
         )
       )
-      .where(
-        and(
-          eq(friendships.status, 'accepted'),
-          or(
-            eq(friendships.userId, userId),
-            eq(friendships.friendId, userId)
-          )
-        )
-      )
+      .where(whereCondition)
       .orderBy(desc(friendships.createdAt))
       .limit(limit)
       .offset(offset);

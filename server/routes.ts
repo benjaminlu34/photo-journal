@@ -1775,7 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ hasAccess: false, permission: 'viewer' as const });
         }
 
-        const role = getUserRoleInFriendship(friendship, currentUserId) as FriendRole;
+        const role = getUserRoleInFriendship(friendship, currentUserId);
 
         return res.json({
           hasAccess: CALENDAR_ACCESS_ROLES.includes(role),
@@ -1820,7 +1820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!friendship || friendship.status !== 'accepted') {
           return res.status(403).json({ message: "Access denied: Not friends or not accepted" });
         }
-        const role = getUserRoleInFriendship(friendship, currentUserId) as FriendRole;
+        const role = getUserRoleInFriendship(friendship, currentUserId);
         if (!CALENDAR_ACCESS_ROLES.includes(role)) {
           return res.status(403).json({ message: "Access denied: Insufficient permissions" });
         }
@@ -1862,13 +1862,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const limit = Math.min(Math.max(parseInt(limitParam || '50', 10) || 50, 1), 100);
         const offset = Math.max(parseInt(offsetParam || '0', 10) || 0, 0);
 
-        // Use existing helper that returns accepted friendships with roles
-        const { friends, totalCount } = await storage.getFriendsWithRoles(currentUserId, { limit, offset });
+        // Use existing helper with role filtering at database level
+        const { friends, totalCount } = await storage.getFriendsWithRoles(currentUserId, { 
+          limit, 
+          offset, 
+          roleFilter: [...CALENDAR_ACCESS_ROLES] 
+        });
 
-        // currentUserRole is computed in storage.getFriendsWithRoles
-        const allowedFriends = friends.filter(f =>
-          CALENDAR_ACCESS_ROLES.includes(f.currentUserRole as FriendRole)
-        );
+        // No need to filter in memory - filtering is done at database level
+        const allowedFriends = friends;
 
         // Shape to client Friend type
         const result = allowedFriends.map(f => ({
