@@ -9,6 +9,10 @@ import crypto from 'crypto';
  * - No server-side storage; caller is responsible for persisting encrypted blobs if needed.
  */
 
+// Cache the derived encryption key to avoid expensive scryptSync calls on every operation
+let cachedEncryptionKey: Buffer | null = null;
+let cachedKeyConfig: string | null = null;
+
 function getEncryptionKey(): Buffer {
   const secret = process.env.OAUTH_ENCRYPTION_SECRET || process.env.ENCRYPTION_SECRET;
   if (!secret) {
@@ -16,6 +20,13 @@ function getEncryptionKey(): Buffer {
   }
   
   const salt = process.env.OAUTH_ENCRYPTION_SALT;
+  const currentConfig = `${secret}:${salt || 'fallback'}:${process.env.NODE_ENV || 'development'}`;
+  
+  // Return cached key if configuration hasn't changed
+  if (cachedEncryptionKey && cachedKeyConfig === currentConfig) {
+    return cachedEncryptionKey;
+  }
+  
   if (!salt) {
     // Only allow fallback in development/test environments
     if (process.env.NODE_ENV === 'production') {
@@ -23,11 +34,16 @@ function getEncryptionKey(): Buffer {
     }
     // Use a deterministic but environment-specific fallback for dev/test
     const fallbackSalt = 'photo-journal-dev-salt-' + (process.env.NODE_ENV || 'development');
-    return crypto.scryptSync(secret, fallbackSalt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    cachedEncryptionKey = crypto.scryptSync(secret, fallbackSalt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  } else {
+    // Memory-hard KDF to slow brute-force; N=2^14, r=8, p=1 (moderate), 32-byte key
+    cachedEncryptionKey = crypto.scryptSync(secret, salt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
   }
   
-  // Memory-hard KDF to slow brute-force; N=2^14, r=8, p=1 (moderate), 32-byte key
-  return crypto.scryptSync(secret, salt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  // Cache the configuration to detect changes
+  cachedKeyConfig = currentConfig;
+  
+  return cachedEncryptionKey;
 }
 
 export function encryptToken(plaintext: string, associatedData?: string): string {

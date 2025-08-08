@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
 import {
   usernameCheckRateLimit,
-userSearchRateLimit,
+  userSearchRateLimit,
   usernameChangeRateLimit,
   friendRequestRateLimit,
   friendManagementRateLimit,
@@ -223,8 +223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Validate redirect URI against allow-list
   function validateRedirectUri(redirectUri: string): boolean {
-    return ALLOWED_REDIRECT_URIS.includes(redirectUri) || 
-           (process.env.NODE_ENV === 'development' && redirectUri.startsWith('http://localhost:'));
+    return ALLOWED_REDIRECT_URIS.includes(redirectUri) ||
+      (process.env.NODE_ENV === 'development' && redirectUri.startsWith('http://localhost:'));
   }
 
   // Shared error handling for Google OAuth endpoints
@@ -236,36 +236,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(`${endpoint} - Configuration error:`, err);
       return res.status(500).json({ message: "Server configuration error" });
     }
-    
+
     // Special handling for decrypt endpoint
     if (endpoint.includes('decrypt-token') && userId) {
       console.error(`Token decryption failed for user ${userId}. This could be a security event. Error:`, err);
       return res.status(400).json({ message: "Invalid or tampered token" });
     }
-    
+
     console.error(`${endpoint}:`, err);
-    const message = endpoint.includes('exchange-token') ? "Failed to exchange Google auth code" : 
-                   endpoint.includes('refresh-token') ? "Failed to refresh Google token" : 
-                   "Google OAuth operation failed";
+    const message = endpoint.includes('exchange-token') ? "Failed to exchange Google auth code" :
+      endpoint.includes('refresh-token') ? "Failed to refresh Google token" :
+        "Google OAuth operation failed";
     return res.status(502).json({ message });
   }
 
   let cachedGoogleConfig: import('openid-client').Client | null = null;
   async function getGoogleConfig(): Promise<import('openid-client').Client> {
     if (cachedGoogleConfig) return cachedGoogleConfig;
-    
+
     try {
       const env = googleEnvSchema.parse({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       });
-      
+
       const googleIssuer = await Issuer.discover("https://accounts.google.com");
       cachedGoogleConfig = new googleIssuer.Client({
         client_id: env.clientId,
         client_secret: env.clientSecret,
       });
-      
+
       return cachedGoogleConfig;
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -288,12 +288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { code, redirectUri } = exchangeSchema.parse(req.body);
-        
+
         // Validate redirect URI against allow-list for security
         if (!validateRedirectUri(redirectUri)) {
           return res.status(400).json({ message: "Invalid redirect URI" });
         }
-        
+
         const config = await getGoogleConfig();
         // Authorization Code exchange (no PKCE for server-side exchange)
         const tokenResp = await genericGrantRequest(config, 'authorization_code', {
@@ -544,12 +544,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Enhanced file validation with magic number checking
         const validationBuffer = await fs.promises.readFile(req.file.path);
         const validationResult = await validateFileContent(req.file, validationBuffer);
-        
+
         if (!validationResult.isValid) {
           await fs.promises.unlink(req.file.path);
           return res.status(400).json({ message: validationResult.error });
         }
-        
+
 
         // Generate deterministic storage path
         const { generatePhotoPath, formatJournalDate } = await import('./utils/photo-storage');
@@ -638,7 +638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if user owns the photo or has permission through friendship
         const hasAccess = await validatePhotoAccess(currentUserId, pathInfo.userId, storagePath);
-        
+
         if (!hasAccess) {
           return res.status(403).json({ message: "Access denied to this photo" });
         }
@@ -690,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Validate ownership - only owner can delete photos
         const isOwner = validatePhotoOwnership(storagePath, currentUserId);
-        
+
         if (!isOwner) {
           return res.status(403).json({ message: "Access denied. You can only delete your own photos." });
         }
