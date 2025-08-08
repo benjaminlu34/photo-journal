@@ -47,6 +47,7 @@ import {
 } from "@shared/schema/schema";
 
 import { friendshipEventManager } from "./utils/friendship-events";
+import { discovery, genericGrantRequest, refreshTokenGrant, type Configuration } from "openid-client";
 import { encryptToken, decryptToken } from "./utils/token-crypto";
 import {
   trackFriendRequestSent,
@@ -212,21 +213,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     clientSecret: z.string().min(1),
   });
 
-  let cachedGoogleClient: any | null = null;
-  async function getGoogleClient() {
-    if (cachedGoogleClient) return cachedGoogleClient;
+  let cachedGoogleConfig: Configuration | null = null;
+  async function getGoogleConfig(): Promise<Configuration> {
+    if (cachedGoogleConfig) return cachedGoogleConfig;
     const env = googleEnvSchema.parse({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     });
-    const openid = await import("openid-client");
-    const googleIssuer = await (openid as any).Issuer.discover("https://accounts.google.com");
-    cachedGoogleClient = new (googleIssuer as any).Client({
-      client_id: env.clientId,
-      client_secret: env.clientSecret,
-      token_endpoint_auth_method: 'client_secret_post',
-    });
-    return cachedGoogleClient;
+    // discovery defaults to client_secret_post when client_secret is provided
+    cachedGoogleConfig = await discovery(new URL("https://accounts.google.com"), env.clientId, env.clientSecret);
+    return cachedGoogleConfig;
   }
 
   const exchangeSchema = z.object({
@@ -241,18 +237,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { code, redirectUri } = exchangeSchema.parse(req.body);
-        const client = await getGoogleClient();
-
+        const config = await getGoogleConfig();
         // Authorization Code exchange (no PKCE for server-side exchange)
-        const tokenSet = await client.grant({
-          grant_type: 'authorization_code',
+        const tokenResp = await genericGrantRequest(config, 'authorization_code', {
           code,
           redirect_uri: redirectUri,
         });
 
-        const accessToken = tokenSet.access_token as string | undefined;
-        const refreshToken = (tokenSet.refresh_token as string | undefined) || undefined;
-        const expiresIn = (tokenSet.expires_in as number | undefined) || 3600; // default 1h if absent
+        const accessToken = tokenResp.access_token;
+        const refreshToken = tokenResp.refresh_token || undefined;
+        const expiresIn = tokenResp.expires_in || 3600; // default 1h if absent
 
         if (!accessToken) {
           return res.status(502).json({ message: "Google token exchange did not return access token" });
@@ -285,16 +279,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { refreshToken } = refreshSchema.parse(req.body);
-        const client = await getGoogleClient();
+        const config = await getGoogleConfig();
+        const tokenResp = await refreshTokenGrant(config, refreshToken);
 
-        const tokenSet = await client.grant({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-        });
-
-        const accessToken = tokenSet.access_token as string | undefined;
-        const newRefreshToken = (tokenSet.refresh_token as string | undefined) || undefined; // Google may rotate
-        const expiresIn = (tokenSet.expires_in as number | undefined) || 3600;
+        const accessToken = tokenResp.access_token;
+        const newRefreshToken = tokenResp.refresh_token || undefined; // Google may rotate
+        const expiresIn = tokenResp.expires_in || 3600;
 
         if (!accessToken) {
           return res.status(502).json({ message: "Google refresh did not return access token" });
@@ -332,9 +322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ accessToken });
       } catch (err) {
         if (err instanceof z.ZodError) {
+          console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);     
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
-        console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);        return res.status(400).json({ message: "Failed to decrypt token" });
       }
     }
   );

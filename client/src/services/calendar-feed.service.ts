@@ -146,6 +146,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       const token = data.session?.access_token;
       return token ? { 'Authorization': `Bearer ${token}` } : {};
     } catch (_e) {
+      console.warn('Failed to get user session for auth header:', _e);
       return {};
     }
   }

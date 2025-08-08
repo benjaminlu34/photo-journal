@@ -14,8 +14,9 @@ function getEncryptionKey(): Buffer {
   if (!secret) {
     throw new Error('Server configuration error: OAUTH_ENCRYPTION_SECRET not set');
   }
-  // Derive a 32-byte key via SHA-256
-  return crypto.createHash('sha256').update(secret).digest();
+  // Memory-hard KDF to slow brute-force; N=2^14, r=8, p=1 (moderate), 32-byte key
+  const salt = process.env.OAUTH_ENCRYPTION_SALT || 'photo-journal-dev-salt';
+  return crypto.scryptSync(secret, salt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 }
 
 export function encryptToken(plaintext: string, associatedData?: string): string {
