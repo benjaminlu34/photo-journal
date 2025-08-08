@@ -3,7 +3,7 @@
  * Implements RRULE expansion with caching, memory management, and timezone handling
  */
 
-import { RRule, RRuleSet, rrulestr } from 'rrule';
+import { RRule, rrulestr } from 'rrule';
 import { LRUCache } from 'lru-cache';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { addWeeks, startOfWeek, endOfWeek } from 'date-fns';
@@ -334,8 +334,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     // Get occurrences within the window
     const occurrences = rrule.between(expandStart, expandEnd, true);
     
-    // FIXED: Check for excessive instances before processing
-    if (occurrences.length > 5000) {
+    // Check for excessive instances before processing
+    if (occurrences.length > this.AGGREGATE_MAX_INSTANCES) {
       console.warn(`Event ${event.id} has ${occurrences.length} instances, aborting expansion`);
       throw new RecurrenceExpansionError(
         'Too many recurrence instances',
@@ -385,7 +385,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     try {
       const exdates = event.exceptionDates ?? [];
 
-      if (!exdates || exdates.length === 0) {
+      if (exdates.length === 0) {
         return instances;
       }
 

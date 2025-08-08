@@ -464,19 +464,18 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           const exdateProps = event.component.getAllProperties('exdate') || [];
           const exceptionDates: Date[] = [];
           for (const prop of exdateProps) {
-            const maybeGetValues = (prop as any).getValues?.bind(prop);
-            const values: any[] = typeof maybeGetValues === 'function' ? maybeGetValues() : [prop.getFirstValue()];
+            const values = prop.getValues();
             for (const v of values) {
               try {
-                if (v && typeof v.toJSDate === 'function') {
-                  exceptionDates.push(v.toJSDate());
+                if (v && typeof (v as any).toJSDate === 'function') {
+                  exceptionDates.push((v as any).toJSDate());
                 } else if (v instanceof Date) {
                   exceptionDates.push(v);
                 } else if (typeof v === 'string') {
                   const parsed = new Date(v);
                   if (!isNaN(parsed.getTime())) exceptionDates.push(parsed);
                 }
-              } catch (_e) {
+              } catch {
                 // skip malformed value
               }
             }
@@ -484,13 +483,13 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           if (exceptionDates.length > 0) {
             baseEvent.exceptionDates = exceptionDates;
           }
-        } catch (_ex) {
+        } catch {
           // best-effort EXDATE parsing; ignore failures
         }
         
         // Normalize for user (safe conversion + all-day clamp if needed)
         const userTimezone = timezoneService.getUserTimezone();
-        let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
+        const calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
         
         events.push(calendarEvent);
       }
@@ -816,7 +815,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     const userTimezone = timezoneService.getUserTimezone();
 
     // Normalize for user (safe conversion + all-day clamp if needed)
-    let calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
+    const calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
     return calendarEvent;
   }
