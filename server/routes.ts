@@ -47,7 +47,8 @@ import {
 } from "@shared/schema/schema";
 
 import { friendshipEventManager } from "./utils/friendship-events";
-import { discovery, genericGrantRequest, refreshTokenGrant, type Configuration } from "openid-client";
+import * as openidClient from "openid-client";
+const { discovery, genericGrantRequest, refreshTokenGrant, Configuration } = openidClient;
 import { encryptToken, decryptToken } from "./utils/token-crypto";
 import {
   trackFriendRequestSent,
@@ -260,8 +261,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(502).json({ message });
   }
 
-  let cachedGoogleConfig: Configuration | null = null;
-  async function getGoogleConfig(): Promise<Configuration> {
+  let cachedGoogleConfig: openidClient.Configuration | null = null;
+  async function getGoogleConfig(): Promise<openidClient.Configuration> {
     if (cachedGoogleConfig) return cachedGoogleConfig;
 
     try {
@@ -270,8 +271,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       });
 
-      // discovery defaults to client_secret_post when client_secret is provided
-      cachedGoogleConfig = await discovery(new URL("https://accounts.google.com"), env.clientId, env.clientSecret);
+      // Use discovery with proper client authentication
+      cachedGoogleConfig = await discovery(
+        new URL("https://accounts.google.com"),
+        env.clientId,
+        env.clientSecret, // This is a shorthand for { client_secret: env.clientSecret }
+        openidClient.ClientSecretPost(env.clientSecret)
+      );
       return cachedGoogleConfig;
     } catch (err) {
       if (err instanceof z.ZodError) {
