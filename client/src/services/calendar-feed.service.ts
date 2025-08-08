@@ -156,17 +156,11 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
       ...(await this.getAuthHeader()),
     });
 
-    // Only set Content-Type to application/json if not already provided
-    if (init?.headers) {
-      const initHeaders = new Headers(init.headers);
-      initHeaders.forEach((value, key) => headers.set(key, value));
-      
-      // Set default Content-Type only if not provided by caller
-      if (!initHeaders.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-      }
-    } else {
-      // Set default Content-Type when no headers provided
+    const providedHeaders = new Headers(init?.headers);
+    providedHeaders.forEach((value, key) => headers.set(key, value));
+
+    // Set default Content-Type to application/json if not already provided by the caller
+    if (!providedHeaders.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
     }
 
