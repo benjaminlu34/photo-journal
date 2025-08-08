@@ -17,27 +17,27 @@ describe('token-crypto AES-GCM', () => {
     }
   });
 
-  it('roundtrips plaintext through encrypt/decrypt', () => {
+  it('roundtrips plaintext through encrypt/decrypt', async () => {
     const plaintext = 'ya29.a0AfB_by_example_access_token';
-    const encrypted = encryptToken(plaintext, 'user-123');
+    const encrypted = await encryptToken(plaintext, 'user-123');
     expect(typeof encrypted).toBe('string');
-    const decrypted = decryptToken(encrypted, 'user-123');
+    const decrypted = await decryptToken(encrypted, 'user-123');
     expect(decrypted).toBe(plaintext);
   });
 
-  it('fails to decrypt tampered payload', () => {
+  it('fails to decrypt tampered payload', async () => {
     const plaintext = 'access-token';
-    const encrypted = encryptToken(plaintext, 'user-123');
+    const encrypted = await encryptToken(plaintext, 'user-123');
     const tampered = encrypted.slice(0, -2) + 'xx';
-    expect(() => decryptToken(tampered, 'user-123')).toThrow();
+    await expect(() => decryptToken(tampered, 'user-123')).rejects.toThrow();
   });
 
-  it('fails if AAD mismatches', () => {
-    const token = encryptToken('tkn', 'user-A');
-    expect(() => decryptToken(token, 'user-B')).toThrow();
+  it('fails if AAD mismatches', async () => {
+    const token = await encryptToken('tkn', 'user-A');
+    await expect(() => decryptToken(token, 'user-B')).rejects.toThrow();
   });
 
-  it('enforces salt requirement in production', () => {
+  it('enforces salt requirement in production', async () => {
     const originalNodeEnv = process.env.NODE_ENV;
     const originalSalt = process.env.OAUTH_ENCRYPTION_SALT;
     
@@ -45,7 +45,7 @@ describe('token-crypto AES-GCM', () => {
       process.env.NODE_ENV = 'production';
       delete process.env.OAUTH_ENCRYPTION_SALT;
       
-      expect(() => encryptToken('test-token')).toThrow('OAUTH_ENCRYPTION_SALT must be set in production');
+      await expect(encryptToken('test-token')).rejects.toThrow('OAUTH_ENCRYPTION_SALT must be set in production');
     } finally {
       process.env.NODE_ENV = originalNodeEnv;
       if (originalSalt) process.env.OAUTH_ENCRYPTION_SALT = originalSalt;

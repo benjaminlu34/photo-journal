@@ -17,6 +17,14 @@ async function getEncryptionKey(): Promise<Buffer> {
   }
 
   const salt = process.env.OAUTH_ENCRYPTION_SALT;
+  
+  // Enforce salt requirement in production
+  if (!salt) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Server configuration error: OAUTH_ENCRYPTION_SALT must be set in production');
+    }
+  }
+  
   const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
   const currentConfig = `${secretHash}:${salt || 'fallback'}:${process.env.NODE_ENV || 'development'}`;
 
