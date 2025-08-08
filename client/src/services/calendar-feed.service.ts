@@ -152,11 +152,15 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
   }
 
   private async authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const headers = {
+    const headers = new Headers({
       'Content-Type': 'application/json',
       ...(await this.getAuthHeader()),
-      ...(init?.headers as Record<string, string> | undefined),
-    };
+    });
+
+    if (init?.headers) {
+      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    }
+
     return fetch(input, { ...init, headers });
   }
 
