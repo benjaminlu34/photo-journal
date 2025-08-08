@@ -191,7 +191,7 @@ function createRedisRateLimit(
         return next();
       }
 
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -268,7 +268,7 @@ export const enhancedSharingRateLimit = createRedisRateLimit(
  */
 export const roleChangeAuditMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -375,7 +375,7 @@ export const friendshipInputValidation = (req: Request, res: Response, next: Nex
  */
 export const blockedUserSecurityCheck = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const currentUserId = (req as any).user?.id;
+    const currentUserId = req.user?.id;
     if (!currentUserId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -425,7 +425,7 @@ export const usernameChangeRateLimit = async (req: Request, res: Response, next:
       return next();
     }
 
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }

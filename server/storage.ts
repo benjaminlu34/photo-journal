@@ -22,12 +22,15 @@ import {
   type InsertFriendshipChange,
 } from "@shared/schema/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte, ilike, sql, or } from "drizzle-orm";
+import { eq, and, desc, gte, lte, ilike, sql, or, inArray } from "drizzle-orm";
 import {
   buildCanonicalFriendshipIds,
   canSendFriendRequest,
   isValidStatusTransition
 } from "./utils/friendship";
+
+type FriendshipStatus = Friendship["status"];
+type FriendRole = InsertFriendship["roleUserToFriend"];
 
 export interface IStorage {
   // User operations
@@ -67,19 +70,20 @@ export interface IStorage {
   getFriendship(userA: string, userB: string): Promise<Friendship | undefined>;
   getFriendshipById(friendshipId: string): Promise<Friendship | undefined>;
   createFriendshipWithCanonicalOrdering(userA: string, userB: string, initiatorId: string): Promise<Friendship>;
-  updateFriendshipStatusWithAudit(friendshipId: string, newStatus: string, actorId: string): Promise<Friendship>;
-  updateFriendshipRole(friendshipId: string, actorId: string, newRole: string): Promise<Friendship>;
-  getFriendshipsWithStatus(userId: string, status: string): Promise<(Friendship & { friend: User })[]>;
+  updateFriendshipStatusWithAudit(friendshipId: string, newStatus: FriendshipStatus, actorId: string): Promise<Friendship>;
+  updateFriendshipRole(friendshipId: string, actorId: string, newRole: FriendRole): Promise<Friendship>;
+  getFriendshipsWithStatus(userId: string, status: FriendshipStatus): Promise<(Friendship & { friend: User })[]>;
   canSendFriendRequestTo(fromUserId: string, toUserId: string): Promise<boolean>;
 
   // Enhanced friend list operations with pagination and roles
   getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number }): Promise<{
     friends: (User & {
       friendshipId: string;
-      roleUserToFriend: string;
-      roleFriendToUser: string;
-      status: string;
+      roleUserToFriend: FriendRole;
+      roleFriendToUser: FriendRole;
+      status: FriendshipStatus;
       createdAt: Date;
+      currentUserRole: FriendRole;
     })[];
     totalCount: number;
   }>;
@@ -651,7 +655,7 @@ export class DatabaseStorage implements IStorage {
     return newFriendship;
   }
 
-  async updateFriendshipStatusWithAudit(friendshipId: string, newStatus: string, actorId: string): Promise<Friendship> {
+  async updateFriendshipStatusWithAudit(friendshipId: string, newStatus: FriendshipStatus, actorId: string): Promise<Friendship> {
     // Get current friendship to validate transition and log changes
     const currentFriendship = await this.getFriendshipById(friendshipId);
     if (!currentFriendship) {
@@ -667,7 +671,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedFriendship] = await db
       .update(friendships)
       .set({
-        status: newStatus as any, // Cast to satisfy enum type
+        status: newStatus,
         updatedAt: new Date()
       })
       .where(eq(friendships.id, friendshipId))
@@ -692,7 +696,7 @@ export class DatabaseStorage implements IStorage {
     return updatedFriendship;
   }
 
-  async updateFriendshipRole(friendshipId: string, actorId: string, newRole: string): Promise<Friendship> {
+  async updateFriendshipRole(friendshipId: string, actorId: string, newRole: FriendRole): Promise<Friendship> {
     // Get current friendship to determine which role to update
     const currentFriendship = await this.getFriendshipById(friendshipId);
     if (!currentFriendship) {
@@ -700,21 +704,21 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Determine which role field to update based on actor
-    let updateData: Partial<InsertFriendship>;
-    let oldRoleUserToFriend = null;
-    let newRoleUserToFriend = null;
-    let oldRoleFriendToUser = null;
-    let newRoleFriendToUser = null;
+    let updateData: Partial<Pick<InsertFriendship, "roleUserToFriend" | "roleFriendToUser">>;
+    let oldRoleUserToFriend: FriendRole | null = null;
+    let newRoleUserToFriend: FriendRole | null = null;
+    let oldRoleFriendToUser: FriendRole | null = null;
+    let newRoleFriendToUser: FriendRole | null = null;
 
     if (actorId === currentFriendship.userId) {
       // Actor is canonical userId, they're updating roleUserToFriend
-      updateData = { roleUserToFriend: newRole as any };
-      oldRoleUserToFriend = currentFriendship.roleUserToFriend;
+      updateData = { roleUserToFriend: newRole as unknown as InsertFriendship["roleUserToFriend"] };
+      oldRoleUserToFriend = currentFriendship.roleUserToFriend as FriendRole;
       newRoleUserToFriend = newRole;
     } else if (actorId === currentFriendship.friendId) {
       // Actor is canonical friendId, they're updating roleFriendToUser
-      updateData = { roleFriendToUser: newRole as any };
-      oldRoleFriendToUser = currentFriendship.roleFriendToUser;
+      updateData = { roleFriendToUser: newRole as unknown as InsertFriendship["roleFriendToUser"] };
+      oldRoleFriendToUser = currentFriendship.roleFriendToUser as FriendRole;
       newRoleFriendToUser = newRole;
     } else {
       throw new Error('Actor is not part of this friendship');
@@ -736,10 +740,10 @@ export class DatabaseStorage implements IStorage {
       actorId,
       oldStatus: null,
       newStatus: null,
-      oldRoleUserToFriend: oldRoleUserToFriend as any,
-      newRoleUserToFriend: newRoleUserToFriend as any,
-      oldRoleFriendToUser: oldRoleFriendToUser as any,
-      newRoleFriendToUser: newRoleFriendToUser as any,
+      oldRoleUserToFriend: oldRoleUserToFriend,
+      newRoleUserToFriend: newRoleUserToFriend,
+      oldRoleFriendToUser: oldRoleFriendToUser,
+      newRoleFriendToUser: newRoleFriendToUser,
     });
 
     // Invalidate cache for both users
@@ -749,7 +753,7 @@ export class DatabaseStorage implements IStorage {
     return updatedFriendship;
   }
 
-  async getFriendshipsWithStatus(userId: string, status: string): Promise<(Friendship & { friend: User })[]> {
+  async getFriendshipsWithStatus(userId: string, status: FriendshipStatus): Promise<(Friendship & { friend: User })[]> {
     // Query for friendships where user is either userId or friendId
     const results = await db
       .select({
@@ -770,7 +774,7 @@ export class DatabaseStorage implements IStorage {
             eq(friendships.userId, userId),
             eq(friendships.friendId, userId)
           ),
-          eq(friendships.status, status as any)
+          eq(friendships.status, status)
         )
       );
 
@@ -815,39 +819,66 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number }): Promise<{
+  async getFriendsWithRoles(userId: string, options?: { limit?: number; offset?: number; roleFilter?: FriendRole[] }): Promise<{
     friends: (User & {
       friendshipId: string;
-      roleUserToFriend: string;
-      roleFriendToUser: string;
-      status: string;
+      roleUserToFriend: FriendRole;
+      roleFriendToUser: FriendRole;
+      status: FriendshipStatus;
       createdAt: Date;
-      currentUserRole: string;
+      currentUserRole: FriendRole;
     })[];
     totalCount: number;
   }> {
     const limit = Math.floor(options?.limit || 50);
     const offset = Math.floor(options?.offset || 0);
-    const cacheKey = `friends:${userId}:${offset}:${limit}`;
+    const roleFilter = options?.roleFilter;
+    const cacheKey = `friends:${userId}:${offset}:${limit}:${roleFilter?.join(',') || 'all'}`;
 
     // Check cache first
     if (this.shouldUseCache(cacheKey, this.friendsCache)) {
       return this.getFromCache(cacheKey, this.friendsCache);
     }
 
-    // Get total count of accepted friendships
+    // Build base where condition for accepted friendships
+    const baseWhereCondition = and(
+      eq(friendships.status, 'accepted'),
+      or(
+        eq(friendships.userId, userId),
+        eq(friendships.friendId, userId)
+      )
+    );
+
+    // Add role filtering condition if specified
+    let whereCondition = baseWhereCondition;
+    if (roleFilter && roleFilter.length > 0) {
+      // Filter based on the role that applies to the current user
+      // If current user is userId, they get roleFriendToUser
+      // If current user is friendId, they get roleUserToFriend
+      
+      // Filter out undefined values and create OR conditions for each role
+      const validRoles = roleFilter.filter((role): role is NonNullable<typeof role> => role !== undefined);
+      
+      const userIdRoleConditions = validRoles.map(role => 
+        and(eq(friendships.userId, userId), eq(friendships.roleFriendToUser, role as 'viewer' | 'contributor' | 'editor'))
+      );
+      const friendIdRoleConditions = validRoles.map(role => 
+        and(eq(friendships.friendId, userId), eq(friendships.roleUserToFriend, role as 'viewer' | 'contributor' | 'editor'))
+      );
+      
+      const roleFilterCondition = or(
+        ...userIdRoleConditions,
+        ...friendIdRoleConditions
+      );
+      
+      whereCondition = and(baseWhereCondition, roleFilterCondition);
+    }
+
+    // Get total count with role filtering
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(friendships)
-      .where(
-        and(
-          eq(friendships.status, 'accepted'),
-          or(
-            eq(friendships.userId, userId),
-            eq(friendships.friendId, userId)
-          )
-        )
-      );
+      .where(whereCondition);
 
     const totalCount = Number(countResult?.count || 0);
 
@@ -878,31 +909,21 @@ export class DatabaseStorage implements IStorage {
           and(eq(friendships.friendId, userId), eq(users.id, friendships.userId))
         )
       )
-      .where(
-        and(
-          eq(friendships.status, 'accepted'),
-          or(
-            eq(friendships.userId, userId),
-            eq(friendships.friendId, userId)
-          )
-        )
-      )
+      .where(whereCondition)
       .orderBy(desc(friendships.createdAt))
       .limit(limit)
       .offset(offset);
 
     const friends = results.map(user => {
-      // Determine which role applies to the current user
-      let currentUserRole: string;
-      
+      // Determine the role that the OTHER party has granted TO the current user
+      let currentUserRole: FriendRole;
+
       if (user.friendshipUserId === userId) {
-        // Current user is the "user" in the friendship relationship
-        // The role they have is roleUserToFriend (how they treat their friend)
-        currentUserRole = user.roleUserToFriend as string;
+        // Current user is the canonical "user"; use the role assigned BY friend TO user
+        currentUserRole = user.roleFriendToUser as FriendRole;
       } else {
-        // Current user is the "friend" in the friendship relationship
-        // The role they have is roleFriendToUser (how their friend treats them)
-        currentUserRole = user.roleFriendToUser as string;
+        // Current user is the canonical "friend"; use the role assigned BY user TO friend (i.e. to current user)
+        currentUserRole = user.roleUserToFriend as FriendRole;
       }
 
       return {
@@ -915,9 +936,9 @@ export class DatabaseStorage implements IStorage {
         createdAt: user.createdAt ?? new Date(),
         updatedAt: user.updatedAt ?? new Date(),
         friendshipId: user.friendshipId,
-        roleUserToFriend: user.roleUserToFriend as string,
-        roleFriendToUser: user.roleFriendToUser as string,
-        status: user.status as string,
+        roleUserToFriend: user.roleUserToFriend as FriendRole,
+        roleFriendToUser: user.roleFriendToUser as FriendRole,
+        status: user.status as FriendshipStatus,
         currentUserRole,
       };
     });

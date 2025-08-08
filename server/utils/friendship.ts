@@ -114,13 +114,13 @@ export function isValidStatusTransition(
 export function getUserRoleInFriendship(
   friendship: { userId: string; friendId: string; roleUserToFriend: string; roleFriendToUser: string },
   userId: string
-): string {
+): 'viewer' | 'contributor' | 'editor' {
   if (userId === friendship.userId) {
     // This user is the canonical userId, so they receive roleFriendToUser
-    return friendship.roleFriendToUser;
+    return friendship.roleFriendToUser as 'viewer' | 'contributor' | 'editor';
   } else if (userId === friendship.friendId) {
     // This user is the canonical friendId, so they receive roleUserToFriend
-    return friendship.roleUserToFriend;
+    return friendship.roleUserToFriend as 'viewer' | 'contributor' | 'editor';
   } else {
     throw new Error('User is not part of this friendship');
   }
