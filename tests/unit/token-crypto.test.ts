@@ -25,6 +25,21 @@ describe('token-crypto AES-GCM', () => {
     const token = encryptToken('tkn', 'user-A');
     expect(() => decryptToken(token, 'user-B')).toThrow();
   });
+
+  it('enforces salt requirement in production', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalSalt = process.env.OAUTH_ENCRYPTION_SALT;
+    
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.OAUTH_ENCRYPTION_SALT;
+      
+      expect(() => encryptToken('test-token')).toThrow('OAUTH_ENCRYPTION_SALT must be set in production');
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      if (originalSalt) process.env.OAUTH_ENCRYPTION_SALT = originalSalt;
+    }
+  });
 });
 
 

@@ -325,6 +325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);     
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
+        console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);
+        return res.status(400).json({ message: "Invalid or tampered token" });
       }
     }
   );

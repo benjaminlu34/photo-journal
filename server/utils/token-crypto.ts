@@ -4,7 +4,7 @@ import crypto from 'crypto';
  * AES-256-GCM encryption utilities for short-lived OAuth tokens.
  *
  * Security notes:
- * - Uses env var OAUTH_ENCRYPTION_SECRET to derive a 256-bit key (SHA-256).
+ * - Uses env var OAUTH_ENCRYPTION_SECRET to derive a 256-bit key (scrypt KDF).
  * - Returns base64url payload of [iv (12b)] + [ciphertext] + [authTag (16b)].
  * - No server-side storage; caller is responsible for persisting encrypted blobs if needed.
  */
@@ -14,8 +14,19 @@ function getEncryptionKey(): Buffer {
   if (!secret) {
     throw new Error('Server configuration error: OAUTH_ENCRYPTION_SECRET not set');
   }
+  
+  const salt = process.env.OAUTH_ENCRYPTION_SALT;
+  if (!salt) {
+    // Only allow fallback in development/test environments
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Server configuration error: OAUTH_ENCRYPTION_SALT must be set in production');
+    }
+    // Use a deterministic but environment-specific fallback for dev/test
+    const fallbackSalt = 'photo-journal-dev-salt-' + (process.env.NODE_ENV || 'development');
+    return crypto.scryptSync(secret, fallbackSalt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  }
+  
   // Memory-hard KDF to slow brute-force; N=2^14, r=8, p=1 (moderate), 32-byte key
-  const salt = process.env.OAUTH_ENCRYPTION_SALT || 'photo-journal-dev-salt';
   return crypto.scryptSync(secret, salt, 32, { N: 1 << 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 }
 
