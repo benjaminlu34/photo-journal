@@ -219,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Example: GOOGLE_OAUTH_REDIRECT_URIS="https://yourdomain.com/auth/google/callback,https://www.yourdomain.com/auth/google/callback"
   const getAllowedRedirectUris = (): string[] => {
     const uris: string[] = [];
-    
+
     // Development URIs
     if (process.env.NODE_ENV === 'development') {
       uris.push(
@@ -227,16 +227,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'http://localhost:5000/auth/google/callback'
       );
     }
-    
+
     // Production URIs from environment variables
     const productionUris = process.env.GOOGLE_OAUTH_REDIRECT_URIS;
     if (productionUris) {
       uris.push(...productionUris.split(',').map(uri => uri.trim()));
     }
-    
+
     return uris;
   };
-  
+
   const ALLOWED_REDIRECT_URIS = getAllowedRedirectUris();
 
   // Validate redirect URI against allow-list
