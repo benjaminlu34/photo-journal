@@ -1,9 +1,20 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { encryptToken, decryptToken } from '../../server/utils/token-crypto';
 
 describe('token-crypto AES-GCM', () => {
+  let originalSecret: string | undefined;
+  
   beforeAll(() => {
+    originalSecret = process.env.OAUTH_ENCRYPTION_SECRET;
     process.env.OAUTH_ENCRYPTION_SECRET = 'test-secret-123';
+  });
+  
+  afterAll(() => {
+    if (originalSecret) {
+      process.env.OAUTH_ENCRYPTION_SECRET = originalSecret;
+    } else {
+      delete process.env.OAUTH_ENCRYPTION_SECRET;
+    }
   });
 
   it('roundtrips plaintext through encrypt/decrypt', () => {

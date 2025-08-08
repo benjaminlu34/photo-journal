@@ -20,7 +20,9 @@ function getEncryptionKey(): Buffer {
   }
   
   const salt = process.env.OAUTH_ENCRYPTION_SALT;
-  const currentConfig = `${secret}:${salt || 'fallback'}:${process.env.NODE_ENV || 'development'}`;
+  // Use hash of secret instead of plaintext for security
+  const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
+  const currentConfig = `${secretHash}:${salt || 'fallback'}:${process.env.NODE_ENV || 'development'}`;
   
   // Return cached key if configuration hasn't changed
   if (cachedEncryptionKey && cachedKeyConfig === currentConfig) {

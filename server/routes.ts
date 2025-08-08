@@ -47,7 +47,7 @@ import {
 } from "@shared/schema/schema";
 
 import { friendshipEventManager } from "./utils/friendship-events";
-import { Issuer, genericGrantRequest, refreshTokenGrant } from "openid-client";
+import { discovery, genericGrantRequest, refreshTokenGrant, type Configuration } from "openid-client";
 import { encryptToken, decryptToken } from "./utils/token-crypto";
 import {
   trackFriendRequestSent,
@@ -223,8 +223,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Validate redirect URI against allow-list
   function validateRedirectUri(redirectUri: string): boolean {
-    return ALLOWED_REDIRECT_URIS.includes(redirectUri) ||
-      (process.env.NODE_ENV === 'development' && redirectUri.startsWith('http://localhost:'));
+    // Check against explicit allow-list first
+    if (ALLOWED_REDIRECT_URIS.includes(redirectUri)) {
+      return true;
+    }
+
+    // In development, only allow specific localhost ports and paths
+    if (process.env.NODE_ENV === 'development') {
+      const developmentPattern = /^http:\/\/localhost:(3000|5000)\/auth\/google\/callback$/;
+      return developmentPattern.test(redirectUri);
+    }
+
+    return false;
   }
 
   // Shared error handling for Google OAuth endpoints
@@ -250,8 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(502).json({ message });
   }
 
-  let cachedGoogleConfig: import('openid-client').Client | null = null;
-  async function getGoogleConfig(): Promise<import('openid-client').Client> {
+  let cachedGoogleConfig: Configuration | null = null;
+  async function getGoogleConfig(): Promise<Configuration> {
     if (cachedGoogleConfig) return cachedGoogleConfig;
 
     try {
@@ -260,12 +270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       });
 
-      const googleIssuer = await Issuer.discover("https://accounts.google.com");
-      cachedGoogleConfig = new googleIssuer.Client({
-        client_id: env.clientId,
-        client_secret: env.clientSecret,
-      });
-
+      // discovery defaults to client_secret_post when client_secret is provided
+      cachedGoogleConfig = await discovery(new URL("https://accounts.google.com"), env.clientId, env.clientSecret);
       return cachedGoogleConfig;
     } catch (err) {
       if (err instanceof z.ZodError) {
