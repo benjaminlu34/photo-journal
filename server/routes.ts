@@ -216,13 +216,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   let cachedGoogleConfig: Configuration | null = null;
   async function getGoogleConfig(): Promise<Configuration> {
     if (cachedGoogleConfig) return cachedGoogleConfig;
-    const env = googleEnvSchema.parse({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    });
-    // discovery defaults to client_secret_post when client_secret is provided
-    cachedGoogleConfig = await discovery(new URL("https://accounts.google.com"), env.clientId, env.clientSecret);
-    return cachedGoogleConfig;
+    
+    try {
+      const env = googleEnvSchema.parse({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      });
+      // discovery defaults to client_secret_post when client_secret is provided
+      cachedGoogleConfig = await discovery(new URL("https://accounts.google.com"), env.clientId, env.clientSecret);
+      return cachedGoogleConfig;
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        console.error("Google OAuth configuration error - missing environment variables:", err.errors);
+        throw new Error("Server configuration error: Google OAuth credentials not properly configured");
+      }
+      throw err; // Re-throw other errors (network issues, etc.)
+    }
   }
 
   const exchangeSchema = z.object({
@@ -262,6 +271,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err instanceof z.ZodError) {
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
+        if (err instanceof Error && err.message.includes("Server configuration error")) {
+          console.error("POST /api/calendar/google/exchange-token - Configuration error:", err);
+          return res.status(500).json({ message: "Server configuration error" });
+        }
         console.error("POST /api/calendar/google/exchange-token:", err);
         return res.status(502).json({ message: "Failed to exchange Google auth code" });
       }
@@ -299,6 +312,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err instanceof z.ZodError) {
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
+        if (err instanceof Error && err.message.includes("Server configuration error")) {
+          console.error("POST /api/calendar/google/refresh-token - Configuration error:", err);
+          return res.status(500).json({ message: "Server configuration error" });
+        }
         console.error("POST /api/calendar/google/refresh-token:", err);
         return res.status(502).json({ message: "Failed to refresh Google token" });
       }
@@ -322,8 +339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ accessToken });
       } catch (err) {
         if (err instanceof z.ZodError) {
-          console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);     
           return res.status(400).json({ message: "Invalid request", errors: err.errors });
+        }
+        if (err instanceof Error && err.message.includes("Server configuration error")) {
+          console.error("POST /api/calendar/google/decrypt-token - Configuration error:", err);
+          return res.status(500).json({ message: "Server configuration error" });
         }
         console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);
         return res.status(400).json({ message: "Invalid or tampered token" });
