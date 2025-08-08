@@ -66,6 +66,7 @@ import {
   emitFriendUnfriended,
   emitFriendRoleChanged
 } from "./utils/friendship-events";
+import { getUserRoleInFriendship } from "./utils/friendship";
 
 // Date formatting utility
 function formatLocalDate(date: Date): string {
@@ -1729,6 +1730,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Failed to get shared entries" });
     }
   });
+
+  /* Friend Calendar Access & Events */
+  // Validation schemas
+  const friendIdParamSchema = z.object({
+    friendId: z.string().min(1).regex(/^[A-Za-z0-9_\-]+$/)
+  });
+
+  const dateRangeSchema = z.object({
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+  });
+
+  /**
+   * GET /api/friends/:friendId/calendar-access
+   * Return whether current user has at least viewer access to friend's calendar, and the effective permission.
+   * permission: 'owner' | 'editor' | 'contributor' | 'viewer'
+   */
+  app.get(
+    "/api/friends/:friendId/calendar-access",
+    isAuthenticatedSupabase,
+    enhancedSearchRateLimit,
+    async (req, res) => {
+      try {
+        const { friendId } = friendIdParamSchema.parse(req.params);
+        const currentUserId = getUserId(req);
+
+        // Owner has full access
+        if (friendId === currentUserId) {
+          return res.json({ hasAccess: true, permission: 'owner' as const });
+        }
+
+        // Verify friendship and role
+        const friendship = await storage.getFriendship(currentUserId, friendId);
+        if (!friendship || friendship.status !== 'accepted') {
+          // Return hasAccess false; permission value is irrelevant to client when false
+          return res.json({ hasAccess: false, permission: 'viewer' as const });
+        }
+
+        const role = getUserRoleInFriendship(friendship, currentUserId) as 'viewer' | 'contributor' | 'editor';
+        const hasAccess = ['viewer', 'contributor', 'editor'].includes(role);
+
+        return res.json({
+          hasAccess,
+          permission: hasAccess ? role : ('viewer' as const),
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid friend id", errors: err.errors });
+        }
+        console.error("GET /api/friends/:friendId/calendar-access:", err);
+        return res.status(500).json({ message: "Failed to check friend calendar access" });
+      }
+    }
+  );
+
+  /**
+   * POST /api/friends/:friendId/calendar/events
+   * Body: { startDate, endDate } (ISO 8601)
+   * Returns: { events: [] } (mocked until backend store exists)
+   * Enforces friendship viewer+ permission.
+   */
+  app.post(
+    "/api/friends/:friendId/calendar/events",
+    isAuthenticatedSupabase,
+    enhancedSearchRateLimit,
+    async (req, res) => {
+      try {
+        const { friendId } = friendIdParamSchema.parse(req.params);
+        const { startDate, endDate } = dateRangeSchema.parse(req.body);
+        const currentUserId = getUserId(req);
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return res.status(400).json({ message: "Invalid date format" });
+        }
+        if (start > end) {
+          return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+        }
+
+        // Owner path: allowed, but currently no backend event store → return empty
+        if (friendId === currentUserId) {
+          return res.json({ events: [] });
+        }
+
+        // Friendship and permission check (viewer+)
+        const friendship = await storage.getFriendship(currentUserId, friendId);
+        if (!friendship || friendship.status !== 'accepted') {
+          return res.status(403).json({ message: "Access denied: Not friends or not accepted" });
+        }
+        const role = getUserRoleInFriendship(friendship, currentUserId) as 'viewer' | 'contributor' | 'editor';
+        if (!['viewer', 'contributor', 'editor'].includes(role)) {
+          return res.status(403).json({ message: "Access denied: Insufficient permissions" });
+        }
+
+        // Mock flag: until a real backend event store exists, return an empty array shape
+        const eventsEnabled = process.env.ENABLE_FRIEND_CALENDAR_EVENTS === 'true';
+        if (!eventsEnabled) {
+          return res.json({ events: [] });
+        }
+
+        // Placeholder for future implementation:
+        // const events = await friendEventsStore.getEvents(friendId, start, end);
+        return res.json({ events: [] });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid request", errors: err.errors });
+        }
+        console.error("POST /api/friends/:friendId/calendar/events:", err);
+        return res.status(500).json({ message: "Failed to fetch friend events" });
+      }
+    }
+  );
+
+  /**
+   * GET /api/friends/with-calendar-access
+   * Returns list of friends (accepted) where current user's effective role from that friend is viewer+.
+   */
+  app.get(
+    "/api/friends/with-calendar-access",
+    isAuthenticatedSupabase,
+    enhancedSearchRateLimit,
+    async (req, res) => {
+      try {
+        const currentUserId = getUserId(req);
+
+        // Use existing helper that returns accepted friendships with roles
+        const { friends } = await storage.getFriendsWithRoles(currentUserId, { limit: 100, offset: 0 });
+
+        // currentUserRole is computed in storage.getFriendsWithRoles
+        const allowedFriends = (friends || []).filter(f =>
+          ['viewer', 'contributor', 'editor'].includes((f as any).currentUserRole)
+        );
+
+        // Shape to client Friend type
+        const result = allowedFriends.map(f => ({
+          id: f.id,
+          username: f.username || null,
+          firstName: f.firstName || null,
+          lastName: f.lastName || null,
+          email: f.email || null,
+          profileImageUrl: null as string | null,
+        }));
+
+        return res.json(result);
+      } catch (err) {
+        console.error("GET /api/friends/with-calendar-access:", err);
+        return res.status(500).json({ message: "Failed to fetch friends with calendar access" });
+      }
+    }
+  );
 
   /* Username validation endpoints */
 
