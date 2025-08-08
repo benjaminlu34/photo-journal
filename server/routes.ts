@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { isAuthenticatedSupabase } from "./middleware/auth";
 import {
   usernameCheckRateLimit,
-userSearchRateLimit,
+  userSearchRateLimit,
   usernameChangeRateLimit,
   friendRequestRateLimit,
   friendManagementRateLimit,
@@ -21,6 +21,7 @@ userSearchRateLimit,
   enhancedFriendMutationsRateLimit,
   enhancedSearchRateLimit,
   enhancedSharingRateLimit,
+  calendarOAuthRateLimit,
   roleChangeAuditMiddleware,
   friendshipInputValidation,
   blockedUserSecurityCheck
@@ -46,6 +47,9 @@ import {
 } from "@shared/schema/schema";
 
 import { friendshipEventManager } from "./utils/friendship-events";
+import * as openidClient from "openid-client";
+const { discovery, genericGrantRequest, refreshTokenGrant, Configuration } = openidClient;
+import { encryptToken, decryptToken } from "./utils/token-crypto";
 import {
   trackFriendRequestSent,
   trackFriendAccepted,
@@ -203,6 +207,191 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+  /* Google Calendar OAuth endpoints */
+  const googleEnvSchema = z.object({
+    clientId: z.string().min(1),
+    clientSecret: z.string().min(1),
+  });
+
+  // Allowed redirect URIs for Google OAuth (security best practice)
+  // Set GOOGLE_OAUTH_REDIRECT_URIS environment variable with comma-separated production URIs
+  // Example: GOOGLE_OAUTH_REDIRECT_URIS="https://yourdomain.com/auth/google/callback,https://www.yourdomain.com/auth/google/callback"
+  const getAllowedRedirectUris = (): string[] => {
+    const uris: string[] = [];
+
+    // Development URIs
+    if (process.env.NODE_ENV === 'development') {
+      uris.push(
+        'http://localhost:3000/auth/google/callback',
+        'http://localhost:5000/auth/google/callback'
+      );
+    }
+
+    // Production URIs from environment variables
+    const productionUris = process.env.GOOGLE_OAUTH_REDIRECT_URIS;
+    if (productionUris) {
+      uris.push(...productionUris.split(',').map(uri => uri.trim()));
+    }
+
+    return uris;
+  };
+
+  const ALLOWED_REDIRECT_URIS = getAllowedRedirectUris();
+
+  // Validate redirect URI against allow-list
+  function validateRedirectUri(redirectUri: string): boolean {
+    return ALLOWED_REDIRECT_URIS.includes(redirectUri);
+  }
+
+  // Shared error handling for Google OAuth endpoints
+  function handleGoogleOAuthError(err: unknown, endpoint: string, res: Response, userId?: string): Response {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ message: "Invalid request", errors: err.errors });
+    }
+    if (err instanceof Error && err.message.includes("Server configuration error")) {
+      console.error(`${endpoint} - Configuration error:`, err);
+      return res.status(500).json({ message: "Server configuration error" });
+    }
+
+    // Special handling for decrypt endpoint
+    if (endpoint.includes('decrypt-token') && userId) {
+      console.error(`Token decryption failed for user ${userId}. This could be a security event. Error:`, err);
+      return res.status(400).json({ message: "Invalid or tampered token" });
+    }
+
+    console.error(`${endpoint}:`, err);
+    const message = endpoint.includes('exchange-token') ? "Failed to exchange Google auth code" :
+      endpoint.includes('refresh-token') ? "Failed to refresh Google token" :
+        "Google OAuth operation failed";
+    return res.status(502).json({ message });
+  }
+
+  let cachedGoogleConfig: openidClient.Configuration | null = null;
+  async function getGoogleConfig(): Promise<openidClient.Configuration> {
+    if (cachedGoogleConfig) return cachedGoogleConfig;
+
+    try {
+      const env = googleEnvSchema.parse({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      });
+
+      // Use discovery with proper client authentication
+      cachedGoogleConfig = await discovery(
+        new URL("https://accounts.google.com"),
+        env.clientId,
+        env.clientSecret, // This is a shorthand for { client_secret: env.clientSecret }
+        openidClient.ClientSecretPost(env.clientSecret)
+      );
+      return cachedGoogleConfig;
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        console.error("Google OAuth configuration error - missing environment variables:", err.errors);
+        throw new Error("Server configuration error: Google OAuth credentials not properly configured");
+      }
+      throw err; // Re-throw other errors (network issues, etc.)
+    }
+  }
+
+  const exchangeSchema = z.object({
+    code: z.string().min(1),
+    redirectUri: z.string().url(),
+  });
+
+  app.post(
+    "/api/calendar/google/exchange-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { code, redirectUri } = exchangeSchema.parse(req.body);
+
+        // Validate redirect URI against allow-list for security
+        if (!validateRedirectUri(redirectUri)) {
+          return res.status(400).json({ message: "Invalid redirect URI" });
+        }
+
+        const config = await getGoogleConfig();
+        // Authorization Code exchange (no PKCE for server-side exchange)
+        const tokenResp = await genericGrantRequest(config, 'authorization_code', {
+          code,
+          redirect_uri: redirectUri,
+        });
+
+        const accessToken = tokenResp.access_token;
+        const refreshToken = tokenResp.refresh_token || undefined;
+        const expiresIn = tokenResp.expires_in || 3600; // default 1h if absent
+
+        if (!accessToken) {
+          return res.status(502).json({ message: "Google token exchange did not return access token" });
+        }
+
+        // Bind token to user via AAD to mitigate token swapping between users
+        const userBoundAAD = getUserId(req);
+        const encryptedToken = await encryptToken(accessToken, userBoundAAD);
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+        return res.json({ encryptedToken, refreshToken, expiresAt });
+      } catch (err) {
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/exchange-token', res);
+      }
+    }
+  );
+
+  const refreshSchema = z.object({
+    refreshToken: z.string().min(1),
+  });
+
+  app.post(
+    "/api/calendar/google/refresh-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { refreshToken } = refreshSchema.parse(req.body);
+        const config = await getGoogleConfig();
+        const tokenResp = await refreshTokenGrant(config, refreshToken);
+
+        const accessToken = tokenResp.access_token;
+        const newRefreshToken = tokenResp.refresh_token || undefined; // Google may rotate
+        const expiresIn = tokenResp.expires_in || 3600;
+
+        if (!accessToken) {
+          return res.status(502).json({ message: "Google refresh did not return access token" });
+        }
+
+        const userBoundAAD = getUserId(req);
+        const encryptedToken = await encryptToken(accessToken, userBoundAAD);
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+        return res.json({ encryptedToken, refreshToken: newRefreshToken, expiresAt });
+      } catch (err) {
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/refresh-token', res);
+      }
+    }
+  );
+
+  const decryptSchema = z.object({
+    encryptedToken: z.string().min(1),
+  });
+
+  app.post(
+    "/api/calendar/google/decrypt-token",
+    isAuthenticatedSupabase,
+    calendarOAuthRateLimit,
+    async (req, res) => {
+      try {
+        const { encryptedToken } = decryptSchema.parse(req.body);
+        const userBoundAAD = getUserId(req);
+        const accessToken = await decryptToken(encryptedToken, userBoundAAD);
+        // Return short-lived access token (Google enforces expiry)
+        return res.json({ accessToken });
+      } catch (err) {
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/decrypt-token', res, getUserId(req));
+      }
+    }
+  );
 
   /* Update user profile */
   app.patch("/api/auth/profile", isAuthenticatedSupabase, async (req, res, next) => {
@@ -373,12 +562,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Enhanced file validation with magic number checking
         const validationBuffer = await fs.promises.readFile(req.file.path);
         const validationResult = await validateFileContent(req.file, validationBuffer);
-        
+
         if (!validationResult.isValid) {
           await fs.promises.unlink(req.file.path);
           return res.status(400).json({ message: validationResult.error });
         }
-        
+
 
         // Generate deterministic storage path
         const { generatePhotoPath, formatJournalDate } = await import('./utils/photo-storage');
@@ -467,7 +656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if user owns the photo or has permission through friendship
         const hasAccess = await validatePhotoAccess(currentUserId, pathInfo.userId, storagePath);
-        
+
         if (!hasAccess) {
           return res.status(403).json({ message: "Access denied to this photo" });
         }
@@ -519,7 +708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Validate ownership - only owner can delete photos
         const isOwner = validatePhotoOwnership(storagePath, currentUserId);
-        
+
         if (!isOwner) {
           return res.status(403).json({ message: "Access denied. You can only delete your own photos." });
         }

@@ -10,6 +10,7 @@ import type { CalendarEvent, CalendarFeed, EncryptedCredentials } from '@/types/
 import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 import { recurrenceExpansionService } from './recurrence-expansion.service';
 import { duplicateEventResolver } from './duplicate-event-resolver.service';
+import { supabase } from '@/lib/supabase';
 import { timezoneService } from './timezone.service';
 // Type-only import to avoid circular dependency
 import type { OfflineCalendarService } from './offline-calendar.service';
@@ -137,6 +138,33 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     if (!this.GOOGLE_CLIENT_ID) {
       console.warn('Google Calendar integration not configured - client ID missing');
     }
+  }
+
+  private async getAuthHeader(): Promise<Record<string, string>> {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    } catch (_e) {
+      console.warn('Failed to get user session for auth header:', _e);
+      return {};
+    }
+  }
+
+  private async authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const headers = new Headers({
+      ...(await this.getAuthHeader()),
+    });
+
+    const providedHeaders = new Headers(init?.headers);
+    providedHeaders.forEach((value, key) => headers.set(key, value));
+
+    // Set default Content-Type to application/json if not already provided by the caller
+    if (!providedHeaders.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    return fetch(input, { ...init, headers });
   }
 
   // Dependency injection method to set offline service
@@ -289,11 +317,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   async exchangeGoogleAuthCode(code: string, redirectUri: string): Promise<EncryptedCredentials> {
     // SECURITY: OAuth token exchange must happen on the server to protect client secret
-    const response = await fetch('/api/calendar/google/exchange-token', {
+    const response = await this.authFetch('/api/calendar/google/exchange-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         code,
         redirectUri,
@@ -319,11 +344,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
 
     // SECURITY: Token refresh must happen on the server to protect client secret
-    const response = await fetch('/api/calendar/google/refresh-token', {
+    const response = await this.authFetch('/api/calendar/google/refresh-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         refreshToken: credentials.refreshToken,
       }),
@@ -658,11 +680,8 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
     // SECURITY: Token decryption should happen server-side
     // For now, we'll call the server to get a decrypted token for API calls
-    const tokenResponse = await fetch('/api/calendar/google/decrypt-token', {
+    const tokenResponse = await this.authFetch('/api/calendar/google/decrypt-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         encryptedToken: feed.credentials.encryptedToken,
       }),
