@@ -76,7 +76,7 @@ export interface RecurrenceExpansionService {
   
   // Utility methods
   isRecurringEvent(event: CalendarEvent): boolean;
-  parseRRule(rruleString: string): RRule | null;
+  parseRRule(rruleString: string, dtstart: Date): RRule | null;
   validateRecurrenceRule(rruleString: string): boolean;
 }
 
@@ -129,8 +129,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     }
     
     try {
-      // Parse the recurrence rule
-      const rrule = this.parseRRule(event.recurrenceRule!);
+      // Parse the recurrence rule, anchored to the event start time
+      const rrule = this.parseRRule(event.recurrenceRule!, event.startTime);
       if (!rrule) {
         throw new RecurrenceExpansionError(
           'Invalid recurrence rule',
@@ -284,14 +284,23 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     return event.isRecurring && !!event.recurrenceRule;
   }
   
-  parseRRule(rruleString: string): RRule | null {
+  parseRRule(rruleString: string, dtstart: Date): RRule | null {
     try {
-      // Handle different RRULE formats
-      if (rruleString.startsWith('RRULE:')) {
-        return rrulestr(rruleString);
-      } else {
-        return rrulestr(`RRULE:${rruleString}`);
+      // Normalize RRULE string to include RRULE: prefix
+      const fullRruleString = rruleString.startsWith('RRULE:')
+        ? rruleString
+        : `RRULE:${rruleString}`;
+
+      // Pass dtstart so occurrences are anchored to the event start
+      const parsed = rrulestr(fullRruleString, { dtstart });
+      // rrulestr may return an RRuleSet; extract the first rule if so
+      // We only support a single RRULE per event here
+      // Note: typeof check to avoid importing RRuleSet type
+      if ((parsed as any)?.rrules) {
+        const first = (parsed as any).rrules()[0];
+        return first || null;
       }
+      return parsed as RRule;
     } catch (error) {
       console.error('Failed to parse RRULE:', rruleString, error);
       return null;
@@ -300,7 +309,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   
   validateRecurrenceRule(rruleString: string): boolean {
     try {
-      const rrule = this.parseRRule(rruleString);
+      // Use a stable default dtstart for validation only
+      const rrule = this.parseRRule(rruleString, new Date('1970-01-01T00:00:00.000Z'));
       return rrule !== null;
     } catch {
       return false;

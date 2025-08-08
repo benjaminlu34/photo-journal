@@ -58,13 +58,7 @@ describe('RecurrenceExpansionService - EXDATE handling and aggregate cap', () =>
       ],
     });
 
-    // Ensure RRULE is parsed with known dtstart so occurrences align with event.startTime
-    const r = new RRule({
-      freq: RRule.DAILY,
-      count: 5,
-      dtstart: start,
-    });
-    vi.spyOn(service, 'parseRRule').mockReturnValue(r);
+    // No spy: parseRRule now uses event.startTime internally as dtstart
 
     const instances = await service.expandRecurringEvent(event, start, {
       includeExceptions: true,
