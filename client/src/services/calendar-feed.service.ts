@@ -458,11 +458,40 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           source: 'ical',
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
-
+  
+        // Parse EXDATE properties from iCal and attach as exceptionDates
+        try {
+          const exdateProps = event.component.getAllProperties('exdate') || [];
+          const exceptionDates: Date[] = [];
+          for (const prop of exdateProps) {
+            const maybeGetValues = (prop as any).getValues?.bind(prop);
+            const values: any[] = typeof maybeGetValues === 'function' ? maybeGetValues() : [prop.getFirstValue()];
+            for (const v of values) {
+              try {
+                if (v && typeof v.toJSDate === 'function') {
+                  exceptionDates.push(v.toJSDate());
+                } else if (v instanceof Date) {
+                  exceptionDates.push(v);
+                } else if (typeof v === 'string') {
+                  const parsed = new Date(v);
+                  if (!isNaN(parsed.getTime())) exceptionDates.push(parsed);
+                }
+              } catch (_e) {
+                // skip malformed value
+              }
+            }
+          }
+          if (exceptionDates.length > 0) {
+            (baseEvent as any).exceptionDates = exceptionDates;
+          }
+        } catch (_ex) {
+          // best-effort EXDATE parsing; ignore failures
+        }
+        
         // Normalize for user (safe conversion + all-day clamp if needed)
         const userTimezone = timezoneService.getUserTimezone();
         let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
-
+        
         events.push(calendarEvent);
       }
 

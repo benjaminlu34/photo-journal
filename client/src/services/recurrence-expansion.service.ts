@@ -84,6 +84,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   private readonly MAX_INSTANCES = CALENDAR_CONFIG.FEEDS.MAX_RECURRENCE_INSTANCES;
   private readonly EXPANSION_WINDOW_WEEKS = CALENDAR_CONFIG.FEEDS.EXPANSION_WINDOW_WEEKS;
   private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  // Aggregate cap across expandMultipleEvents results
+  private readonly AGGREGATE_MAX_INSTANCES = 5000;
   
   // LRU cache for expanded recurrences with memory management
   private readonly expansionCache = new LRUCache<string, ExpandedRecurrence>({
@@ -189,10 +191,10 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     options: RecurrenceExpansionOptions = {}
   ): Promise<Map<string, RecurrenceInstance[]>> {
     const results = new Map<string, RecurrenceInstance[]>();
-    
+
     // Filter to only recurring events
     const recurringEvents = events.filter(event => this.isRecurringEvent(event));
-    
+
     // Expand each event (could be parallelized for better performance)
     const expansionPromises = recurringEvents.map(async (event) => {
       try {
@@ -203,14 +205,38 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
         return { eventId: event.id, instances: [] };
       }
     });
-    
+
     const expansionResults = await Promise.all(expansionPromises);
-    
-    // Build results map
-    for (const result of expansionResults) {
-      results.set(result.eventId, result.instances);
+
+    // Enforce aggregate cap across all expanded results (truncate deterministically by input order)
+    let total = 0;
+    let truncated = false;
+
+    for (const { eventId, instances } of expansionResults) {
+      const remaining = this.AGGREGATE_MAX_INSTANCES - total;
+      if (remaining <= 0) {
+        // No capacity left
+        results.set(eventId, []);
+        truncated = true;
+        continue;
+      }
+
+      const sliced = instances.slice(0, Math.max(0, remaining));
+      total += sliced.length;
+
+      if (sliced.length < instances.length) {
+        truncated = true;
+      }
+
+      results.set(eventId, sliced);
     }
-    
+
+    if (truncated) {
+      console.warn(
+        `Aggregate recurrence instances exceeded ${this.AGGREGATE_MAX_INSTANCES}. Results truncated.`
+      );
+    }
+
     return results;
   }
   
@@ -356,10 +382,39 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     instances: RecurrenceInstance[],
     event: CalendarEvent
   ): RecurrenceInstance[] {
-    // In a real implementation, this would handle EXDATE properties
-    // For now, we'll just return the instances as-is
-    // TODO: Parse EXDATE from the original iCal/Google event data
-    return instances;
+    try {
+      const exdates = Array.isArray(event.exceptionDates)
+        ? event.exceptionDates as Date[]
+        : [];
+
+      if (!exdates || exdates.length === 0) {
+        return instances;
+      }
+
+      const isAllDay = !!event.isAllDay;
+
+      // Build fast-lookup set of normalized EXDATE keys
+      const exdateKeys = new Set<string>(
+        exdates
+          .filter(d => d instanceof Date && !isNaN(d.getTime()))
+          .map(d => this.getExceptionKey(d, isAllDay))
+      );
+
+      if (exdateKeys.size === 0) {
+        return instances;
+      }
+
+      // Filter out instances whose start matches an EXDATE
+      const filtered = instances.filter(inst => {
+        const key = this.getExceptionKey(inst.instanceStart, isAllDay);
+        return !exdateKeys.has(key);
+      });
+
+      return filtered;
+    } catch (error) {
+      console.warn('Failed to apply EXDATE exceptions, returning unfiltered instances:', error);
+      return instances;
+    }
   }
   
   private handleDSTTransition(
@@ -447,6 +502,18 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     }
   }
   
+/**
+   * Normalize a date to a comparison key for EXDATE matching.
+   * - All-day events: compare by local calendar day (YYYY-MM-DD in ISO)
+   * - Timed events: compare by exact timestamp in ISO
+   */
+  private getExceptionKey(date: Date, isAllDay: boolean): string {
+    if (isAllDay) {
+      // Compare by day only
+      return date.toISOString().slice(0, 10); // YYYY-MM-DD
+    }
+    return date.toISOString();
+  }
   private generateCacheKey(
     event: CalendarEvent,
     windowStart: Date,
