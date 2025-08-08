@@ -26,6 +26,8 @@ export interface CalendarEventBase extends BaseEvent {
   originalEvent?: string; // For recurring event instances
   lastModified: Date;
   source: 'google' | 'ical' | 'friend';
+  // Optional source metadata for recurrence exceptions (EXDATEs)
+  exceptionDates?: Date[];
 }
 
 /**

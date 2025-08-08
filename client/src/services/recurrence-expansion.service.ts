@@ -3,7 +3,7 @@
  * Implements RRULE expansion with caching, memory management, and timezone handling
  */
 
-import { RRule, RRuleSet, rrulestr } from 'rrule';
+import { RRule, rrulestr } from 'rrule';
 import { LRUCache } from 'lru-cache';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { addWeeks, startOfWeek, endOfWeek } from 'date-fns';
@@ -76,7 +76,7 @@ export interface RecurrenceExpansionService {
   
   // Utility methods
   isRecurringEvent(event: CalendarEvent): boolean;
-  parseRRule(rruleString: string): RRule | null;
+  parseRRule(rruleString: string, dtstart: Date): RRule | null;
   validateRecurrenceRule(rruleString: string): boolean;
 }
 
@@ -129,8 +129,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     }
     
     try {
-      // Parse the recurrence rule
-      const rrule = this.parseRRule(event.recurrenceRule!);
+      // Parse the recurrence rule, anchored to the event start time
+      const rrule = this.parseRRule(event.recurrenceRule!, event.startTime);
       if (!rrule) {
         throw new RecurrenceExpansionError(
           'Invalid recurrence rule',
@@ -189,10 +189,10 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     options: RecurrenceExpansionOptions = {}
   ): Promise<Map<string, RecurrenceInstance[]>> {
     const results = new Map<string, RecurrenceInstance[]>();
-    
+
     // Filter to only recurring events
     const recurringEvents = events.filter(event => this.isRecurringEvent(event));
-    
+
     // Expand each event (could be parallelized for better performance)
     const expansionPromises = recurringEvents.map(async (event) => {
       try {
@@ -203,14 +203,38 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
         return { eventId: event.id, instances: [] };
       }
     });
-    
+
     const expansionResults = await Promise.all(expansionPromises);
-    
-    // Build results map
-    for (const result of expansionResults) {
-      results.set(result.eventId, result.instances);
+
+    // Enforce aggregate cap across all expanded results (truncate deterministically by input order)
+    let total = 0;
+    let truncated = false;
+
+    for (const { eventId, instances } of expansionResults) {
+      const remaining = CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES - total;
+      if (remaining <= 0) {
+        // No capacity left
+        results.set(eventId, []);
+        truncated = true;
+        continue;
+      }
+
+      const sliced = instances.slice(0, remaining);
+      total += sliced.length;
+
+      if (sliced.length < instances.length) {
+        truncated = true;
+      }
+
+      results.set(eventId, sliced);
     }
-    
+
+    if (truncated) {
+      console.warn(
+        `Aggregate recurrence instances exceeded ${CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES}. Results truncated.`
+      );
+    }
+
     return results;
   }
   
@@ -260,14 +284,23 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     return event.isRecurring && !!event.recurrenceRule;
   }
   
-  parseRRule(rruleString: string): RRule | null {
+  parseRRule(rruleString: string, dtstart: Date): RRule | null {
     try {
-      // Handle different RRULE formats
-      if (rruleString.startsWith('RRULE:')) {
-        return rrulestr(rruleString);
-      } else {
-        return rrulestr(`RRULE:${rruleString}`);
+      // Normalize RRULE string to include RRULE: prefix
+      const fullRruleString = rruleString.startsWith('RRULE:')
+        ? rruleString
+        : `RRULE:${rruleString}`;
+
+      // Pass dtstart so occurrences are anchored to the event start
+      const parsed = rrulestr(fullRruleString, { dtstart });
+      // rrulestr may return an RRuleSet; extract the first rule if so
+      // We only support a single RRULE per event here
+      // Note: typeof check to avoid importing RRuleSet type
+      if ((parsed as any)?.rrules) {
+        const first = (parsed as any).rrules()[0];
+        return first || null;
       }
+      return parsed as RRule;
     } catch (error) {
       console.error('Failed to parse RRULE:', rruleString, error);
       return null;
@@ -276,7 +309,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   
   validateRecurrenceRule(rruleString: string): boolean {
     try {
-      const rrule = this.parseRRule(rruleString);
+      // Use a stable default dtstart for validation only
+      const rrule = this.parseRRule(rruleString, new Date('1970-01-01T00:00:00.000Z'));
       return rrule !== null;
     } catch {
       return false;
@@ -308,8 +342,8 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     // Get occurrences within the window
     const occurrences = rrule.between(expandStart, expandEnd, true);
     
-    // FIXED: Check for excessive instances before processing
-    if (occurrences.length > 5000) {
+    // Check for excessive instances before processing
+    if (occurrences.length > CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES) {
       console.warn(`Event ${event.id} has ${occurrences.length} instances, aborting expansion`);
       throw new RecurrenceExpansionError(
         'Too many recurrence instances',
@@ -356,10 +390,37 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     instances: RecurrenceInstance[],
     event: CalendarEvent
   ): RecurrenceInstance[] {
-    // In a real implementation, this would handle EXDATE properties
-    // For now, we'll just return the instances as-is
-    // TODO: Parse EXDATE from the original iCal/Google event data
-    return instances;
+    try {
+      const exdates = event.exceptionDates ?? [];
+
+      if (exdates.length === 0) {
+        return instances;
+      }
+
+      const isAllDay = !!event.isAllDay;
+
+      // Build fast-lookup set of normalized EXDATE keys
+      const exdateKeys = new Set<string>(
+        exdates
+          .filter(d => d instanceof Date && !isNaN(d.getTime()))
+          .map(d => this.getExceptionKey(d, isAllDay))
+      );
+
+      if (exdateKeys.size === 0) {
+        return instances;
+      }
+
+      // Filter out instances whose start matches an EXDATE
+      const filtered = instances.filter(inst => {
+        const key = this.getExceptionKey(inst.instanceStart, isAllDay);
+        return !exdateKeys.has(key);
+      });
+
+      return filtered;
+    } catch (error) {
+      console.warn('Failed to apply EXDATE exceptions, returning unfiltered instances:', error);
+      return instances;
+    }
   }
   
   private handleDSTTransition(
@@ -447,6 +508,18 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     }
   }
   
+/**
+   * Normalize a date to a comparison key for EXDATE matching.
+   * - All-day events: compare by local calendar day (YYYY-MM-DD in ISO)
+   * - Timed events: compare by exact timestamp in ISO
+   */
+  private getExceptionKey(date: Date, isAllDay: boolean): string {
+    if (isAllDay) {
+      // Compare by day only
+      return date.toISOString().slice(0, 10); // YYYY-MM-DD
+    }
+    return date.toISOString();
+  }
   private generateCacheKey(
     event: CalendarEvent,
     windowStart: Date,

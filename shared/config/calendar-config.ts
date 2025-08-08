@@ -31,8 +31,9 @@ export const CALENDAR_CONFIG = {
     SYNC_INTERVAL: 15 * 60 * 1000,    // 15 minutes in ms
     MAX_FEED_SIZE: 10 * 1024 * 1024,  // 10MB max feed size
     CACHE_TTL: 15 * 60 * 1000,        // 15 minutes cache TTL
-    MAX_RECURRENCE_INSTANCES: 500,     // max recurring event instances
+    MAX_RECURRENCE_INSTANCES: 500,     // max recurring event instances (per event expansion window)
     EXPANSION_WINDOW_WEEKS: 2,         // ±2 weeks for recurrence expansion
+    AGGREGATE_MAX_RECURRENCE_INSTANCES: 5000, // aggregate cap across all expanded instances
   },
 
   // Performance limits

@@ -458,11 +458,63 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
           source: 'ical',
           lastModified: event.component.getFirstPropertyValue('last-modified')?.toJSDate() || startTime,
         };
+  
+        // Parse EXDATE properties from iCal and attach as exceptionDates
+        try {
+          const exdateProps = event.component.getAllProperties('exdate') || [];
+          const exceptionDates = exdateProps
+            .flatMap(prop => prop.getValues())
+            .map((v) => {
+              try {
+                // Prefer UTC construction from ICAL.Time components to avoid timezone drift
+                if (v && typeof v === 'object' && 'year' in v && 'month' in v && 'day' in v) {
+                  const timeComponent = v as { year: number; month: number; day: number; hour?: number; minute?: number; second?: number; isDate?: boolean };
+                  const year = Number(timeComponent.year);
+                  const month = Number(timeComponent.month);
+                  const day = Number(timeComponent.day);
+                  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
 
+                  if (timeComponent.isDate) {
+                    // All-day EXDATE → UTC midnight
+                    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+                  }
+
+                  const hour = Number(timeComponent.hour ?? 0);
+                  const minute = Number(timeComponent.minute ?? 0);
+                  const second = Number(timeComponent.second ?? 0);
+                  return new Date(Date.UTC(year, month - 1, day, hour, minute, second, 0));
+                }
+
+                if (v instanceof Date) {
+                  // Normalize to an immutable UTC-equivalent timestamp
+                  return new Date(v.getTime());
+                }
+
+                if (typeof v === 'string') {
+                  const parsed = new Date(v);
+                  return !isNaN(parsed.getTime()) ? parsed : null;
+                }
+
+                return null;
+              } catch (err) {
+                console.warn('EXDATE value parsing error for event', event.uid, err);
+                return null;
+              }
+            })
+            .filter((d): d is Date => d instanceof Date);
+
+          if (exceptionDates.length > 0) {
+            baseEvent.exceptionDates = exceptionDates;
+          }
+        } catch (err) {
+          // Log for debugging malformed EXDATE sets on specific events
+          console.warn('EXDATE parsing failed for event', event.uid, err);
+        }
+        
         // Normalize for user (safe conversion + all-day clamp if needed)
         const userTimezone = timezoneService.getUserTimezone();
-        let calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
-
+        const calendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
+        
         events.push(calendarEvent);
       }
 
@@ -787,7 +839,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     const userTimezone = timezoneService.getUserTimezone();
 
     // Normalize for user (safe conversion + all-day clamp if needed)
-    let calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
+    const calendarEvent: CalendarEvent = timezoneService.normalizeEventForUser(baseEvent, userTimezone);
 
     return calendarEvent;
   }
