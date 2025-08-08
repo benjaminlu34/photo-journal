@@ -1778,12 +1778,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const role = getUserRoleInFriendship(friendship, currentUserId) as FriendRole;
 
         return res.json({
-          hasAccess: true,
+          hasAccess: CALENDAR_ACCESS_ROLES.includes(role),
           permission: role,
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: "Invalid friend id", errors: err.errors });
+          return res.status(400).json({ message: "Invalid request", errors: err.errors });
         }
         console.error("GET /api/friends/:friendId/calendar-access:", err);
         return res.status(500).json({ message: "Failed to check friend calendar access" });
