@@ -213,6 +213,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     clientSecret: z.string().min(1),
   });
 
+  // Allowed redirect URIs for Google OAuth (security best practice)
+  const ALLOWED_REDIRECT_URIS = [
+    'http://localhost:5000/auth/google/callback',
+    'http://localhost:3000/auth/google/callback',
+    'https://your-domain.com/auth/google/callback',
+    // Add your production domains here
+  ];
+
+  // Validate redirect URI against allow-list
+  function validateRedirectUri(redirectUri: string): boolean {
+    return ALLOWED_REDIRECT_URIS.includes(redirectUri) || 
+           (process.env.NODE_ENV === 'development' && redirectUri.startsWith('http://localhost:'));
+  }
+
+  // Shared error handling for Google OAuth endpoints
+  function handleGoogleOAuthError(err: unknown, endpoint: string, res: Response, userId?: string): Response {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ message: "Invalid request", errors: err.errors });
+    }
+    if (err instanceof Error && err.message.includes("Server configuration error")) {
+      console.error(`${endpoint} - Configuration error:`, err);
+      return res.status(500).json({ message: "Server configuration error" });
+    }
+    
+    // Special handling for decrypt endpoint
+    if (endpoint.includes('decrypt-token') && userId) {
+      console.error(`Token decryption failed for user ${userId}. This could be a security event. Error:`, err);
+      return res.status(400).json({ message: "Invalid or tampered token" });
+    }
+    
+    console.error(`${endpoint}:`, err);
+    const message = endpoint.includes('exchange-token') ? "Failed to exchange Google auth code" : 
+                   endpoint.includes('refresh-token') ? "Failed to refresh Google token" : 
+                   "Google OAuth operation failed";
+    return res.status(502).json({ message });
+  }
+
   let cachedGoogleConfig: import('openid-client').Client | null = null;
   async function getGoogleConfig(): Promise<import('openid-client').Client> {
     if (cachedGoogleConfig) return cachedGoogleConfig;
@@ -251,6 +288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { code, redirectUri } = exchangeSchema.parse(req.body);
+        
+        // Validate redirect URI against allow-list for security
+        if (!validateRedirectUri(redirectUri)) {
+          return res.status(400).json({ message: "Invalid redirect URI" });
+        }
+        
         const config = await getGoogleConfig();
         // Authorization Code exchange (no PKCE for server-side exchange)
         const tokenResp = await genericGrantRequest(config, 'authorization_code', {
@@ -273,15 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return res.json({ encryptedToken, refreshToken, expiresAt });
       } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: "Invalid request", errors: err.errors });
-        }
-        if (err instanceof Error && err.message.includes("Server configuration error")) {
-          console.error("POST /api/calendar/google/exchange-token - Configuration error:", err);
-          return res.status(500).json({ message: "Server configuration error" });
-        }
-        console.error("POST /api/calendar/google/exchange-token:", err);
-        return res.status(502).json({ message: "Failed to exchange Google auth code" });
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/exchange-token', res);
       }
     }
   );
@@ -314,15 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return res.json({ encryptedToken, refreshToken: newRefreshToken, expiresAt });
       } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: "Invalid request", errors: err.errors });
-        }
-        if (err instanceof Error && err.message.includes("Server configuration error")) {
-          console.error("POST /api/calendar/google/refresh-token - Configuration error:", err);
-          return res.status(500).json({ message: "Server configuration error" });
-        }
-        console.error("POST /api/calendar/google/refresh-token:", err);
-        return res.status(502).json({ message: "Failed to refresh Google token" });
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/refresh-token', res);
       }
     }
   );
@@ -343,15 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Return short-lived access token (Google enforces expiry)
         return res.json({ accessToken });
       } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: "Invalid request", errors: err.errors });
-        }
-        if (err instanceof Error && err.message.includes("Server configuration error")) {
-          console.error("POST /api/calendar/google/decrypt-token - Configuration error:", err);
-          return res.status(500).json({ message: "Server configuration error" });
-        }
-        console.error(`Token decryption failed for user ${getUserId(req)}. This could be a security event. Error:`, err);
-        return res.status(400).json({ message: "Invalid or tampered token" });
+        return handleGoogleOAuthError(err, 'POST /api/calendar/google/decrypt-token', res, getUserId(req));
       }
     }
   );
