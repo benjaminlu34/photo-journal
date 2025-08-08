@@ -29,6 +29,9 @@ import {
   isValidStatusTransition
 } from "./utils/friendship";
 
+type FriendshipStatus = 'pending' | 'accepted' | 'blocked' | 'declined' | 'unfriended';
+type FriendRole = 'viewer' | 'contributor' | 'editor';
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -67,9 +70,9 @@ export interface IStorage {
   getFriendship(userA: string, userB: string): Promise<Friendship | undefined>;
   getFriendshipById(friendshipId: string): Promise<Friendship | undefined>;
   createFriendshipWithCanonicalOrdering(userA: string, userB: string, initiatorId: string): Promise<Friendship>;
-  updateFriendshipStatusWithAudit(friendshipId: string, newStatus: string, actorId: string): Promise<Friendship>;
-  updateFriendshipRole(friendshipId: string, actorId: string, newRole: string): Promise<Friendship>;
-  getFriendshipsWithStatus(userId: string, status: string): Promise<(Friendship & { friend: User })[]>;
+  updateFriendshipStatusWithAudit(friendshipId: string, newStatus: FriendshipStatus, actorId: string): Promise<Friendship>;
+  updateFriendshipRole(friendshipId: string, actorId: string, newRole: FriendRole): Promise<Friendship>;
+  getFriendshipsWithStatus(userId: string, status: FriendshipStatus): Promise<(Friendship & { friend: User })[]>;
   canSendFriendRequestTo(fromUserId: string, toUserId: string): Promise<boolean>;
 
   // Enhanced friend list operations with pagination and roles
@@ -652,7 +655,7 @@ export class DatabaseStorage implements IStorage {
     return newFriendship;
   }
 
-  async updateFriendshipStatusWithAudit(friendshipId: string, newStatus: string, actorId: string): Promise<Friendship> {
+  async updateFriendshipStatusWithAudit(friendshipId: string, newStatus: FriendshipStatus, actorId: string): Promise<Friendship> {
     // Get current friendship to validate transition and log changes
     const currentFriendship = await this.getFriendshipById(friendshipId);
     if (!currentFriendship) {
@@ -668,7 +671,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedFriendship] = await db
       .update(friendships)
       .set({
-        status: newStatus as any, // Cast to satisfy enum type
+        status: newStatus,
         updatedAt: new Date()
       })
       .where(eq(friendships.id, friendshipId))
@@ -693,7 +696,7 @@ export class DatabaseStorage implements IStorage {
     return updatedFriendship;
   }
 
-  async updateFriendshipRole(friendshipId: string, actorId: string, newRole: string): Promise<Friendship> {
+  async updateFriendshipRole(friendshipId: string, actorId: string, newRole: FriendRole): Promise<Friendship> {
     // Get current friendship to determine which role to update
     const currentFriendship = await this.getFriendshipById(friendshipId);
     if (!currentFriendship) {
@@ -701,21 +704,21 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Determine which role field to update based on actor
-    let updateData: Partial<InsertFriendship>;
-    let oldRoleUserToFriend = null;
-    let newRoleUserToFriend = null;
-    let oldRoleFriendToUser = null;
-    let newRoleFriendToUser = null;
+    let updateData: Partial<Pick<InsertFriendship, "roleUserToFriend" | "roleFriendToUser">>;
+    let oldRoleUserToFriend: FriendRole | null = null;
+    let newRoleUserToFriend: FriendRole | null = null;
+    let oldRoleFriendToUser: FriendRole | null = null;
+    let newRoleFriendToUser: FriendRole | null = null;
 
     if (actorId === currentFriendship.userId) {
       // Actor is canonical userId, they're updating roleUserToFriend
-      updateData = { roleUserToFriend: newRole as any };
-      oldRoleUserToFriend = currentFriendship.roleUserToFriend;
+      updateData = { roleUserToFriend: newRole as unknown as InsertFriendship["roleUserToFriend"] };
+      oldRoleUserToFriend = currentFriendship.roleUserToFriend as FriendRole;
       newRoleUserToFriend = newRole;
     } else if (actorId === currentFriendship.friendId) {
       // Actor is canonical friendId, they're updating roleFriendToUser
-      updateData = { roleFriendToUser: newRole as any };
-      oldRoleFriendToUser = currentFriendship.roleFriendToUser;
+      updateData = { roleFriendToUser: newRole as unknown as InsertFriendship["roleFriendToUser"] };
+      oldRoleFriendToUser = currentFriendship.roleFriendToUser as FriendRole;
       newRoleFriendToUser = newRole;
     } else {
       throw new Error('Actor is not part of this friendship');
@@ -737,10 +740,10 @@ export class DatabaseStorage implements IStorage {
       actorId,
       oldStatus: null,
       newStatus: null,
-      oldRoleUserToFriend: oldRoleUserToFriend as any,
-      newRoleUserToFriend: newRoleUserToFriend as any,
-      oldRoleFriendToUser: oldRoleFriendToUser as any,
-      newRoleFriendToUser: newRoleFriendToUser as any,
+      oldRoleUserToFriend: oldRoleUserToFriend as unknown as InsertFriendshipChange["oldRoleUserToFriend"],
+      newRoleUserToFriend: newRoleUserToFriend as unknown as InsertFriendshipChange["newRoleUserToFriend"],
+      oldRoleFriendToUser: oldRoleFriendToUser as unknown as InsertFriendshipChange["oldRoleFriendToUser"],
+      newRoleFriendToUser: newRoleFriendToUser as unknown as InsertFriendshipChange["newRoleFriendToUser"],
     });
 
     // Invalidate cache for both users
@@ -750,7 +753,7 @@ export class DatabaseStorage implements IStorage {
     return updatedFriendship;
   }
 
-  async getFriendshipsWithStatus(userId: string, status: string): Promise<(Friendship & { friend: User })[]> {
+  async getFriendshipsWithStatus(userId: string, status: FriendshipStatus): Promise<(Friendship & { friend: User })[]> {
     // Query for friendships where user is either userId or friendId
     const results = await db
       .select({
@@ -771,7 +774,7 @@ export class DatabaseStorage implements IStorage {
             eq(friendships.userId, userId),
             eq(friendships.friendId, userId)
           ),
-          eq(friendships.status, status as any)
+          eq(friendships.status, status)
         )
       );
 
@@ -893,17 +896,15 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
 
     const friends = results.map(user => {
-      // Determine which role applies to the current user
+      // Determine the role that the OTHER party has granted TO the current user
       let currentUserRole: string;
-      
+
       if (user.friendshipUserId === userId) {
-        // Current user is the "user" in the friendship relationship
-        // The role they have is roleUserToFriend (how they treat their friend)
-        currentUserRole = user.roleUserToFriend as string;
-      } else {
-        // Current user is the "friend" in the friendship relationship
-        // The role they have is roleFriendToUser (how their friend treats them)
+        // Current user is the canonical "user"; use the role assigned BY friend TO user
         currentUserRole = user.roleFriendToUser as string;
+      } else {
+        // Current user is the canonical "friend"; use the role assigned BY user TO friend (i.e. to current user)
+        currentUserRole = user.roleUserToFriend as string;
       }
 
       return {

@@ -1737,6 +1737,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     friendId: z.string().min(1).regex(/^[A-Za-z0-9_\-]+$/)
   });
 
+  // Roles that grant calendar access
+  type FriendRole = 'viewer' | 'contributor' | 'editor';
+  const CALENDAR_ACCESS_ROLES: readonly FriendRole[] = ['viewer', 'contributor', 'editor'] as const;
+
   const dateRangeSchema = z.object({
     startDate: z.string().datetime(),
     endDate: z.string().datetime(),
@@ -1771,12 +1775,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ hasAccess: false, permission: 'viewer' as const });
         }
 
-        const role = getUserRoleInFriendship(friendship, currentUserId) as 'viewer' | 'contributor' | 'editor';
-        const hasAccess = ['viewer', 'contributor', 'editor'].includes(role);
+        const role = getUserRoleInFriendship(friendship, currentUserId) as FriendRole;
 
         return res.json({
-          hasAccess,
-          permission: hasAccess ? role : ('viewer' as const),
+          hasAccess: true,
+          permission: role,
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -1817,8 +1820,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!friendship || friendship.status !== 'accepted') {
           return res.status(403).json({ message: "Access denied: Not friends or not accepted" });
         }
-        const role = getUserRoleInFriendship(friendship, currentUserId) as 'viewer' | 'contributor' | 'editor';
-        if (!['viewer', 'contributor', 'editor'].includes(role)) {
+        const role = getUserRoleInFriendship(friendship, currentUserId) as FriendRole;
+        if (!CALENDAR_ACCESS_ROLES.includes(role)) {
           return res.status(403).json({ message: "Access denied: Insufficient permissions" });
         }
 
@@ -1857,8 +1860,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { friends } = await storage.getFriendsWithRoles(currentUserId, { limit: 100, offset: 0 });
 
         // currentUserRole is computed in storage.getFriendsWithRoles
-        const allowedFriends = (friends || []).filter(f =>
-          ['viewer', 'contributor', 'editor'].includes(f.currentUserRole)
+        const allowedFriends = friends.filter(f =>
+          CALENDAR_ACCESS_ROLES.includes(f.currentUserRole as FriendRole)
         );
 
         // Shape to client Friend type
