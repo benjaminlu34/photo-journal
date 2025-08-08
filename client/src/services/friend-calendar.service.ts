@@ -2,13 +2,14 @@
  * Friend calendar service for handling friend calendar synchronization
  */
 
-import type { FriendCalendarEvent, CalendarFeed, DateRange, CalendarEvent } from '@/types/calendar';
+import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
 import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
 import { timezoneService } from './timezone.service';
 import { sub, add } from 'date-fns';
 import { duplicateEventResolver } from './duplicate-event-resolver.service';
 import { colorPaletteManager } from './color-palette-manager';
+import type { ColorAssignment } from './color-palette-manager';
 
 // Configuration constants
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -83,7 +84,7 @@ export interface FriendCalendarService {
 export class FriendCalendarServiceImpl implements FriendCalendarService {
   constructor() {
     // Rate-limited background refresh on tab visibility regain (mirrors feeds)
-    this.visibilityChangeHandler = () => {
+    this.visibilityChangeHandler = (event: Event) => {
       if (typeof document === 'undefined' || (document as any).hidden) return;
       const now = Date.now();
       if (now - this.lastVisibilityRefresh < this.VISIBILITY_REFRESH_MIN_MS) return;
@@ -91,7 +92,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
       this.handleVisibilityRefresh();
     };
     try {
-      document.addEventListener('visibilitychange', this.visibilityChangeHandler as any);
+      document.addEventListener('visibilitychange', this.visibilityChangeHandler);
     } catch {
       // Non-DOM environment (tests) - ignore
     }
@@ -108,10 +109,10 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   private abortControllers: Map<string, AbortController> = new Map();
 
   // Friend color assignments (deterministic per friend via ColorPaletteManager)
-  private friendColorAssignments: Map<string, { color: string; pattern?: 'stripe' | 'dot' | 'plain'; wcagRating: 'AA' | 'AAA' }> = new Map();
+  private friendColorAssignments: Map<string, ColorAssignment> = new Map();
 
   // Visibility refresh
-  private visibilityChangeHandler: (() => void) | null = null;
+  private visibilityChangeHandler: ((event: Event) => void) | null = null;
   private lastVisibilityRefresh = 0;
   private readonly VISIBILITY_REFRESH_MIN_MS = 5 * 60 * 1000; // 5 minutes, mirrors feeds
 
@@ -156,7 +157,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   // Use the global duplicateEventResolver so friend events dedupe consistently with external feeds
   private resolveAndColorizeFriendEvents(friend: Friend, events: FriendCalendarEvent[]): FriendCalendarEvent[] {
     try {
-      const result = duplicateEventResolver.resolveEvents(events as unknown as CalendarEvent[]);
+      const result = duplicateEventResolver.resolveEvents(events);
       const friendColor = this.getFriendColor(friend.id);
 
       const canonical = Array.from(result.canonicalEvents.values()).map((ev) => {
@@ -185,17 +186,30 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     } catch (e) {
       console.error('Friend event duplicate resolution failed, falling back:', e);
       const friendColor = this.getFriendColor(friend.id);
-      return events.map((ev) => ({
+      const feedId = `friend-${friend.id}`;
+
+      // Fallback with simple deduplication to avoid showing duplicates:
+      // group by externalId (or id) and keep highest sequence
+      const uniqueEvents = new Map<string, FriendCalendarEvent>();
+      for (const event of events) {
+        const key = event.externalId || event.id;
+        const existing = uniqueEvents.get(key);
+        if (!existing || (event.sequence ?? 0) >= (existing.sequence ?? 0)) {
+          uniqueEvents.set(key, event);
+        }
+      }
+
+      return Array.from(uniqueEvents.values()).map((ev) => ({
         ...ev,
-        source: 'friend',
+        source: 'friend' as const,
         isFromFriend: true,
         friendUserId: friend.id,
         friendUsername: friend.username ?? friend.id,
         sourceId: friend.id,
-        feedId: `friend-${friend.id}`,
+        feedId,
         feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
         color: ev.color || friendColor,
-        canonicalEventId: ev.canonicalEventId || `canonical:${ev.externalId}:${`friend-${friend.id}`}`,
+        canonicalEventId: ev.canonicalEventId || `canonical:${ev.externalId}:${feedId}`,
       }));
     }
   }
