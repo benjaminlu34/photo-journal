@@ -462,24 +462,28 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
         // Parse EXDATE properties from iCal and attach as exceptionDates
         try {
           const exdateProps = event.component.getAllProperties('exdate') || [];
-          const exceptionDates: Date[] = [];
-          for (const prop of exdateProps) {
-            const values = prop.getValues();
-            for (const v of values) {
+          const exceptionDates = exdateProps
+            .flatMap(prop => prop.getValues())
+            .map(v => {
               try {
                 if (v && typeof (v as any).toJSDate === 'function') {
-                  exceptionDates.push((v as any).toJSDate());
-                } else if (v instanceof Date) {
-                  exceptionDates.push(v);
-                } else if (typeof v === 'string') {
-                  const parsed = new Date(v);
-                  if (!isNaN(parsed.getTime())) exceptionDates.push(parsed);
+                  return (v as any).toJSDate();
                 }
+                if (v instanceof Date) {
+                  return v;
+                }
+                if (typeof v === 'string') {
+                  const parsed = new Date(v);
+                  return !isNaN(parsed.getTime()) ? parsed : null;
+                }
+                return null;
               } catch {
                 // skip malformed value
+                return null;
               }
-            }
-          }
+            })
+            .filter((d): d is Date => d instanceof Date);
+
           if (exceptionDates.length > 0) {
             baseEvent.exceptionDates = exceptionDates;
           }

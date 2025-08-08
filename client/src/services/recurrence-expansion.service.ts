@@ -84,8 +84,6 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
   private readonly MAX_INSTANCES = CALENDAR_CONFIG.FEEDS.MAX_RECURRENCE_INSTANCES;
   private readonly EXPANSION_WINDOW_WEEKS = CALENDAR_CONFIG.FEEDS.EXPANSION_WINDOW_WEEKS;
   private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-  // Aggregate cap across expandMultipleEvents results
-  private readonly AGGREGATE_MAX_INSTANCES = 5000;
   
   // LRU cache for expanded recurrences with memory management
   private readonly expansionCache = new LRUCache<string, ExpandedRecurrence>({
@@ -213,7 +211,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     let truncated = false;
 
     for (const { eventId, instances } of expansionResults) {
-      const remaining = this.AGGREGATE_MAX_INSTANCES - total;
+      const remaining = CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES - total;
       if (remaining <= 0) {
         // No capacity left
         results.set(eventId, []);
@@ -233,7 +231,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
 
     if (truncated) {
       console.warn(
-        `Aggregate recurrence instances exceeded ${this.AGGREGATE_MAX_INSTANCES}. Results truncated.`
+        `Aggregate recurrence instances exceeded ${CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES}. Results truncated.`
       );
     }
 
@@ -335,7 +333,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     const occurrences = rrule.between(expandStart, expandEnd, true);
     
     // Check for excessive instances before processing
-    if (occurrences.length > this.AGGREGATE_MAX_INSTANCES) {
+    if (occurrences.length > CALENDAR_CONFIG.FEEDS.AGGREGATE_MAX_RECURRENCE_INSTANCES) {
       console.warn(`Event ${event.id} has ${occurrences.length} instances, aborting expansion`);
       throw new RecurrenceExpansionError(
         'Too many recurrence instances',
