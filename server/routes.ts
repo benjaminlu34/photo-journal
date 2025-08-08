@@ -215,27 +215,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Allowed redirect URIs for Google OAuth (security best practice)
-  const ALLOWED_REDIRECT_URIS = [
-    'http://localhost:5000/auth/google/callback',
-    'http://localhost:3000/auth/google/callback',
-    'https://your-domain.com/auth/google/callback',
-    // Add your production domains here
-  ];
+  // Set GOOGLE_OAUTH_REDIRECT_URIS environment variable with comma-separated production URIs
+  // Example: GOOGLE_OAUTH_REDIRECT_URIS="https://yourdomain.com/auth/google/callback,https://www.yourdomain.com/auth/google/callback"
+  const getAllowedRedirectUris = (): string[] => {
+    const uris: string[] = [];
+    
+    // Development URIs
+    if (process.env.NODE_ENV === 'development') {
+      uris.push(
+        'http://localhost:3000/auth/google/callback',
+        'http://localhost:5000/auth/google/callback'
+      );
+    }
+    
+    // Production URIs from environment variables
+    const productionUris = process.env.GOOGLE_OAUTH_REDIRECT_URIS;
+    if (productionUris) {
+      uris.push(...productionUris.split(',').map(uri => uri.trim()));
+    }
+    
+    return uris;
+  };
+  
+  const ALLOWED_REDIRECT_URIS = getAllowedRedirectUris();
 
   // Validate redirect URI against allow-list
   function validateRedirectUri(redirectUri: string): boolean {
-    // Check against explicit allow-list first
-    if (ALLOWED_REDIRECT_URIS.includes(redirectUri)) {
-      return true;
-    }
-
-    // In development, only allow specific localhost ports and paths
-    if (process.env.NODE_ENV === 'development') {
-      const developmentPattern = /^http:\/\/localhost:(3000|5000)\/auth\/google\/callback$/;
-      return developmentPattern.test(redirectUri);
-    }
-
-    return false;
+    return ALLOWED_REDIRECT_URIS.includes(redirectUri);
   }
 
   // Shared error handling for Google OAuth endpoints

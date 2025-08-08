@@ -14,9 +14,9 @@ let cachedEncryptionKey: Buffer | null = null;
 let cachedKeyConfig: string | null = null;
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.OAUTH_ENCRYPTION_SECRET || process.env.ENCRYPTION_SECRET;
+  const secret = process.env.OAUTH_ENCRYPTION_SECRET;
   if (!secret) {
-    throw new Error('Server configuration error: OAUTH_ENCRYPTION_SECRET not set');
+    throw new Error('Server configuration error: OAUTH_ENCRYPTION_SECRET must be set');
   }
   
   const salt = process.env.OAUTH_ENCRYPTION_SALT;
