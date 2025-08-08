@@ -1740,6 +1740,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const dateRangeSchema = z.object({
     startDate: z.string().datetime(),
     endDate: z.string().datetime(),
+  }).refine((vals) => new Date(vals.startDate) <= new Date(vals.endDate), {
+    message: "startDate must be before or equal to endDate",
+    path: ["endDate"],
   });
 
   /**
@@ -1803,12 +1806,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const start = new Date(startDate);
         const end = new Date(endDate);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          return res.status(400).json({ message: "Invalid date format" });
-        }
-        if (start > end) {
-          return res.status(400).json({ message: "startDate must be before or equal to endDate" });
-        }
 
         // Owner path: allowed, but currently no backend event store → return empty
         if (friendId === currentUserId) {
@@ -1861,7 +1858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // currentUserRole is computed in storage.getFriendsWithRoles
         const allowedFriends = (friends || []).filter(f =>
-          ['viewer', 'contributor', 'editor'].includes((f as any).currentUserRole)
+          ['viewer', 'contributor', 'editor'].includes(f.currentUserRole)
         );
 
         // Shape to client Friend type

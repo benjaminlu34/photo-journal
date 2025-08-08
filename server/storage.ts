@@ -80,6 +80,7 @@ export interface IStorage {
       roleFriendToUser: string;
       status: string;
       createdAt: Date;
+      currentUserRole: string;
     })[];
     totalCount: number;
   }>;
