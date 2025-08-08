@@ -482,7 +482,7 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
             }
           }
           if (exceptionDates.length > 0) {
-            (baseEvent as any).exceptionDates = exceptionDates;
+            baseEvent.exceptionDates = exceptionDates;
           }
         } catch (_ex) {
           // best-effort EXDATE parsing; ignore failures

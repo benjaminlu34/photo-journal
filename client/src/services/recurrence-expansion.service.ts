@@ -221,7 +221,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
         continue;
       }
 
-      const sliced = instances.slice(0, Math.max(0, remaining));
+      const sliced = instances.slice(0, remaining);
       total += sliced.length;
 
       if (sliced.length < instances.length) {
@@ -383,9 +383,7 @@ export class RecurrenceExpansionServiceImpl implements RecurrenceExpansionServic
     event: CalendarEvent
   ): RecurrenceInstance[] {
     try {
-      const exdates = Array.isArray(event.exceptionDates)
-        ? event.exceptionDates as Date[]
-        : [];
+      const exdates = event.exceptionDates ?? [];
 
       if (!exdates || exdates.length === 0) {
         return instances;
