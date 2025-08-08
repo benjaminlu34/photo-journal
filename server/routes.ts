@@ -329,7 +329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Bind token to user via AAD to mitigate token swapping between users
         const userBoundAAD = getUserId(req);
-        const encryptedToken = encryptToken(accessToken, userBoundAAD);
+        const encryptedToken = await encryptToken(accessToken, userBoundAAD);
         const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
         return res.json({ encryptedToken, refreshToken, expiresAt });
@@ -362,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const userBoundAAD = getUserId(req);
-        const encryptedToken = encryptToken(accessToken, userBoundAAD);
+        const encryptedToken = await encryptToken(accessToken, userBoundAAD);
         const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
         return res.json({ encryptedToken, refreshToken: newRefreshToken, expiresAt });
@@ -384,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { encryptedToken } = decryptSchema.parse(req.body);
         const userBoundAAD = getUserId(req);
-        const accessToken = decryptToken(encryptedToken, userBoundAAD);
+        const accessToken = await decryptToken(encryptedToken, userBoundAAD);
         // Return short-lived access token (Google enforces expiry)
         return res.json({ accessToken });
       } catch (err) {
