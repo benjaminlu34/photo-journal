@@ -99,7 +99,7 @@ describe('Friend Calendar Endpoints', () => {
       .set('Authorization', `Bearer ${userB.id}`)
       .send({ startDate: 'invalid', endDate: 'also-bad' });
 
-    expect([400, 422]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   it('POST /api/friends/:friendId/calendar/events returns empty array shape behind mock flag', async () => {
@@ -116,16 +116,28 @@ describe('Friend Calendar Endpoints', () => {
     expect(res.body.events.length).toBe(0);
   });
 
-  it('GET /api/friends/with-calendar-access lists accepted friends with viewer+ role', async () => {
+  it('GET /api/friends/with-calendar-access lists accepted friends with viewer+ role (paginated)', async () => {
     const res = await request(app)
-      .get(`/api/friends/with-calendar-access`)
+      .get(`/api/friends/with-calendar-access?limit=50&offset=0`)
       .set('Authorization', `Bearer ${userA.id}`);
 
     expect(res.status).toBe(200);
-    const list = res.body as Array<{ id: string; username?: string | null }>;
+    // New paginated response shape
+    expect(res.body).toHaveProperty('friends');
+    expect(res.body).toHaveProperty('pagination');
+
+    const list = res.body.friends as Array<{ id: string; username?: string | null }>;
     // Should include userB
     expect(list.find(f => f.id === userB.id)).toBeTruthy();
     // Should not include unrelated userC
     expect(list.find(f => f.id === userC.id)).toBeFalsy();
+
+    // Basic pagination metadata assertions
+    expect(res.body.pagination).toMatchObject({
+      limit: 50,
+      offset: 0,
+    });
+    expect(typeof res.body.pagination.totalCount).toBe('number');
+    expect(typeof res.body.pagination.hasMore).toBe('boolean');
   });
 });

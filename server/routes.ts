@@ -1856,8 +1856,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const currentUserId = getUserId(req);
 
+        // Pagination parameters
+        const limitParam = req.query.limit as string | undefined;
+        const offsetParam = req.query.offset as string | undefined;
+        const limit = Math.min(Math.max(parseInt(limitParam || '50', 10) || 50, 1), 100);
+        const offset = Math.max(parseInt(offsetParam || '0', 10) || 0, 0);
+
         // Use existing helper that returns accepted friendships with roles
-        const { friends } = await storage.getFriendsWithRoles(currentUserId, { limit: 100, offset: 0 });
+        const { friends, totalCount } = await storage.getFriendsWithRoles(currentUserId, { limit, offset });
 
         // currentUserRole is computed in storage.getFriendsWithRoles
         const allowedFriends = friends.filter(f =>
@@ -1874,7 +1880,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           profileImageUrl: null as string | null,
         }));
 
-        return res.json(result);
+        return res.json({
+          friends: result,
+          pagination: {
+            limit,
+            offset,
+            totalCount,
+            hasMore: offset + limit < totalCount,
+          },
+        });
       } catch (err) {
         console.error("GET /api/friends/with-calendar-access:", err);
         return res.status(500).json({ message: "Failed to fetch friends with calendar access" });
