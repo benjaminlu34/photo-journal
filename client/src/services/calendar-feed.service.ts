@@ -153,12 +153,21 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
 
   private async authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const headers = new Headers({
-      'Content-Type': 'application/json',
       ...(await this.getAuthHeader()),
     });
 
+    // Only set Content-Type to application/json if not already provided
     if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+      const initHeaders = new Headers(init.headers);
+      initHeaders.forEach((value, key) => headers.set(key, value));
+      
+      // Set default Content-Type only if not provided by caller
+      if (!initHeaders.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
+    } else {
+      // Set default Content-Type when no headers provided
+      headers.set('Content-Type', 'application/json');
     }
 
     return fetch(input, { ...init, headers });
