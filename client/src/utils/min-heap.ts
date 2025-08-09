@@ -81,5 +81,3 @@ export class MinHeap<T> {
     this.data[j] = tmp;
   }
 }
-
-export default MinHeap;

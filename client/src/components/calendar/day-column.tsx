@@ -162,7 +162,7 @@ export function DayColumn({
       
       const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
       const height = (actualDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-      const column = eventColumns.get(event.id) || 0;
+      const column = eventColumns.get(event.id)!;
       
       return {
         event,
