@@ -44,13 +44,7 @@ function HomeContent() {
     return 'Current';
   };
 
-  // Helper function for keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.currentTarget.click();
-    }
-  };
+
 
 
   // View persistence: handle both URL params and localStorage
@@ -191,6 +185,10 @@ function HomeContent() {
     return null;
   }
 
+  // Get navigation labels once before render
+  const unit = getNavUnit(viewMode);
+  const currentPeriodLabel = getCurrentPeriodLabel(viewMode);
+
   return (
     <div className="flex h-screen">
       <JournalSidebar />
@@ -200,92 +198,73 @@ function HomeContent() {
           <div className="grid grid-cols-[auto_1fr_auto] items-center w-full gap-4">
             {/* Left: Navigation at the very left */}
             <div className="flex items-center gap-1 shrink-0">
-              {(() => {
-                const unit = getNavUnit(viewMode);
-                return (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    aria-label={unit ? `Go to previous ${unit}` : 'Previous'}
-                    title={unit ? `Previous ${unit}` : 'Previous'}
-                    onClick={() => {
-                      if (viewMode === "daily") {
-                        const prevDay = addDays(new Date(currentDate), -1);
-                        setCurrentDate(prevDay);
-                      } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                        const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
-                        setCurrentWeek(newWeek);
-                      } else if (viewMode === "monthly") {
-                        const prevMonth = new Date(currentDate);
-                        prevMonth.setMonth(currentDate.getMonth() - 1);
-                        setCurrentDate(prevMonth);
-                      }
-                    }}
-                    onKeyDown={handleKeyDown}
-                    className="neu-nav-pill text-gray-700"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                );
-              })()}
+              <Button
+                variant="default"
+                size="sm"
+                aria-label={unit ? `Go to previous ${unit}` : 'Previous'}
+                title={unit ? `Previous ${unit}` : 'Previous'}
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    const prevDay = addDays(new Date(currentDate), -1);
+                    setCurrentDate(prevDay);
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    setCurrentWeek(newWeek);
+                  } else if (viewMode === "monthly") {
+                    const prevMonth = new Date(currentDate);
+                    prevMonth.setMonth(currentDate.getMonth() - 1);
+                    setCurrentDate(prevMonth);
+                  }
+                }}
+                className="neu-nav-pill text-gray-700"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
 
-              {(() => {
-                const unit = getNavUnit(viewMode);
-                const label = getCurrentPeriodLabel(viewMode);
-                return (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    aria-label={unit ? `Go to current ${unit}` : 'Go to current period'}
-                    title={unit ? `Go to current ${unit}` : 'Go to current period'}
-                    onClick={() => {
-                      if (viewMode === "daily") {
-                        const today = new Date();
-                        setCurrentDate(today);
-                      } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                        const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-                        setCurrentWeek(todayStart);
-                      } else if (viewMode === "monthly") {
-                        const today = new Date();
-                        setCurrentDate(today);
-                      }
-                    }}
-                    onKeyDown={handleKeyDown}
-                    className="neu-nav-pill text-gray-700 whitespace-nowrap"
-                  >
-                    {label}
-                  </Button>
-                );
-              })()}
+              <Button
+                variant="default"
+                size="sm"
+                aria-label={unit ? `Go to current ${unit}` : 'Go to current period'}
+                title={unit ? `Go to current ${unit}` : 'Go to current period'}
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    const today = new Date();
+                    setCurrentDate(today);
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+                    setCurrentWeek(todayStart);
+                  } else if (viewMode === "monthly") {
+                    const today = new Date();
+                    setCurrentDate(today);
+                  }
+                }}
+                className="neu-nav-pill text-gray-700 whitespace-nowrap"
+              >
+                {currentPeriodLabel}
+              </Button>
 
-              {(() => {
-                const unit = getNavUnit(viewMode);
-                return (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    aria-label={unit ? `Go to next ${unit}` : 'Next'}
-                    title={unit ? `Next ${unit}` : 'Next'}
-                    onClick={() => {
-                      if (viewMode === "daily") {
-                        const nextDay = addDays(new Date(currentDate), 1);
-                        setCurrentDate(nextDay);
-                      } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
-                        const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
-                        setCurrentWeek(newWeek);
-                      } else if (viewMode === "monthly") {
-                        const nextMonth = new Date(currentDate);
-                        nextMonth.setMonth(currentDate.getMonth() + 1);
-                        setCurrentDate(nextMonth);
-                      }
-                    }}
-                    onKeyDown={handleKeyDown}
-                    className="neu-nav-pill text-gray-700"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                );
-              })()}
+              <Button
+                variant="default"
+                size="sm"
+                aria-label={unit ? `Go to next ${unit}` : 'Next'}
+                title={unit ? `Next ${unit}` : 'Next'}
+                onClick={() => {
+                  if (viewMode === "daily") {
+                    const nextDay = addDays(new Date(currentDate), 1);
+                    setCurrentDate(nextDay);
+                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                    const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
+                    setCurrentWeek(newWeek);
+                  } else if (viewMode === "monthly") {
+                    const nextMonth = new Date(currentDate);
+                    nextMonth.setMonth(currentDate.getMonth() + 1);
+                    setCurrentDate(nextMonth);
+                  }
+                }}
+                className="neu-nav-pill text-gray-700"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
 
             {/* Center: Title and FriendSearch with fixed positioning */}
