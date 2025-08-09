@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { startOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
@@ -18,11 +18,37 @@ import { supabase } from "@/lib/supabase";
 import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
+// Helper to check for weekly view modes
+const isWeeklyView = (mode: string | null): boolean =>
+  mode === 'weekly-calendar' || mode === 'weekly-creative';
+
+// Helper function to get navigation unit based on view mode (pure function)
+const getNavUnit = (viewMode: string | null) => {
+  if (viewMode === 'daily') return 'day';
+  if (isWeeklyView(viewMode)) return 'week';
+  if (viewMode === 'monthly') return 'month';
+  return null;
+};
+
 function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
   const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek, setViewMode } = useJournal();
+
+  // Memoized helper function to get current period label (depends on currentWeek state)
+  const getCurrentPeriodLabel = useCallback((viewMode: string | null) => {
+    if (viewMode === 'daily') return 'Today';
+    if (isWeeklyView(viewMode)) {
+      const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+      const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
+      return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
+    }
+    if (viewMode === 'monthly') return 'This Month';
+    return 'Current';
+  }, [currentWeek]);
+
+
 
 
   // View persistence: handle both URL params and localStorage
@@ -42,7 +68,7 @@ function HomeContent() {
     }
 
     // Apply date/week anchors based on the mode (use date-fns for stability)
-    if (mode === 'weekly-calendar' || mode === 'weekly-creative') {
+    if (isWeeklyView(mode)) {
       const start = startOfWeek(new Date(), { weekStartsOn: 0 });
       setCurrentWeek(start);
     } else {
@@ -163,6 +189,10 @@ function HomeContent() {
     return null;
   }
 
+  // Get navigation labels once before render
+  const unit = getNavUnit(viewMode);
+  const currentPeriodLabel = getCurrentPeriodLabel(viewMode);
+
   return (
     <div className="flex h-screen">
       <JournalSidebar />
@@ -175,12 +205,13 @@ function HomeContent() {
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Previous"
+                aria-label={unit ? `Go to previous ${unit}` : 'Previous'}
+                title={unit ? `Previous ${unit}` : 'Previous'}
                 onClick={() => {
                   if (viewMode === "daily") {
                     const prevDay = addDays(new Date(currentDate), -1);
                     setCurrentDate(prevDay);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
@@ -197,12 +228,13 @@ function HomeContent() {
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Go to current period"
+                aria-label={unit ? `Go to current ${unit}` : 'Go to current period'}
+                title={unit ? `Go to current ${unit}` : 'Go to current period'}
                 onClick={() => {
                   if (viewMode === "daily") {
                     const today = new Date();
                     setCurrentDate(today);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
                     setCurrentWeek(todayStart);
                   } else if (viewMode === "monthly") {
@@ -212,24 +244,19 @@ function HomeContent() {
                 }}
                 className="neu-nav-pill text-gray-700 whitespace-nowrap"
               >
-                {viewMode === "daily" && "Today"}
-                {(viewMode === "weekly-calendar" || viewMode === "weekly-creative") && (() => {
-                  const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-                  const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
-                  return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
-                })()}
-                {viewMode === "monthly" && "This Month"}
+                {currentPeriodLabel}
               </Button>
 
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Next"
+                aria-label={unit ? `Go to next ${unit}` : 'Next'}
+                title={unit ? `Next ${unit}` : 'Next'}
                 onClick={() => {
                   if (viewMode === "daily") {
                     const nextDay = addDays(new Date(currentDate), 1);
                     setCurrentDate(nextDay);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
