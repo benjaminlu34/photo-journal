@@ -95,7 +95,6 @@ export function DayColumn({
     type SweepEvent = {
       time: number; // in minutes
       type: 'start' | 'end';
-      eventIndex: number;
       eventId: string;
     };
 
@@ -108,13 +107,11 @@ export function DayColumn({
       sweepEvents.push({
         time: startMinutes,
         type: 'start',
-        eventIndex: index,
         eventId: event.id,
       });
       sweepEvents.push({
         time: actualEndMinutes,
         type: 'end',
-        eventIndex: index,
         eventId: event.id,
       });
     });

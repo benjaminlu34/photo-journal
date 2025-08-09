@@ -18,13 +18,16 @@ export class MinHeap<T> {
   }
 
   pop(): T | undefined {
-    if (this.data.length === 0) return undefined;
-    const min = this.data[0];
-    const last = this.data.pop() as T;
-    if (this.data.length > 0) {
-      this.data[0] = last;
-      this.bubbleDown(0);
+    if (this.isEmpty()) {
+      return undefined;
     }
+    const size = this.size();
+    if (size === 1) {
+      return this.data.pop();
+    }
+    this.swap(0, size - 1);
+    const min = this.data.pop();
+    this.bubbleDown(0);
     return min;
   }
 
