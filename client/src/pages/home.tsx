@@ -175,7 +175,16 @@ function HomeContent() {
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Previous"
+                aria-label={
+                  viewMode === "daily" ? "Go to previous day" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Go to previous week" :
+                  viewMode === "monthly" ? "Go to previous month" : "Previous"
+                }
+                title={
+                  viewMode === "daily" ? "Previous day" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Previous week" :
+                  viewMode === "monthly" ? "Previous month" : "Previous"
+                }
                 onClick={() => {
                   if (viewMode === "daily") {
                     const prevDay = addDays(new Date(currentDate), -1);
@@ -189,6 +198,12 @@ function HomeContent() {
                     setCurrentDate(prevMonth);
                   }
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.currentTarget.click();
+                  }
+                }}
                 className="neu-nav-pill text-gray-700"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -197,7 +212,16 @@ function HomeContent() {
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Go to current period"
+                aria-label={
+                  viewMode === "daily" ? "Go to today" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Go to current week" :
+                  viewMode === "monthly" ? "Go to current month" : "Go to current period"
+                }
+                title={
+                  viewMode === "daily" ? "Go to today" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Go to current week" :
+                  viewMode === "monthly" ? "Go to current month" : "Go to current period"
+                }
                 onClick={() => {
                   if (viewMode === "daily") {
                     const today = new Date();
@@ -208,6 +232,12 @@ function HomeContent() {
                   } else if (viewMode === "monthly") {
                     const today = new Date();
                     setCurrentDate(today);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.currentTarget.click();
                   }
                 }}
                 className="neu-nav-pill text-gray-700 whitespace-nowrap"
@@ -224,7 +254,16 @@ function HomeContent() {
               <Button
                 variant="default"
                 size="sm"
-                aria-label="Next"
+                aria-label={
+                  viewMode === "daily" ? "Go to next day" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Go to next week" :
+                  viewMode === "monthly" ? "Go to next month" : "Next"
+                }
+                title={
+                  viewMode === "daily" ? "Next day" :
+                  (viewMode === "weekly-calendar" || viewMode === "weekly-creative") ? "Next week" :
+                  viewMode === "monthly" ? "Next month" : "Next"
+                }
                 onClick={() => {
                   if (viewMode === "daily") {
                     const nextDay = addDays(new Date(currentDate), 1);
@@ -236,6 +275,12 @@ function HomeContent() {
                     const nextMonth = new Date(currentDate);
                     nextMonth.setMonth(currentDate.getMonth() + 1);
                     setCurrentDate(nextMonth);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.currentTarget.click();
                   }
                 }}
                 className="neu-nav-pill text-gray-700"
