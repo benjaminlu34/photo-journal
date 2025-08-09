@@ -183,6 +183,9 @@ describe('Friend calendar: dedupe and background refresh', () => {
 
     // Color should match feed color (deterministic per friend via palette manager)
     expect(only.color).toBe(feed.color);
+    // Pattern should be assigned for accessibility (from ColorAssignment)
+    expect(only.pattern).toBeDefined();
+    expect(['plain','stripe','dot']).toContain(only.pattern as any);
 
     // Ensure friend metadata is present on canonical event
     expect(only.source).toBe('friend');
@@ -211,5 +214,15 @@ describe('Friend calendar: dedupe and background refresh', () => {
 
     // Rate limit window is 5 minutes; consecutive dispatches should trigger only once
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroy() removes visibilitychange listener to avoid leaks', () => {
+    const svc = new FriendCalendarServiceImpl();
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+
+    svc.destroy();
+
+    expect(removeSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+    removeSpy.mockRestore();
   });
 });

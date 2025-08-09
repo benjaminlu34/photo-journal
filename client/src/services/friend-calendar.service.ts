@@ -156,37 +156,34 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
   // Use the global duplicateEventResolver so friend events dedupe consistently with external feeds
   private resolveAndColorizeFriendEvents(friend: Friend, events: FriendCalendarEvent[]): FriendCalendarEvent[] {
+    const assignment = this.getFriendColorAssignment(friend.id);
+    const feedId = `friend-${friend.id}`;
+
+    const enrichEvent = (ev: any): FriendCalendarEvent => {
+      const merged: FriendCalendarEvent = {
+        ...ev,
+        source: 'friend' as const,
+        isFromFriend: true,
+        friendUserId: friend.id,
+        friendUsername: friend.username ?? friend.id,
+        sourceId: friend.id,
+        feedId,
+        feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
+        color: assignment.color,
+        pattern: assignment.pattern,
+      } as FriendCalendarEvent;
+
+      if (!merged.canonicalEventId) {
+        merged.canonicalEventId = `canonical:${merged.externalId}:${feedId}`;
+      }
+      return merged;
+    };
+
     try {
       const result = duplicateEventResolver.resolveEvents(events);
-      const friendColor = this.getFriendColor(friend.id);
-
-      const canonical = Array.from(result.canonicalEvents.values()).map((ev) => {
-        // Coerce to FriendCalendarEvent while preserving friend metadata
-        const merged = {
-          ...ev,
-          source: 'friend' as const,
-          isFromFriend: true,
-          friendUserId: friend.id,
-          friendUsername: friend.username ?? friend.id,
-          sourceId: friend.id,
-          feedId: `friend-${friend.id}`,
-          feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
-          color: friendColor,
-        } as FriendCalendarEvent;
-
-        // Ensure canonicalEventId is present for friend events (resolver sets when primary is friend)
-        if (!merged.canonicalEventId) {
-          merged.canonicalEventId = `canonical:${merged.externalId}:${merged.feedId}`;
-        }
-
-        return merged;
-      });
-
-      return canonical;
+      return Array.from(result.canonicalEvents.values()).map(enrichEvent);
     } catch (e) {
       console.error('Friend event duplicate resolution failed, falling back:', e);
-      const friendColor = this.getFriendColor(friend.id);
-      const feedId = `friend-${friend.id}`;
 
       // Fallback with simple deduplication to avoid showing duplicates:
       // group by externalId (or id) and keep highest sequence
@@ -199,18 +196,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         }
       }
 
-      return Array.from(uniqueEvents.values()).map((ev) => ({
-        ...ev,
-        source: 'friend' as const,
-        isFromFriend: true,
-        friendUserId: friend.id,
-        friendUsername: friend.username ?? friend.id,
-        sourceId: friend.id,
-        feedId,
-        feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
-        color: ev.color || friendColor,
-        canonicalEventId: ev.canonicalEventId || `canonical:${ev.externalId}:${feedId}`,
-      }));
+      return Array.from(uniqueEvents.values()).map(enrichEvent);
     }
   }
 
@@ -336,7 +322,8 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   createFriendFeed(friend: Friend): CalendarFeed {
     const feedId = `friend-${friend.id}`;
 
-    const feedColor = this.getFriendColor(friend.id);
+    const assignment = this.getFriendColorAssignment(friend.id);
+    const feedColor = assignment.color;
 
     const feed: CalendarFeed = {
       id: feedId,
@@ -782,7 +769,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   }
 
   // Deterministic friend color via palette manager with fallback to legacy mapping
-  private getFriendColor(friendId: string): string {
+  private getFriendColorAssignment(friendId: string): ColorAssignment {
     const assignment = colorPaletteManager.getColorAssignment(
       friendId,
       this.friendColorAssignments,
@@ -790,7 +777,24 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     );
     // Persist for future lookups
     this.friendColorAssignments.set(friendId, assignment);
-    return assignment.color;
+    return assignment;
+  }
+
+  // Backward-compatible helper when only color is needed
+  private getFriendColor(friendId: string): string {
+    return this.getFriendColorAssignment(friendId).color;
+  }
+
+  // Lifecycle cleanup to prevent leaking listeners if lifecycle changes
+  public destroy(): void {
+    try {
+      if (this.visibilityChangeHandler) {
+        document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+        this.visibilityChangeHandler = null;
+      }
+    } catch {
+      // ignore non-DOM environments
+    }
   }
 }
 
