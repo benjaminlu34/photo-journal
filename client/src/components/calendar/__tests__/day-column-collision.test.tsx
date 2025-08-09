@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { DayColumn } from '../day-column';
 import type { LocalEvent } from '@/types/calendar';
+import { CALENDAR_CONFIG } from '@shared/config/calendar-config';
 
 describe('DayColumn Sweep-Line Collision Algorithm', () => {
   const mockDate = new Date('2025-01-15T00:00:00');
@@ -58,11 +59,11 @@ describe('DayColumn Sweep-Line Collision Algorithm', () => {
     );
 
     // All events should have full width (100%) when not overlapping
-    const eventElements = container.querySelectorAll('.absolute > div');
+    const eventElements = container.querySelectorAll('.absolute');
     eventElements.forEach(element => {
-      const style = window.getComputedStyle(element.parentElement as HTMLElement);
-      expect(style.width).toBe('100%');
-      expect(style.left).toBe('0%');
+      const style = (element as HTMLElement).getAttribute('style') || '';
+      expect(style).toContain('width: 100%');
+      expect(style).toContain('left: 0%');
     });
   });
 
@@ -211,13 +212,13 @@ describe('DayColumn Sweep-Line Collision Algorithm', () => {
     const eventElements = container.querySelectorAll('.absolute');
     expect(eventElements.length).toBe(3);
     
-    // All events should be rendered with minimum height
+    // All events should be rendered with minimum height (15 minutes by config)
     eventElements.forEach(element => {
-      const style = element.getAttribute('style') || '';
+      const style = (element as HTMLElement).getAttribute('style') || '';
       const height = parseFloat(style.match(/height:\s*([\d.]+)px/)?.[1] || '0');
-      
-      // Minimum duration is 30 minutes, which equals HOUR_HEIGHT/2
-      expect(height).toBeGreaterThanOrEqual(30); // Assuming HOUR_HEIGHT is 60px
+
+      const expectedMinHeight = (CALENDAR_CONFIG.EVENTS.MIN_DURATION / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      expect(height).toBeGreaterThanOrEqual(expectedMinHeight - 0.01);
     });
   });
 
