@@ -86,18 +86,10 @@ export function createBoardSDK({
     }
   };
 
-  // Helper function to process image content with signed URLs
+  // Helper function to process image content
+  // Do not persist signed URLs into document content.
+  // Image components resolve fresh signed URLs via server + cache at render time.
   const processImageContent = async (content: any): Promise<any> => {
-    if (content.type === 'image' && content.storagePath && !content.imageUrl) {
-      // Generate signed URL for persistent images
-      const signedUrl = await generateSignedUrlForImage(content.storagePath);
-      if (signedUrl) {
-        return {
-          ...content,
-          imageUrl: signedUrl,
-        };
-      }
-    }
     return content;
   };
 
@@ -150,32 +142,10 @@ export function createBoardSDK({
     redo() {
       undoManager.redo();
     },
-    // Refresh signed URLs for all image notes (useful for friend access)
+    // Refresh signed URLs for image notes is no longer needed at the document level.
+    // Signed URLs are resolved on render via ImageNote with cache and auto-refresh.
     async refreshImageUrls() {
-      const notes = Array.from(notesMap.values());
-      const imageNotes = notes.filter(note => note.content.type === 'image' && (note.content as any).storagePath);
-      
-      for (const note of imageNotes) {
-        const imageContent = note.content as any;
-        if (imageContent.storagePath) {
-          const signedUrl = await generateSignedUrlForImage(imageContent.storagePath);
-          if (signedUrl) {
-            const updatedContent = {
-              ...imageContent,
-              imageUrl: signedUrl,
-            };
-            notesMap.set(note.id, { ...note, content: updatedContent });
-          } else {
-            // If signed URL generation fails (e.g., due to permission revocation),
-            // remove the image URL to prevent showing broken images
-            const updatedContent = {
-              ...imageContent,
-              imageUrl: undefined,
-            };
-            notesMap.set(note.id, { ...note, content: updatedContent });
-          }
-        }
-      }
+      return;
     },
 
     // Get notes with fresh signed URLs for friend access
