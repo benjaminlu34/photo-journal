@@ -61,8 +61,13 @@ const corsOptions = {
   maxAge: 86400, // 24 hours
 };
 
+/* CORS */
 // Apply CORS middleware to API routes
 app.use('/api', cors(corsOptions));
+
+// The /uploads route is protected by `isAuthenticatedSupabase` and is not intended
+// for direct client fetching via CORS, even in development. Removing this rule
+// enforces the correct architectural pattern where clients use signed URLs.
 
 // Block all CORS for uploads in production (must be accessed via same origin)
 if (process.env.NODE_ENV === 'production') {

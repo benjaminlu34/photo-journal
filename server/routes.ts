@@ -624,12 +624,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Clean up local temporary file
         await fs.promises.unlink(req.file.path);
 
+        const expiresAt = new Date(Date.now() + config.signedUrlTtlSeconds * 1000).toISOString();
         return res.status(201).json({
           url: signedUrlData.signedUrl,
           storagePath: pathInfo.storagePath,
           size: req.file.size,
           mimeType: req.file.mimetype,
-          fileName: pathInfo.fileName
+          fileName: pathInfo.fileName,
+          expiresAt: expiresAt
         });
       } catch (err) {
         console.error("POST /api/photos/upload:", err);
@@ -669,16 +671,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const signedUrl = await generateSignedUrlWithServiceRole(storagePath, ttlSeconds);
 
         if (!signedUrl) {
-          // Fallback to local URL if Supabase is not configured
-          const protocol = req.protocol;
-          const host = req.get("host");
-          const tempUrl = `${protocol}://${host}/uploads/${storagePath}`;
-
-          return res.json({
-            signedUrl: tempUrl,
-            expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
-            storagePath
-          });
+          // If Supabase is not configured or fails, we cannot serve the image securely.
+          // Do not fall back to an insecure local URL that requires cookies.
+          return res.status(503).json({ message: "Storage service is unavailable." });
         }
 
         return res.json({

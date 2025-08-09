@@ -50,6 +50,8 @@ const ImageNote: React.FC<ImageNoteProps> = ({
   const [cachedImageUrl, setCachedImageUrl] = useState<string | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
+  // Prevent infinite refresh loops on image load failure
+  const hasRetriedRef = useRef(false);
 
   // Memoize storage path to prevent unnecessary re-renders
   const storagePath = useMemo(() => content.storagePath, [content.storagePath]);
@@ -62,89 +64,138 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
   // Simple state management - no complex service monitoring needed
 
-  // Load image using server's signed URL endpoint for proper permission validation
-  useEffect(() => {
-    const loadImage = async () => {
-      // Skip loading if we already have a valid signed URL (prevents duplicate calls after upload)
-      if (existingImageUrl && !existingImageUrl.startsWith('blob:')) {
-        setCachedImageUrl(existingImageUrl);
+
+  // Helper to refresh a signed URL on-demand (e.g., after an <img> onError)
+  const refreshSignedUrl = useCallback(async () => {
+    if (!storagePath || !user?.id) return;
+
+    try {
+      setIsLoadingImage(true);
+      setImageLoadError(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setImageLoadError('Authentication required');
         return;
       }
 
-      if (storagePath && user?.id) {
-        // Get current session for authentication
+      // Invalidate any stale cache before fetching
+      clearCacheForStoragePath(storagePath);
+
+      const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`Image not found (likely deleted): ${storagePath}`);
+          clearCacheForStoragePath(storagePath);
+          onChange?.({
+            ...content,
+            imageUrl: undefined,
+            storagePath: undefined,
+          } as any);
+          return;
+        }
+        if (response.status === 403) {
+          throw new Error('Access denied to this image');
+        }
+        throw new Error(`Failed to refresh image (${response.status})`);
+      }
+
+      const result = await response.json();
+      if (result.signedUrl) {
+        const expiresAt = new Date(result.expiresAt).getTime();
+        addToCache(storagePath, result.signedUrl, expiresAt);
+        setCachedImageUrl(result.signedUrl);
+      } else {
+        throw new Error('No signed URL returned from server');
+      }
+    } catch (error) {
+      console.error('Failed to refresh image:', error);
+      setImageLoadError(error instanceof Error ? error.message : 'Failed to refresh image');
+    } finally {
+      setIsLoadingImage(false);
+    }
+  }, [storagePath, user?.id, onChange, content]);
+
+  const handleImageError = useCallback(() => {
+    // Attempt a single auto-refresh on image load error
+    if (hasRetriedRef.current) {
+      return;
+    }
+    hasRetriedRef.current = true;
+    refreshSignedUrl();
+  }, [refreshSignedUrl]);
+
+  // Reset auto-refresh guard when the storage path changes
+  useEffect(() => {
+    hasRetriedRef.current = false;
+  }, [storagePath]);
+
+  // Load image using server's signed URL endpoint for PURE signed URL flow.
+  // The storagePath is the source of truth, not a potentially stale imageUrl.
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!storagePath) {
+        setCachedImageUrl(null);
+        return;
+      }
+
+      // 1. Check cache first
+      const cachedURL = getFromCache(storagePath);
+      if (cachedURL) {
+        setCachedImageUrl(cachedURL);
+        return;
+      }
+
+      // 2. If not in cache, fetch a new signed URL
+      // (This automatically runs on mount for old images or after upload for new ones)
+      setIsLoadingImage(true);
+      setImageLoadError(null);
+      try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
-          setImageLoadError('Authentication required');
-          setIsLoadingImage(false);
-          return;
+          throw new Error('Authentication required');
         }
 
-        // Check global cache first
-        const cachedURL = getFromCache(storagePath);
-        if (cachedURL) {
-          setCachedImageUrl(cachedURL);
-          return;
-        }
+        const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
 
-        setIsLoadingImage(true);
-        setImageLoadError(null);
-
-        try {
-          // Get signed URL from server endpoint for proper permission validation
-          const response = await fetch(`/api/photos/${storagePath}/signed-url`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
+        if (!response.ok) {
+          if (response.status === 404) {
+            console.warn(`Image not found (likely deleted): ${storagePath}`);
+            clearCacheForStoragePath(storagePath);
+            if (onChange) {
+              const newContent = { ...content };
+              delete newContent.imageUrl;
+              delete newContent.storagePath;
+              onChange(newContent as any);
             }
-          });
-
-          if (!response.ok) {
-            if (response.status === 404) {
-              // Image was deleted - clear the storagePath to prevent future attempts
-              console.warn(`Image not found (likely deleted): ${storagePath}`);
-              clearCacheForStoragePath(storagePath);
-              onChange?.({
-                ...content,
-                imageUrl: undefined,
-                storagePath: undefined,
-              } as any);
-              return;
-            }
-            if (response.status === 403) {
-              throw new Error('Access denied to this image');
-            }
-            throw new Error('Failed to load image');
+            return;
           }
-
-          const result = await response.json();
-
-          if (result.signedUrl) {
-            // Calculate expiration time (server returns expiresAt as ISO string)
-            const expiresAt = new Date(result.expiresAt).getTime();
-
-            // Add to global cache
-            addToCache(storagePath, result.signedUrl, expiresAt);
-
-            // Set local state
-            setCachedImageUrl(result.signedUrl);
-          } else {
-            throw new Error('No signed URL returned from server');
-          }
-        } catch (error) {
-          console.error('Failed to load image:', error);
-          setImageLoadError(error instanceof Error ? error.message : 'Failed to load image');
-        } finally {
-          setIsLoadingImage(false);
+          throw new Error(`Failed to fetch signed URL (${response.status})`);
         }
-      } else {
-        setCachedImageUrl(null);
+
+        const result = await response.json();
+        if (result.signedUrl) {
+          const expiresAt = new Date(result.expiresAt).getTime();
+          addToCache(storagePath, result.signedUrl, expiresAt);
+          setCachedImageUrl(result.signedUrl);
+        } else {
+          throw new Error('No signed URL in response');
+        }
+      } catch (error) {
+        console.error('Failed to load image URL:', error);
+        setImageLoadError(error instanceof Error ? error.message : 'Failed to load image');
+      } finally {
         setIsLoadingImage(false);
-        setImageLoadError(null);
       }
     };
 
     loadImage();
-  }, [storagePath, existingImageUrl, user?.id, onChange]);
+  }, [storagePath, user?.id, onChange, content]);
 
   useEffect(() => {
     return () => {
@@ -228,7 +279,16 @@ const ImageNote: React.FC<ImageNoteProps> = ({
 
         const result = await response.json();
 
-        setCachedImageUrl(result.url);
+        // After upload, cache the new signed URL to prevent an immediate re-fetch
+        if (result.url && result.expiresAt && result.storagePath) {
+          const expiresAt = new Date(result.expiresAt).getTime();
+          addToCache(result.storagePath, result.url, expiresAt);
+          setCachedImageUrl(result.url);
+        } else {
+          // Fallback if the response is missing needed data
+          setCachedImageUrl(result.url);
+        }
+
         setUploadState({ status: 'completed', progress: 100 });
 
         if (localPreviewUrl) {
@@ -366,6 +426,7 @@ const ImageNote: React.FC<ImageNoteProps> = ({
           src={displayImageUrl}
           alt={content.alt || "Uploaded image"}
           className="w-full h-full object-cover rounded-lg"
+          onError={handleImageError}
         />
 
         {isLoadingImage && (
