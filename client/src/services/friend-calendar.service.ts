@@ -85,8 +85,6 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   constructor() {
     // Rate-limited background refresh on tab visibility regain (mirrors feeds)
     this.visibilityChangeHandler = (event: Event) => {
-      // document.hidden is part of the Page Visibility API (DOM lib). If TS DOM types are unavailable, ensure "dom" is in tsconfig lib.
-      // @ts-ignore Ensure DOM typings include Page Visibility API
       if (typeof document === 'undefined' || document.hidden) return;
       const now = Date.now();
       if (now - this.lastVisibilityRefresh < this.VISIBILITY_REFRESH_MIN_MS) return;
@@ -173,11 +171,12 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
         color: assignment.color,
         pattern: assignment.pattern,
-      } as FriendCalendarEvent;
+        // Ensure originalEventId is always present, using externalId as fallback
+        originalEventId: (ev as FriendCalendarEvent).originalEventId || ev.externalId,
+        // Ensure canonicalEventId is always present
+        canonicalEventId: (ev as FriendCalendarEvent).canonicalEventId || `canonical:${ev.externalId}:${feedId}`,
+      };
 
-      if (!merged.canonicalEventId) {
-        merged.canonicalEventId = `canonical:${merged.externalId}:${feedId}`;
-      }
       return merged;
     };
 
