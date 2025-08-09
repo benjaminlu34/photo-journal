@@ -74,71 +74,110 @@ export function DayColumn({
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
 
-  // Collision detection and positioning algorithm
+  // Sweep-line algorithm for collision detection and positioning - O(N log N)
   const positioned = useMemo<PositionedEvent[]>(() => {
     if (events.length === 0) return [];
 
-    // Sort events by start time, then by duration (longer events first)
+    // Step 1: Sort events by start time, then by duration (longer events first for stable layout)
     const sortedEvents = [...events].sort((a, b) => {
       const aStart = a.startTime.getTime();
       const bStart = b.startTime.getTime();
       if (aStart !== bStart) return aStart - bStart;
 
-      // If same start time, longer events first
+      // If same start time, longer events first for consistent layout
       const aDuration = a.endTime.getTime() - a.startTime.getTime();
       const bDuration = b.endTime.getTime() - b.startTime.getTime();
       return bDuration - aDuration;
     });
 
-    const positioned: PositionedEvent[] = [];
-    const columns: { start: number; end: number }[] = [];
+    // Step 2: Create sweep events (start and end points)
+    type SweepEvent = {
+      time: number; // in minutes
+      type: 'start' | 'end';
+      eventIndex: number;
+      eventId: string;
+    };
 
-    sortedEvents.forEach((event) => {
+    const sweepEvents: SweepEvent[] = [];
+    sortedEvents.forEach((event, index) => {
       const startMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
       const endMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
-      const actualDuration = Math.max(endMinutes - startMinutes, CALENDAR_CONFIG.EVENTS.MIN_DURATION);
-
-      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-      const height = (actualDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-
-      // Find the first available column
-      let columnIndex = 0;
-      while (columnIndex < columns.length) {
-        const column = columns[columnIndex];
-        if (startMinutes >= column.end) {
-          // This column is free for this event
-          break;
-        }
-        columnIndex++;
-      }
-
-      // If no existing column is available, create a new one
-      if (columnIndex === columns.length) {
-        columns.push({ start: startMinutes, end: endMinutes });
-      } else {
-        // Update the column's end time
-        columns[columnIndex] = { start: Math.min(columns[columnIndex].start, startMinutes), end: Math.max(columns[columnIndex].end, endMinutes) };
-      }
-
-      positioned.push({
-        event,
-        top,
-        height,
-        column: columnIndex,
-        totalColumns: Math.max(columns.length, 1),
-        width: 100 / Math.max(columns.length, 1), // Percentage width
-        left: (columnIndex * 100) / Math.max(columns.length, 1), // Percentage left offset
+      const actualEndMinutes = Math.max(endMinutes, startMinutes + CALENDAR_CONFIG.EVENTS.MIN_DURATION);
+      
+      sweepEvents.push({
+        time: startMinutes,
+        type: 'start',
+        eventIndex: index,
+        eventId: event.id,
+      });
+      sweepEvents.push({
+        time: actualEndMinutes,
+        type: 'end',
+        eventIndex: index,
+        eventId: event.id,
       });
     });
 
-    // Update totalColumns for all events to ensure consistent layout
-    const maxColumns = Math.max(columns.length, 1);
-    return positioned.map(pos => ({
-      ...pos,
-      totalColumns: maxColumns,
-      width: 100 / maxColumns,
-      left: (pos.column * 100) / maxColumns,
-    }));
+    // Step 3: Sort sweep events by time, then by type (ends before starts for same time)
+    sweepEvents.sort((a, b) => {
+      if (a.time !== b.time) return a.time - b.time;
+      // Process 'end' events before 'start' events at the same time
+      if (a.type === 'end' && b.type === 'start') return -1;
+      if (a.type === 'start' && b.type === 'end') return 1;
+      return 0;
+    });
+
+    // Step 4: Sweep through events and assign columns
+    const eventColumns: Map<string, number> = new Map();
+    const freeColumns: number[] = []; // Min-heap of available columns
+    let maxColumnUsed = -1;
+
+    sweepEvents.forEach(sweep => {
+      if (sweep.type === 'start') {
+        // Assign the smallest available column
+        let column: number;
+        if (freeColumns.length > 0) {
+          // Reuse a freed column
+          freeColumns.sort((a, b) => a - b); // Ensure we get the smallest
+          column = freeColumns.shift()!;
+        } else {
+          // Need a new column
+          column = maxColumnUsed + 1;
+          maxColumnUsed = column;
+        }
+        eventColumns.set(sweep.eventId, column);
+      } else {
+        // 'end' event - free up the column
+        const column = eventColumns.get(sweep.eventId);
+        if (column !== undefined) {
+          freeColumns.push(column);
+        }
+      }
+    });
+
+    // Step 5: Build positioned events with computed layout
+    const totalColumns = maxColumnUsed + 1;
+    const positioned: PositionedEvent[] = sortedEvents.map(event => {
+      const startMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
+      const endMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
+      const actualDuration = Math.max(endMinutes - startMinutes, CALENDAR_CONFIG.EVENTS.MIN_DURATION);
+      
+      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      const height = (actualDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      const column = eventColumns.get(event.id) || 0;
+      
+      return {
+        event,
+        top,
+        height,
+        column,
+        totalColumns: Math.max(totalColumns, 1),
+        width: 100 / Math.max(totalColumns, 1),
+        left: (column * 100) / Math.max(totalColumns, 1),
+      };
+    });
+
+    return positioned;
   }, [events]);
 
   const slots = useMemo(() => {
