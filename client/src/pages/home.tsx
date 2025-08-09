@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { startOfWeek, addDays, addWeeks, subWeeks, isSameWeek } from "date-fns";
 import { JournalProvider, useJournal } from "@/contexts/journal-context";
 import { CRDTProvider } from "@/contexts/crdt-context";
@@ -22,22 +22,22 @@ import type { UserSearchResult } from "@/hooks/useFriendSearch";
 const isWeeklyView = (mode: string | null): boolean =>
   mode === 'weekly-calendar' || mode === 'weekly-creative';
 
+// Helper function to get navigation unit based on view mode (pure function)
+const getNavUnit = (viewMode: string | null) => {
+  if (viewMode === 'daily') return 'day';
+  if (isWeeklyView(viewMode)) return 'week';
+  if (viewMode === 'monthly') return 'month';
+  return null;
+};
+
 function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
   const { toast } = useToast();
   const { currentDate, currentEntry, viewMode, currentWeek, setCurrentDate, setCurrentWeek, setViewMode } = useJournal();
 
-  // Helper function to get navigation unit based on view mode
-  const getNavUnit = (viewMode: string | null) => {
-    if (viewMode === 'daily') return 'day';
-    if (isWeeklyView(viewMode)) return 'week';
-    if (viewMode === 'monthly') return 'month';
-    return null;
-  };
-
-  // Helper function to get current period label
-  const getCurrentPeriodLabel = (viewMode: string | null) => {
+  // Memoized helper function to get current period label (depends on currentWeek state)
+  const getCurrentPeriodLabel = useCallback((viewMode: string | null) => {
     if (viewMode === 'daily') return 'Today';
     if (isWeeklyView(viewMode)) {
       const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
@@ -46,7 +46,7 @@ function HomeContent() {
     }
     if (viewMode === 'monthly') return 'This Month';
     return 'Current';
-  };
+  }, [currentWeek]);
 
 
 
