@@ -631,6 +631,11 @@ export class CalendarFeedServiceImpl implements CalendarFeedService {
     }
   }
 
+  // Public method to set visibility change handler (for factory function)
+  setVisibilityChangeHandler(handler: (() => void) | null): void {
+    this.visibilityChangeHandler = handler;
+  }
+
   // Private helper methods
   private async fetchEventsFromSource(
     feed: CalendarFeed,
@@ -972,7 +977,7 @@ export function createCalendarFeedService(): CalendarFeedServiceImpl {
   };
 
   // Store handler reference for cleanup and add listener
-  (feedService as any).visibilityChangeHandler = onVisibilityChange;
+  feedService.setVisibilityChangeHandler(onVisibilityChange);
   document.addEventListener('visibilitychange', onVisibilityChange);
 
   return feedService;

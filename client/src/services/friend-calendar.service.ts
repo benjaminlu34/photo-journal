@@ -160,6 +160,15 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     const feedId = `friend-${friend.id}`;
 
     const enrichEvent = (ev: CalendarEvent): FriendCalendarEvent => {
+      // Use discriminated union type checking instead of unsafe casting
+      const originalEventId = ev.source === 'friend' 
+        ? ev.originalEventId || ev.externalId
+        : ev.externalId;
+      
+      const canonicalEventId = ev.source === 'friend' 
+        ? ev.canonicalEventId || `canonical:${ev.externalId}:${feedId}`
+        : `canonical:${ev.externalId}:${feedId}`;
+
       const merged: FriendCalendarEvent = {
         ...ev,
         source: 'friend' as const,
@@ -171,10 +180,9 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
         feedName: `${friend.firstName || friend.lastName || 'Friend'}'s Calendar`,
         color: assignment.color,
         pattern: assignment.pattern,
-        // Ensure originalEventId is always present, using externalId as fallback
-        originalEventId: (ev as FriendCalendarEvent).originalEventId || ev.externalId,
-        // Ensure canonicalEventId is always present
-        canonicalEventId: (ev as FriendCalendarEvent).canonicalEventId || `canonical:${ev.externalId}:${feedId}`,
+        // Safely access properties using discriminated union checking
+        originalEventId,
+        canonicalEventId,
       };
 
       return merged;
