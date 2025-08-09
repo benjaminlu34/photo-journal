@@ -18,6 +18,10 @@ import { supabase } from "@/lib/supabase";
 import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
 
+// Helper to check for weekly view modes
+const isWeeklyView = (mode: string | null): boolean =>
+  mode === 'weekly-calendar' || mode === 'weekly-creative';
+
 function HomeContent() {
   const { data: user, isLoading } = useUser();
   const { signOut } = useAuthMigration();
@@ -27,7 +31,7 @@ function HomeContent() {
   // Helper function to get navigation unit based on view mode
   const getNavUnit = (viewMode: string | null) => {
     if (viewMode === 'daily') return 'day';
-    if (viewMode === 'weekly-calendar' || viewMode === 'weekly-creative') return 'week';
+    if (isWeeklyView(viewMode)) return 'week';
     if (viewMode === 'monthly') return 'month';
     return null;
   };
@@ -35,7 +39,7 @@ function HomeContent() {
   // Helper function to get current period label
   const getCurrentPeriodLabel = (viewMode: string | null) => {
     if (viewMode === 'daily') return 'Today';
-    if (viewMode === 'weekly-calendar' || viewMode === 'weekly-creative') {
+    if (isWeeklyView(viewMode)) {
       const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
       const currentWeekStart = startOfWeek(new Date(currentWeek), { weekStartsOn: 0 });
       return isSameWeek(thisWeekStart, currentWeekStart, { weekStartsOn: 0 }) ? "This Week" : "Go to This Week";
@@ -64,7 +68,7 @@ function HomeContent() {
     }
 
     // Apply date/week anchors based on the mode (use date-fns for stability)
-    if (mode === 'weekly-calendar' || mode === 'weekly-creative') {
+    if (isWeeklyView(mode)) {
       const start = startOfWeek(new Date(), { weekStartsOn: 0 });
       setCurrentWeek(start);
     } else {
@@ -207,7 +211,7 @@ function HomeContent() {
                   if (viewMode === "daily") {
                     const prevDay = addDays(new Date(currentDate), -1);
                     setCurrentDate(prevDay);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const newWeek = subWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
@@ -230,7 +234,7 @@ function HomeContent() {
                   if (viewMode === "daily") {
                     const today = new Date();
                     setCurrentDate(today);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const todayStart = startOfWeek(new Date(), { weekStartsOn: 0 });
                     setCurrentWeek(todayStart);
                   } else if (viewMode === "monthly") {
@@ -252,7 +256,7 @@ function HomeContent() {
                   if (viewMode === "daily") {
                     const nextDay = addDays(new Date(currentDate), 1);
                     setCurrentDate(nextDay);
-                  } else if (viewMode === "weekly-calendar" || viewMode === "weekly-creative") {
+                  } else if (isWeeklyView(viewMode)) {
                     const newWeek = addWeeks(startOfWeek(new Date(currentWeek), { weekStartsOn: 0 }), 1);
                     setCurrentWeek(newWeek);
                   } else if (viewMode === "monthly") {
