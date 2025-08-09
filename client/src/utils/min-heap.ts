@@ -76,8 +76,6 @@ export class MinHeap<T> {
   }
 
   private swap(i: number, j: number): void {
-    const tmp = this.data[i];
-    this.data[i] = this.data[j];
-    this.data[j] = tmp;
+    [this.data[i], this.data[j]] = [this.data[j], this.data[i]];
   }
 }
