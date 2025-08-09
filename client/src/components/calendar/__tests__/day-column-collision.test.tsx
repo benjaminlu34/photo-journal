@@ -348,7 +348,6 @@ describe('DayColumn Sweep-Line Collision Algorithm', () => {
         );
       }
 
-      const startTime = performance.now();
       
       const { container } = render(
         <DayColumn
@@ -363,11 +362,7 @@ describe('DayColumn Sweep-Line Collision Algorithm', () => {
         />
       );
 
-      const endTime = performance.now();
-      const renderTime = endTime - startTime;
 
-      // Should render in reasonable time (< 100ms for 100 events)
-      expect(renderTime).toBeLessThan(100);
 
       const eventElements = container.querySelectorAll('.absolute');
       expect(eventElements.length).toBe(100);

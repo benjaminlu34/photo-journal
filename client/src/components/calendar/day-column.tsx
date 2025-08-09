@@ -1,3 +1,4 @@
+import { MinHeap } from '@/utils/min-heap';
 import { useMemo, useRef, useCallback } from "react";
 import { format, isSameDay } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
@@ -131,49 +132,7 @@ export function DayColumn({
     const eventColumns: Map<string, number> = new Map();
 
     // Use a true min-heap for free columns to achieve O(N log N)
-    class MinHeap {
-      private data: number[] = [];
-      push(value: number) {
-        this.data.push(value);
-        this.bubbleUp(this.data.length - 1);
-      }
-      pop(): number | undefined {
-        if (this.data.length === 0) return undefined;
-        const min = this.data[0];
-        const last = this.data.pop()!;
-        if (this.data.length > 0) {
-          this.data[0] = last;
-          this.bubbleDown(0);
-        }
-        return min;
-      }
-      isEmpty(): boolean {
-        return this.data.length === 0;
-      }
-      private bubbleUp(index: number) {
-        while (index > 0) {
-          const parent = Math.floor((index - 1) / 2);
-          if (this.data[parent] <= this.data[index]) break;
-          [this.data[parent], this.data[index]] = [this.data[index], this.data[parent]];
-          index = parent;
-        }
-      }
-      private bubbleDown(index: number) {
-        const length = this.data.length;
-        while (true) {
-          const left = index * 2 + 1;
-          const right = index * 2 + 2;
-          let smallest = index;
-          if (left < length && this.data[left] < this.data[smallest]) smallest = left;
-          if (right < length && this.data[right] < this.data[smallest]) smallest = right;
-          if (smallest === index) break;
-          [this.data[index], this.data[smallest]] = [this.data[smallest], this.data[index]];
-          index = smallest;
-        }
-      }
-    }
-
-    const freeColumns = new MinHeap();
+    const freeColumns = new MinHeap<number>((a, b) => a - b);
     let maxColumnUsed = -1;
 
     sweepEvents.forEach(sweep => {
