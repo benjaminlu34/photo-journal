@@ -2,7 +2,7 @@
  * Friend calendar service for handling friend calendar synchronization
  */
 
-import type { FriendCalendarEvent, CalendarFeed, DateRange } from '@/types/calendar';
+import type { FriendCalendarEvent, CalendarFeed, DateRange, CalendarEvent } from '@/types/calendar';
 import type { Friend } from '@/types/journal';
 import { generateFriendColor as sharedGenerateFriendColor } from '@/utils/colorUtils/colorUtils';
 import { timezoneService } from './timezone.service';
@@ -85,7 +85,9 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
   constructor() {
     // Rate-limited background refresh on tab visibility regain (mirrors feeds)
     this.visibilityChangeHandler = (event: Event) => {
-      if (typeof document === 'undefined' || (document as any).hidden) return;
+      // document.hidden is part of the Page Visibility API (DOM lib). If TS DOM types are unavailable, ensure "dom" is in tsconfig lib.
+      // @ts-ignore Ensure DOM typings include Page Visibility API
+      if (typeof document === 'undefined' || document.hidden) return;
       const now = Date.now();
       if (now - this.lastVisibilityRefresh < this.VISIBILITY_REFRESH_MIN_MS) return;
       this.lastVisibilityRefresh = now;
@@ -159,7 +161,7 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
     const assignment = this.getFriendColorAssignment(friend.id);
     const feedId = `friend-${friend.id}`;
 
-    const enrichEvent = (ev: any): FriendCalendarEvent => {
+    const enrichEvent = (ev: CalendarEvent): FriendCalendarEvent => {
       const merged: FriendCalendarEvent = {
         ...ev,
         source: 'friend' as const,
