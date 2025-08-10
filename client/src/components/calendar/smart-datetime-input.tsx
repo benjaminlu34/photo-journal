@@ -13,7 +13,7 @@ interface SmartDateTimeInputProps {
   className?: string;
   readOnly?: boolean;
   minTime?: Date; // For end time to prevent ending before start
-  onTimeChange?: (date: Date) => void; // For smart duration adjustments
+  startTime?: Date; // Start time for duration calculation in time picker
   label?: string;
 }
 
@@ -25,7 +25,7 @@ export function SmartDateTimeInput({
   className,
   readOnly = false,
   minTime,
-  onTimeChange,
+  startTime,
   label
 }: SmartDateTimeInputProps) {
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
@@ -49,16 +49,10 @@ export function SmartDateTimeInput({
 
   const handleDateChange = (newDate: Date) => {
     onChange(newDate);
-    if (onTimeChange) {
-      onTimeChange(newDate);
-    }
   };
 
   const handleTimeChange = (newDate: Date) => {
     onChange(newDate);
-    if (onTimeChange) {
-      onTimeChange(newDate);
-    }
   };
 
   const handleDateDropdownClose = () => {
@@ -120,6 +114,7 @@ export function SmartDateTimeInput({
             onClose={handleTimeDropdownClose}
             anchorRef={timeButtonRef}
             minTime={minTime}
+            startTime={startTime}
           />
         </div>
       )}

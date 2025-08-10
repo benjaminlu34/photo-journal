@@ -25,9 +25,9 @@ export function useSmartDuration({
   const [isValidDuration, setIsValidDuration] = useState(true);
   const [hasTimeConflict, setHasTimeConflict] = useState(false);
 
-  // Check if duration is valid
+  // Check if duration is valid (end time must be after start time)
   useEffect(() => {
-    const valid = isBefore(startTime, endTime) || startTime.getTime() === endTime.getTime();
+    const valid = isBefore(startTime, endTime);
     setIsValidDuration(valid);
     setHasTimeConflict(!valid);
   }, [startTime, endTime]);

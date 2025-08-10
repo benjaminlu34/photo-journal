@@ -200,6 +200,7 @@ export function EditEventModal({
                 className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
                 readOnly={isReadOnly}
                 minTime={getMinEndTime()}
+                startTime={formData.startTime}
                 label="End"
               />
             </div>

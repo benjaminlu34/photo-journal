@@ -21,9 +21,9 @@ interface CreateEventModalProps {
   linkedJournalEntryId?: string;
 }
 
-export function CreateEventModal({ 
-  isOpen, 
-  onClose, 
+export function CreateEventModal({
+  isOpen,
+  onClose,
   onSubmit,
   initialDate,
   linkedJournalEntryId
@@ -51,9 +51,9 @@ export function CreateEventModal({
       }));
     }
   }, [initialDate]);
-  
+
   const [tagInput, setTagInput] = useState("");
-  
+
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -73,7 +73,7 @@ export function CreateEventModal({
   });
 
 
-  
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({
@@ -83,21 +83,21 @@ export function CreateEventModal({
       setTagInput("");
     }
   };
-  
+
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
   };
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
       return;
     }
-    
+
     onSubmit({
       title: formData.title,
       description: formData.description,
@@ -113,11 +113,11 @@ export function CreateEventModal({
       tags: formData.tags,
       pattern: undefined,
     });
-    
+
     // Close modal after successful submission
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -127,7 +127,7 @@ export function CreateEventModal({
             Create Event
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="title" className="text-sm font-medium text-gray-700">
@@ -142,7 +142,7 @@ export function CreateEventModal({
               required
             />
           </div>
-          
+
           <div>
             <Label htmlFor="description" className="text-sm font-medium text-gray-700">
               Description
@@ -156,7 +156,7 @@ export function CreateEventModal({
               rows={3}
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -172,7 +172,7 @@ export function CreateEventModal({
                 label="Start"
               />
             </div>
-            
+
             <div>
               <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
@@ -185,11 +185,12 @@ export function CreateEventModal({
                 isAllDay={formData.isAllDay}
                 className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
                 minTime={getMinEndTime()}
+                startTime={formData.startTime}
                 label="End"
               />
             </div>
           </div>
-          
+
           {/* Duration validation warning */}
           {hasTimeConflict && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -198,7 +199,7 @@ export function CreateEventModal({
               </p>
             </div>
           )}
-          
+
           <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-lg border border-gray-200/50">
             <Switch
               id="allDay"
@@ -209,7 +210,7 @@ export function CreateEventModal({
               All day event
             </Label>
           </div>
-          
+
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <MapPin className="w-4 h-4" />
@@ -223,7 +224,7 @@ export function CreateEventModal({
               placeholder="Add location"
             />
           </div>
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700">Color</Label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -231,11 +232,10 @@ export function CreateEventModal({
                 <button
                   key={color.value}
                   type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
-                    formData.color === color.value
-                      ? "border-gray-800 scale-110 shadow-neu-lg"
-                      : "border-gray-300 hover:scale-105"
-                  }`}
+                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${formData.color === color.value
+                    ? "border-gray-800 scale-110 shadow-neu-lg"
+                    : "border-gray-300 hover:scale-105"
+                    }`}
                   style={{ backgroundColor: color.value }}
                   onClick={() => handleInputChange("color", color.value)}
                   aria-label={`Select ${color.label} color`}
@@ -243,7 +243,7 @@ export function CreateEventModal({
               ))}
             </div>
           </div>
-          
+
           <div>
             <Label htmlFor="reminder" className="text-sm font-medium text-gray-700">
               Reminder
@@ -266,7 +266,7 @@ export function CreateEventModal({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <Tag className="w-4 h-4" />
@@ -315,7 +315,7 @@ export function CreateEventModal({
               </div>
             )}
           </div>
-          
+
           <DialogFooter className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"

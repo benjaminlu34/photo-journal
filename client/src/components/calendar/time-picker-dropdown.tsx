@@ -8,6 +8,7 @@ interface TimePickerDropdownProps {
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement>;
   minTime?: Date; // Minimum selectable time
+  startTime?: Date; // Start time for duration calculation (more robust than reverse-engineering from minTime)
 }
 
 export function TimePickerDropdown({ 
@@ -16,7 +17,8 @@ export function TimePickerDropdown({
   isOpen, 
   onClose, 
   anchorRef,
-  minTime
+  minTime,
+  startTime
 }: TimePickerDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -78,10 +80,8 @@ export function TimePickerDropdown({
         
         // Calculate duration from start time for display
         let durationText = '';
-        if (minTime && minTime.toDateString() === value.toDateString()) {
-          // Calculate from the actual start time, not the minTime
-          const actualStartTime = new Date(minTime.getTime() - (15 * 60 * 1000)); // minTime - 15 minutes = actual start time
-          const diffMs = optionDate.getTime() - actualStartTime.getTime();
+        if (startTime && startTime.toDateString() === value.toDateString()) {
+          const diffMs = optionDate.getTime() - startTime.getTime();
           const diffMinutes = Math.round(diffMs / (1000 * 60));
           
           if (diffMinutes >= 0) {

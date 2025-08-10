@@ -8,11 +8,12 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 import type { LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
 import { timezoneService } from '@/services/timezone.service';
 import { snapshotService } from '@/services/snapshot.service';
-import { 
-  createWeeklyCalendarDocument, 
-  CRDTConflictResolver, 
+import {
+  createWeeklyCalendarDocument,
+  CRDTConflictResolver,
   WeeklyCalendarDocumentUtils,
-  type WeeklyCalendarDocument 
+  filterActiveEvents,
+  type WeeklyCalendarDocument
 } from './weekly-calendar-document';
 import { validateCRDTEvent, createCRDTCompatibleEvent } from './calendar-validation';
 
@@ -85,14 +86,16 @@ export function createCalendarSDK({
   // Change listeners
   let changeListeners: Array<(events: LocalEvent[]) => void> = [];
   calendarDocument.localEvents.observe(() => {
-    const events = Array.from(calendarDocument.localEvents.values());
-    changeListeners.forEach(cb => cb(events));
-    
+    const allEvents = Array.from(calendarDocument.localEvents.values());
+    // Only notify listeners about active (non-deleted) events
+    const activeEvents = filterActiveEvents(allEvents);
+    changeListeners.forEach(cb => cb(activeEvents));
+
     // Update last modified timestamp
     WeeklyCalendarDocumentUtils.updateMetadata(calendarDocument, {
       lastModified: new Date(),
     });
-    
+
     // Mark pending changes for snapshot service with weekId and doc
     snapshotService.markPendingChanges(weekId, doc);
   });
@@ -100,42 +103,51 @@ export function createCalendarSDK({
   // Start snapshot batching with proper debounce and batch size
   snapshotService.startSnapshotBatching(weekId, doc);
 
+  // Run initial garbage collection to clean up old tombstoned events
+  WeeklyCalendarDocumentUtils.garbageCollectDeletedEvents(calendarDocument.localEvents);
+
+  // Helper function to filter out tombstoned (deleted) events
+  const filterActivEvents = filterActiveEvents;
+
   // API
   return {
-    // Get all local events
+    // Get all local events (excluding deleted ones)
     getLocalEvents(): LocalEvent[] {
-      return Array.from(calendarDocument.localEvents.values());
+      const allEvents = Array.from(calendarDocument.localEvents.values());
+      return filterActivEvents(allEvents);
     },
-    
-    // Get events for a specific date
+
+    // Get events for a specific date (excluding deleted ones)
     getEventsForDate(date: Date): LocalEvent[] {
-      return WeeklyCalendarDocumentUtils.getEventsForDate(calendarDocument, date);
+      const allEvents = WeeklyCalendarDocumentUtils.getEventsForDate(calendarDocument, date);
+      return filterActivEvents(allEvents);
     },
-    
-    // Get events in a date range
+
+    // Get events in a date range (excluding deleted ones)
     getEventsInRange(startDate: Date, endDate: Date): LocalEvent[] {
-      return WeeklyCalendarDocumentUtils.getEventsInRange(calendarDocument, startDate, endDate);
+      const allEvents = WeeklyCalendarDocumentUtils.getEventsInRange(calendarDocument, startDate, endDate);
+      return filterActivEvents(allEvents);
     },
-    
+
     // Create a new local event with proper validation
     async createLocalEvent(event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) {
       // Check permissions
       if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor')) {
         throw new Error('User does not have permission to create events');
       }
-      
+
       const eventId = crypto.randomUUID();
-      
+
       // Create CRDT-compatible event with validation
       const newEvent = createCRDTCompatibleEvent(event, userId);
       const eventWithId = { ...newEvent, id: eventId };
-      
+
       // Validate the event
       const validation = validateCRDTEvent(eventWithId);
       if (!validation.isValid) {
         throw new Error(`Invalid event data: ${validation.errors.join(', ')}`);
       }
-      
+
       // Check for duplicate creation
       const existingEvent = calendarDocument.localEvents.get(eventId);
       if (existingEvent) {
@@ -148,11 +160,11 @@ export function createCalendarSDK({
         calendarDocument.localEvents.set(eventId, eventWithId);
       }
     },
-    
+
     // Update a local event with conflict resolution
     async updateLocalEvent(id: string, updates: Partial<LocalEvent>) {
       const currentEvent = calendarDocument.localEvents.get(id);
-      
+
       // Validate the update
       const validation = CRDTConflictResolver.validateEventUpdate(
         id,
@@ -160,20 +172,20 @@ export function createCalendarSDK({
         currentEvent,
         userId
       );
-      
+
       if (!validation.isValid) {
         throw new Error(`Invalid event update: ${validation.errors.join(', ')}`);
       }
-      
+
       if (currentEvent) {
         const now = new Date();
-        const updatedEvent = { 
-          ...currentEvent, 
-          ...updates, 
+        const updatedEvent = {
+          ...currentEvent,
+          ...updates,
           updatedAt: now,
           collaborators: updates.collaborators || currentEvent.collaborators
         };
-        
+
         if (updates.timezone && updates.timezone !== currentEvent.timezone) {
           const userTimezone = timezoneService.getUserTimezone();
           // Use safe conversion method with DST handling
@@ -187,31 +199,36 @@ export function createCalendarSDK({
         }
       }
     },
-    
+
     // Delete a local event with proper conflict handling
     deleteLocalEvent(id: string) {
       // Check permissions
       if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor')) {
         throw new Error('User does not have permission to delete events');
       }
-      
+
       const event = calendarDocument.localEvents.get(id);
       if (event) {
-        // Actually delete the event from the map instead of soft delete
-        calendarDocument.localEvents.delete(id);
+        // Use CRDT-safe deletion with tombstone to ensure proper sync
+        CRDTConflictResolver.handleEventDeletion(
+          id,
+          userId,
+          new Date(),
+          calendarDocument.localEvents
+        );
       }
     },
-    
+
     // Get document metadata
     getMetadata(): any {
       return Object.fromEntries(calendarDocument.metadata.entries());
     },
-    
+
     // Get document statistics
     getDocumentStats() {
       return WeeklyCalendarDocumentUtils.getDocumentStats(calendarDocument);
     },
-    
+
     // Add collaborator
     addCollaborator(collaboratorId: string, permission: 'viewer' | 'editor' | 'owner' = 'editor') {
       if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'owner')) {
@@ -219,7 +236,7 @@ export function createCalendarSDK({
       }
       WeeklyCalendarDocumentUtils.addCollaborator(calendarDocument, collaboratorId, permission);
     },
-    
+
     // Remove collaborator
     removeCollaborator(collaboratorId: string) {
       if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'owner')) {
@@ -227,15 +244,15 @@ export function createCalendarSDK({
       }
       WeeklyCalendarDocumentUtils.removeCollaborator(calendarDocument, collaboratorId);
     },
-    
+
     // Check user permissions
     hasPermission(requiredPermission: 'viewer' | 'editor' | 'owner'): boolean {
       return WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, requiredPermission);
     },
-    
+
     // Presence information
     presence: awareness,
-    
+
     // Undo/redo functionality
     undo() {
       undoManager.undo();
@@ -243,7 +260,7 @@ export function createCalendarSDK({
     redo() {
       undoManager.redo();
     },
-    
+
     // Subscribe to changes
     onChange(cb: (events: LocalEvent[]) => void) {
       changeListeners.push(cb);
@@ -251,7 +268,12 @@ export function createCalendarSDK({
         changeListeners = changeListeners.filter(fn => fn !== cb);
       };
     },
-    
+
+    // Garbage collect old tombstoned events
+    garbageCollectDeletedEvents(): number {
+      return WeeklyCalendarDocumentUtils.garbageCollectDeletedEvents(calendarDocument.localEvents);
+    },
+
     // Cleanup function
     async destroy() {
       // First, flush any pending snapshots while the document is still valid
