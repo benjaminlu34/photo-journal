@@ -188,16 +188,15 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
       // Delegate selection to ColorPaletteManager to ensure determinism + accessibility
       const assigned = colorPaletteManager.assignColors(remainingItems, existingAssignments);
 
-      // Persist only newly assigned colors
+      // Persist colors returned by ColorPaletteManager as-is (may recycle when palette exhausted)
       for (const item of remainingItems) {
         const assignment = assigned.get(item.id);
         if (assignment) {
           const color = assignment.color;
-          if (!usedColors.has(color)) {
-            colorAssignments.set(item.id, color);
-            usedColors.add(color);
-            this.colorAssignmentCache.set(item.id, color);
-          }
+          colorAssignments.set(item.id, color);
+          this.colorAssignmentCache.set(item.id, color);
+          // Track used colors for completeness, but do not block recycled colors
+          usedColors.add(color);
         }
       }
     }
