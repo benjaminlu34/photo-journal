@@ -4,11 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { useJournal } from "@/contexts/journal-context";
 import { useCalendar } from "@/contexts/calendar-context";
 import { useUser } from "@/hooks/useUser";
-import { ChevronLeft, ChevronRight, Home, Users, Settings, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isToday } from "date-fns";
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
-import { EventModal, CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader, FriendCalendarSyncModal } from "@/components/calendar";
+import { CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader, FriendCalendarSyncModal } from "@/components/calendar";
 import { CreateEventModal } from "@/components/calendar/create-event-modal";
 import { EditEventModal } from "@/components/calendar/edit-event-modal";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
@@ -110,16 +110,15 @@ export function WeeklyCalendarView({
   syncedFriends = []
 }: WeeklyCalendarViewProps) {
   void collaborationEnabled; // reserved for future
+  void feedsEnabled; // reserved for future
+  void syncedFriends; // reserved for future
   const { data: user } = useUser();
   const { currentWeek, setCurrentWeek } = useJournal();
   const {
     localEvents,
     externalEvents,
     friendEvents,
-    feeds,
     currentWeek: calendarCurrentWeek,
-    isLoading,
-    error,
     actions,
   } = useCalendar();
 
@@ -148,7 +147,9 @@ export function WeeklyCalendarView({
     const weekId = format(startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 }), "yyyy-'W'II");
     actions.init(weekId, username, username, username);
     initializationRef.current = true;
-    return () => actions.cleanup?.();
+    return () => {
+      actions.cleanup?.();
+    };
   }, [calendarCurrentWeek, username, actions]);
 
   // Sync journal context currentWeek with calendar store
@@ -169,24 +170,24 @@ export function WeeklyCalendarView({
     return () => debouncedLoadEvents.cancel?.();
   }, [debouncedLoadEvents]);
 
-  // Navigation handlers (ported)
-  const handlePreviousWeek = useCallback(() => {
-    const newWeek = subWeeks(calendarCurrentWeek, 1);
-    setCurrentWeek(newWeek);
-    actions.setCurrentWeek(newWeek);
-  }, [calendarCurrentWeek, setCurrentWeek, actions]);
+  // Navigation handlers (ported) - currently handled by WeekHeader
+  // const handlePreviousWeek = useCallback(() => {
+  //   const newWeek = subWeeks(calendarCurrentWeek, 1);
+  //   setCurrentWeek(newWeek);
+  //   actions.setCurrentWeek(newWeek);
+  // }, [calendarCurrentWeek, setCurrentWeek, actions]);
 
-  const handleNextWeek = useCallback(() => {
-    const newWeek = addWeeks(calendarCurrentWeek, 1);
-    setCurrentWeek(newWeek);
-    actions.setCurrentWeek(newWeek);
-  }, [calendarCurrentWeek, setCurrentWeek, actions]);
+  // const handleNextWeek = useCallback(() => {
+  //   const newWeek = addWeeks(calendarCurrentWeek, 1);
+  //   setCurrentWeek(newWeek);
+  //   actions.setCurrentWeek(newWeek);
+  // }, [calendarCurrentWeek, setCurrentWeek, actions]);
 
-  const handleTodayClick = useCallback(() => {
-    const today = new Date();
-    setCurrentWeek(today);
-    actions.setCurrentWeek(today);
-  }, [setCurrentWeek, actions]);
+  // const handleTodayClick = useCallback(() => {
+  //   const today = new Date();
+  //   setCurrentWeek(today);
+  //   actions.setCurrentWeek(today);
+  // }, [setCurrentWeek, actions]);
 
   // Friend sync controls (ported)
   const handleToggleFriendSync = useCallback(async (_friendUserId: string, _enabled: boolean) => {
@@ -213,7 +214,6 @@ export function WeeklyCalendarView({
 
   // Compute week days (ported structure compatibility)
   const weekStart = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
-  const weekEnd = endOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
   const weekDays: Date[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
@@ -479,6 +479,9 @@ export function WeeklyCalendarView({
           onSubmit={async (id, updates) => {
             await actions.updateLocalEvent(id, updates);
           }}
+          onDelete={(id) => {
+            actions.deleteLocalEvent(id);
+          }}
         />
       )}
 
@@ -492,8 +495,7 @@ export function WeeklyCalendarView({
       <FriendCalendarSyncModal
         isOpen={isFriendSyncModalOpen}
         onClose={() => setIsFriendSyncModalOpen(false)}
-        syncedFriends={[]}
-        onToggleSync={async (friendUserId, enabled) => {
+        onToggleSync={async (friendUserId: string, enabled: boolean) => {
           await handleToggleFriendSync(friendUserId, enabled);
         }}
         onRefreshFriend={handleRefreshFriend}

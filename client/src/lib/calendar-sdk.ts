@@ -197,13 +197,8 @@ export function createCalendarSDK({
       
       const event = calendarDocument.localEvents.get(id);
       if (event) {
-        // Handle deletion with timestamp for conflict resolution
-        CRDTConflictResolver.handleEventDeletion(
-          id,
-          userId,
-          new Date(),
-          calendarDocument.localEvents
-        );
+        // Actually delete the event from the map instead of soft delete
+        calendarDocument.localEvents.delete(id);
       }
     },
     

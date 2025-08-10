@@ -38,6 +38,12 @@ export function EventCard({
   const [dragStartPosition, setDragStartPosition] = useState<{ x: number; y: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Calculate event duration in minutes for layout decisions
+  const durationMinutes = (event.endTime.getTime() - event.startTime.getTime()) / (1000 * 60);
+  const isShortEvent = durationMinutes <= 30; // 30 minutes or less
+  const isMediumEvent = durationMinutes > 30 && durationMinutes <= 90; // 30-90 minutes
+  const isLongEvent = durationMinutes > 90; // More than 90 minutes
+
   const truncateText = useCallback((text: string, maxLength: number = 30) =>
     text.length <= maxLength ? text : `${text.substring(0, maxLength)}...`, []);
 
@@ -102,7 +108,9 @@ export function EventCard({
   return (
     <div
       ref={cardRef}
-      className={`relative p-3 rounded-xl text-sm transition-all duration-300 cursor-pointer z-10 select-none backdrop-blur-sm ${
+      className={`relative rounded-xl text-sm transition-all duration-300 cursor-pointer z-10 select-none backdrop-blur-sm h-full flex flex-col ${
+        isShortEvent ? 'p-2' : isMediumEvent ? 'p-3' : 'p-4'
+      } ${
         isSelected
           ? "ring-2 ring-purple-500 shadow-lg transform scale-105"
           : "shadow-neu hover:shadow-neu-lg transform hover:scale-[1.02] hover:-translate-y-0.5"
@@ -146,62 +154,83 @@ export function EventCard({
         />
       )}
 
-      <div className="relative z-10">
-        <div className="font-semibold text-gray-800 truncate text-sm leading-tight">
-          {truncateText(event.title)}
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Title - always visible */}
+        <div className={`font-semibold text-gray-800 leading-tight ${
+          isShortEvent ? 'text-xs truncate' : 'text-sm'
+        }`}>
+          {isShortEvent ? truncateText(event.title, 20) : truncateText(event.title)}
         </div>
 
-        <div className="flex items-center text-xs text-gray-600 mt-1.5">
-          <Clock className="w-3 h-3 mr-1.5 flex-shrink-0" />
+        {/* Time - always visible but compact for short events */}
+        <div className={`flex items-center text-gray-600 ${
+          isShortEvent ? 'text-xs mt-0.5' : 'text-xs mt-1.5'
+        }`}>
+          <Clock className={`mr-1.5 flex-shrink-0 ${isShortEvent ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
           <span className="truncate">
             {event.isAllDay ? 'All day' : (
-              <>
-                {format(event.startTime, "h:mm a")}
-                {" - "}
-                {format(event.endTime, "h:mm a")}
-              </>
+              isShortEvent ? (
+                // For short events, show compact time
+                `${format(event.startTime, "h:mm a")}`
+              ) : (
+                // For longer events, show full time range
+                <>
+                  {format(event.startTime, "h:mm a")}
+                  {" - "}
+                  {format(event.endTime, "h:mm a")}
+                </>
+              )
             )}
           </span>
         </div>
 
-        {event.location && (
+        {/* Location - only show for medium and long events */}
+        {event.location && !isShortEvent && (
           <div className="flex items-center text-xs text-gray-600 mt-1">
             <MapPin className="w-3 h-3 mr-1.5 flex-shrink-0" />
             <span className="truncate">{truncateText(event.location, 20)}</span>
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-2">
-          {isLocal && event.createdBy && event.createdBy !== 'external' ? (
-            <div className="flex items-center text-xs text-gray-500">
-              <User className="w-3 h-3 mr-1" />
-              <span className="truncate">
-                {currentUser && currentUser.id === event.createdBy && currentUser.username 
-                  ? truncateText(`@${currentUser.username}`, 12)
-                  : truncateText(event.createdBy, 12)
-                }
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center text-xs text-gray-500">
-              <Lock className="w-3 h-3 mr-1" />
-              <span>Read-only</span>
-            </div>
-          )}
+        {/* Spacer for long events */}
+        {isLongEvent && <div className="flex-1" />}
 
-          {/* Visual indicator for event type */}
-          <div className="flex items-center space-x-1">
-            {event.attendees && event.attendees.length > 0 && (
-              <div className="w-2 h-2 rounded-full bg-blue-400" title={`${event.attendees.length} attendees`} />
+        {/* Bottom section - user info and indicators */}
+        {!isShortEvent && (
+          <div className={`flex items-center justify-between ${
+            isMediumEvent ? 'mt-2' : 'mt-3'
+          }`}>
+            {isLocal && event.createdBy && event.createdBy !== 'external' ? (
+              <div className="flex items-center text-xs text-gray-500">
+                <User className="w-3 h-3 mr-1" />
+                <span className="truncate">
+                  {currentUser && currentUser.id === event.createdBy && currentUser.username 
+                    ? truncateText(`@${currentUser.username}`, 12)
+                    : truncateText(event.createdBy, 12)
+                  }
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center text-xs text-gray-500">
+                <Lock className="w-3 h-3 mr-1" />
+                <span>Read-only</span>
+              </div>
             )}
-            {event.linkedJournalEntryId && (
-              <div className="w-2 h-2 rounded-full bg-green-400" title="Linked to journal entry" />
-            )}
-            {event.reminderMinutes && (
-              <div className="w-2 h-2 rounded-full bg-yellow-400" title="Has reminder" />
-            )}
+
+            {/* Visual indicator for event type */}
+            <div className="flex items-center space-x-1">
+              {event.attendees && event.attendees.length > 0 && (
+                <div className="w-2 h-2 rounded-full bg-blue-400" title={`${event.attendees.length} attendees`} />
+              )}
+              {event.linkedJournalEntryId && (
+                <div className="w-2 h-2 rounded-full bg-green-400" title="Linked to journal entry" />
+              )}
+              {event.reminderMinutes && (
+                <div className="w-2 h-2 rounded-full bg-yellow-400" title="Has reminder" />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Resize handle for local events */}

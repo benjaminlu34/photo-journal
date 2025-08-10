@@ -79,8 +79,23 @@ export function DayColumn({
   const positioned = useMemo<PositionedEvent[]>(() => {
     if (events.length === 0) return [];
 
+    // Filter events that actually occur on this day
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const dayEvents = events.filter(event => {
+      const eventStart = new Date(event.startTime);
+      const eventEnd = new Date(event.endTime);
+      // Event overlaps with this day if it starts before day ends and ends after day starts
+      return eventStart <= dayEnd && eventEnd > dayStart;
+    });
+
+    if (dayEvents.length === 0) return [];
+
     // Step 1: Sort events by start time, then by duration (longer events first for stable layout)
-    const sortedEvents = [...events].sort((a, b) => {
+    const sortedEvents = [...dayEvents].sort((a, b) => {
       const aStart = a.startTime.getTime();
       const bStart = b.startTime.getTime();
       if (aStart !== bStart) return aStart - bStart;
@@ -93,15 +108,21 @@ export function DayColumn({
 
     // Step 2: Create sweep events (start and end points)
     type SweepEvent = {
-      time: number; // in minutes
+      time: number; // in minutes from start of day
       type: 'start' | 'end';
       eventId: string;
     };
 
     const sweepEvents: SweepEvent[] = [];
-    sortedEvents.forEach((event, index) => {
-      const startMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
-      const endMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
+    sortedEvents.forEach((event) => {
+      // Clamp event times to the current day boundaries
+      const eventStart = new Date(Math.max(event.startTime.getTime(), dayStart.getTime()));
+      const eventEnd = new Date(Math.min(event.endTime.getTime(), dayEnd.getTime()));
+      
+      const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
+      const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes();
+      
+      // For collision detection, use actual end time but ensure minimum duration for rendering
       const actualEndMinutes = Math.max(endMinutes, startMinutes + CALENDAR_CONFIG.EVENTS.MIN_DURATION);
       
       sweepEvents.push({
@@ -127,8 +148,6 @@ export function DayColumn({
 
     // Step 4: Sweep through events and assign columns
     const eventColumns: Map<string, number> = new Map();
-
-    // Use a true min-heap for free columns to achieve O(N log N)
     const freeColumns = new MinHeap<number>((a, b) => a - b);
     let maxColumnUsed = -1;
 
@@ -156,12 +175,34 @@ export function DayColumn({
     // Step 5: Build positioned events with computed layout
     const totalColumns = maxColumnUsed + 1;
     const positioned: PositionedEvent[] = sortedEvents.map(event => {
-      const startMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
-      const endMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
-      const actualDuration = Math.max(endMinutes - startMinutes, CALENDAR_CONFIG.EVENTS.MIN_DURATION);
+      // For positioning, we need to determine what portion of the event appears on this day
+      let displayStartMinutes: number;
+      let displayEndMinutes: number;
       
-      const top = (startMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
-      const height = (actualDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      // Check if event starts on this day
+      if (event.startTime.toDateString() === date.toDateString()) {
+        displayStartMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
+      } else {
+        // Event started on a previous day, show from start of day
+        displayStartMinutes = 0;
+      }
+      
+      // Check if event ends on this day
+      if (event.endTime.toDateString() === date.toDateString()) {
+        displayEndMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
+      } else {
+        // Event continues to next day, show until end of day
+        displayEndMinutes = 24 * 60; // End of day in minutes
+      }
+      
+      // Calculate the duration to display on this day
+      const displayDuration = Math.max(
+        displayEndMinutes - displayStartMinutes, 
+        CALENDAR_CONFIG.EVENTS.MIN_DURATION
+      );
+      
+      const top = (displayStartMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
+      const height = (displayDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
       const column = eventColumns.get(event.id)!;
       
       return {
@@ -176,7 +217,7 @@ export function DayColumn({
     });
 
     return positioned;
-  }, [events]);
+  }, [events, date]);
 
   const slots = useMemo(() => {
     const minutesPerSlot = CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL; // 30

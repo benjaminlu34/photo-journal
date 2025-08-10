@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, MapPin, Tag, Link } from "lucide-react";
-import { format, addHours } from "date-fns";
+import { Calendar, Clock, MapPin, Tag } from "lucide-react";
+import { addHours } from "date-fns";
 import type { LocalEvent } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { SmartDateTimeInput } from "./smart-datetime-input";
+import { useSmartDuration } from "@/hooks/useSmartDuration";
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -55,13 +57,22 @@ export function CreateEventModal({
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-  
-  const handleDateChange = (field: 'startTime' | 'endTime', value: string) => {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      handleInputChange(field, date);
-    }
-  };
+
+  // Smart duration handling
+  const {
+    isValidDuration,
+    hasTimeConflict,
+    handleStartTimeChange,
+    handleEndTimeChange,
+    getMinEndTime
+  } = useSmartDuration({
+    startTime: formData.startTime,
+    endTime: formData.endTime,
+    onStartTimeChange: (date) => handleInputChange("startTime", date),
+    onEndTimeChange: (date) => handleInputChange("endTime", date)
+  });
+
+
   
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
@@ -148,45 +159,53 @@ export function CreateEventModal({
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="startTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 Start Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="startTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.startTime, "yyyy-MM-dd")
-                  : format(formData.startTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("startTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.startTime}
+                onChange={handleStartTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
+                label="Start"
               />
             </div>
             
             <div>
-              <Label htmlFor="endTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 End Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="endTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.endTime, "yyyy-MM-dd")
-                  : format(formData.endTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("endTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.endTime}
+                onChange={handleEndTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
+                minTime={getMinEndTime()}
+                label="End"
               />
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          {/* Duration validation warning */}
+          {hasTimeConflict && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-700">
+                ⚠️ End time must be after start time
+              </p>
+            </div>
+          )}
+          
+          <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-lg border border-gray-200/50">
             <Switch
               id="allDay"
               checked={formData.isAllDay}
               onCheckedChange={(checked) => handleInputChange("isAllDay", checked)}
             />
-            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700 cursor-pointer">
               All day event
             </Label>
           </div>
@@ -308,8 +327,8 @@ export function CreateEventModal({
             </Button>
             <Button
               type="submit"
-              disabled={!formData.title.trim()}
-              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
+              disabled={!formData.title.trim() || !isValidDuration}
+              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create Event
             </Button>
