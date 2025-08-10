@@ -75,12 +75,10 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   actions: {
     // Initialize the calendar store with a specific week
     init: async (weekId, userId = 'anonymous', userName = 'Anonymous', username?: string) => {
-      console.log('📅 Calendar store init called:', { weekId, userId, userName, username });
       const state = get();
       
       // Prevent re-initialization
       if (state.isInitialized && state.userId === userId) {
-        console.log('📅 Calendar already initialized for user:', userId);
         return;
       }
       
@@ -90,7 +88,6 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       }
       
       const sdk = getCalendarSdk(weekId, userId, userName, username);
-      console.log('📅 Calendar SDK created for user:', userId);
       set({
         userId,
         isInitialized: true,

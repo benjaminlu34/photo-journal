@@ -310,16 +310,15 @@ export function DayColumn({
   // Drag-to-create event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only start drag if clicking on empty space (not on an event card)
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-event-card]') || target.closest('.event-card')) {
-      console.log('🎯 Mouse down blocked - clicked on event card');
+    const target = e.target;
+    if (target instanceof HTMLElement && 
+        (target.closest('[data-event-card]') || target.closest('.event-card'))) {
       return;
     }
 
     e.preventDefault();
     const startTime = getTimeFromMouseY(e.clientY);
 
-    console.log('🎯 Mouse down - starting interaction:', { startTime, clientY: e.clientY });
     setIsDragging(true);
     setHasDragged(false);
     setDragStart({ y: e.clientY, time: startTime });
@@ -330,11 +329,10 @@ export function DayColumn({
     if (!isDragging || !dragStart) return;
 
     // Check if we've moved enough to consider this a drag
-    const dragThreshold = 3; // pixels - smaller threshold for better responsiveness
+    const DRAG_THRESHOLD_PX = 3;
     const deltaY = Math.abs(e.clientY - dragStart.y);
     
-    if (deltaY > dragThreshold && !hasDragged) {
-      console.log('🎯 Drag threshold reached:', { deltaY, threshold: dragThreshold });
+    if (deltaY > DRAG_THRESHOLD_PX && !hasDragged) {
       setHasDragged(true);
     }
 
@@ -343,43 +341,36 @@ export function DayColumn({
   }, [isDragging, dragStart, getTimeFromMouseY, hasDragged]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    console.log('🎯 Mouse up:', { isDragging, hasDragged, dragStart: !!dragStart, dragEnd: !!dragEnd });
-    
-    if (!isDragging || !dragStart || !dragEnd) {
+    const resetDragState = () => {
       setIsDragging(false);
       setHasDragged(false);
       setDragStart(null);
       setDragEnd(null);
+    };
+
+    if (!isDragging || !dragStart || !dragEnd) {
+      resetDragState();
       return;
     }
 
     // If we dragged, create an event with drag-to-create
     if (hasDragged && onDragToCreate) {
-      // Ensure we have a minimum duration and correct order
       const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
       const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
 
-      // Ensure minimum 30-minute duration
-      const minDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
-      if (endTime.getTime() - startTime.getTime() < minDuration) {
-        endTime.setTime(startTime.getTime() + minDuration);
+      // Ensure minimum duration
+      const MIN_EVENT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+      if (endTime.getTime() - startTime.getTime() < MIN_EVENT_DURATION_MS) {
+        endTime.setTime(startTime.getTime() + MIN_EVENT_DURATION_MS);
       }
 
-      console.log('🎯 Creating event via drag:', { startTime, endTime });
       onDragToCreate(startTime, endTime);
     } else if (!hasDragged) {
-      // If we didn't drag, treat it as a simple click - use the start time
-      console.log('🎯 Creating event via click:', { clickTime: dragStart.time });
+      // Treat as click - use the start time
       onTimeSlotClick(dragStart.time);
-    } else {
-      console.log('🎯 Not creating event:', { hasDragged, hasCallback: !!onDragToCreate });
     }
 
-    // Reset drag state
-    setIsDragging(false);
-    setHasDragged(false);
-    setDragStart(null);
-    setDragEnd(null);
+    resetDragState();
   }, [isDragging, dragStart, dragEnd, hasDragged, onDragToCreate, onTimeSlotClick]);
 
   const handleMouseLeave = useCallback((_e: React.MouseEvent) => {

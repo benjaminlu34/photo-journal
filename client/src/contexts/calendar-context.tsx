@@ -104,13 +104,6 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
     const weekId = format(weekStart, "yyyy-'W'II"); // e.g., "2024-W03"
     
     // Initialize CRDT with weekId
-    console.log('📅 Initializing calendar with user:', { 
-      weekId,
-      weekStart: weekStart.toISOString(),
-      userId: user?.id || 'anonymous', 
-      userName: user?.firstName || 'Anonymous',
-      username: user?.username 
-    });
     void actions.init(weekId, user?.id || 'anonymous', user?.firstName || 'Anonymous', user?.username);
   }, [initialDate, user]);
 

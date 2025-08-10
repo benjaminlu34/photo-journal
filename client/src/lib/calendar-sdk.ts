@@ -5,11 +5,10 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
 import { IndexeddbPersistence } from 'y-indexeddb';
-import type { LocalEvent, CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
+import type { LocalEvent } from '@/types/calendar';
 import { timezoneService } from '@/services/timezone.service';
 import { snapshotService } from '@/services/snapshot.service';
 import {
-  createWeeklyCalendarDocument,
   CRDTConflictResolver,
   WeeklyCalendarDocumentUtils,
   filterActiveEvents,
@@ -110,6 +109,20 @@ export function createCalendarSDK({
   const filterActivEvents = filterActiveEvents;
 
   // API
+  // Helper method to check create permissions
+  const hasCreatePermission = (userId: string): boolean => {
+    // Anonymous users always have permission (for demo/testing)
+    if (userId === 'anonymous') return true;
+    
+    const permissions = calendarDocument.metadata.get('permissions');
+    
+    // No permissions set = owner access (user's own calendar)
+    if (!permissions) return true;
+    
+    // Check explicit permissions
+    return WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor');
+  };
+
   return {
     // Get all local events (excluding deleted ones)
     getLocalEvents(): LocalEvent[] {
@@ -131,28 +144,8 @@ export function createCalendarSDK({
 
     // Create a new local event with proper validation
     async createLocalEvent(event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) {
-      // Check permissions - user always has permission on their own calendar
-      // For shared calendars, check the permission system
-      const permissions = calendarDocument.metadata.get('permissions');
-      const hasExplicitPermission = WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor');
-      const isOwnerByDefault = !permissions; // No permissions set = owner access
-      const hasPermission = userId === 'anonymous' || hasExplicitPermission || isOwnerByDefault;
-      
-      console.log('📅 Permission check:', {
-        userId,
-        permissions,
-        hasExplicitPermission,
-        isOwnerByDefault,
-        hasPermission,
-        weekId: calendarDocument.weekId
-      });
-      
-      if (!hasPermission) {
-        console.error('📅 Permission check failed:', {
-          userId,
-          permissions,
-          weekId: calendarDocument.weekId
-        });
+      // Check permissions
+      if (!hasCreatePermission(userId)) {
         throw new Error('User does not have permission to create events');
       }
 
