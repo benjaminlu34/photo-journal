@@ -60,7 +60,7 @@ export function EditEventModal({
       reminderMinutes: event.reminderMinutes ?? 30,
       tags: 'tags' in event ? event.tags || [] : [],
     });
-  }, [event.id]); // Only reset form when the event ID changes, not on every re-render
+  }, [event]); // Reset form when any event fields change to avoid stale data
 
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));

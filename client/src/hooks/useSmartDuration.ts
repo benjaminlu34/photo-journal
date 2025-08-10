@@ -43,10 +43,7 @@ export function useSmartDuration({
   };
 
   const handleEndTimeChange = (newEndTime: Date) => {
-    // If new end time is before start time, move start time to match end time
-    if (isBefore(newEndTime, startTime)) {
-      onStartTimeChange(new Date(newEndTime));
-    }
+    // Do not auto-adjust start time; flag conflict via state and let the user resolve
     onEndTimeChange(newEndTime);
   };
 

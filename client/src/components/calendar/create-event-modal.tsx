@@ -66,7 +66,7 @@ export function CreateEventModal({
     }
 
     wasOpenRef.current = isOpen;
-  }, [isOpen]);
+  }, [isOpen, initialDate, initialEndDate, linkedJournalEntryId]);
 
   // Update only dates when they change (preserves user input in other fields)
   useEffect(() => {
