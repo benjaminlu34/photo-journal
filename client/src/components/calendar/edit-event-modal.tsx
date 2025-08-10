@@ -25,9 +25,9 @@ interface EditEventModalProps {
   } | null;
 }
 
-export function EditEventModal({ 
-  isOpen, 
-  onClose, 
+export function EditEventModal({
+  isOpen,
+  onClose,
   event,
   onSubmit,
   onDelete,
@@ -45,9 +45,9 @@ export function EditEventModal({
     reminderMinutes: event.reminderMinutes ?? 30,
     tags: 'tags' in event ? event.tags || [] : [],
   });
-  
+
   const [tagInput, setTagInput] = useState("");
-  
+
   useEffect(() => {
     setFormData({
       title: event.title,
@@ -61,7 +61,7 @@ export function EditEventModal({
       tags: 'tags' in event ? event.tags || [] : [],
     });
   }, [event.id]); // Only reset form when the event ID changes, not on every re-render
-  
+
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -83,12 +83,12 @@ export function EditEventModal({
 
 
   const handleDelete = () => {
-    if (onDelete && window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+    if (onDelete) {
       onDelete(event.id);
       onClose();
     }
   };
-  
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({
@@ -98,21 +98,21 @@ export function EditEventModal({
       setTagInput("");
     }
   };
-  
+
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
       return;
     }
-    
+
     onSubmit(event.id, {
       title: formData.title,
       description: formData.description,
@@ -124,11 +124,11 @@ export function EditEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
     });
-    
+
     // Close modal after successful submission
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -138,7 +138,7 @@ export function EditEventModal({
             {isReadOnly ? "View Event" : "Edit Event"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="title" className="text-sm font-medium text-gray-700">
@@ -154,7 +154,7 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           <div>
             <Label htmlFor="description" className="text-sm font-medium text-gray-700">
               Description
@@ -169,7 +169,7 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="startTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -186,7 +186,7 @@ export function EditEventModal({
                 label="Start"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="endTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
@@ -205,7 +205,7 @@ export function EditEventModal({
               />
             </div>
           </div>
-          
+
           {/* Duration validation warning */}
           {hasTimeConflict && !isReadOnly && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -214,7 +214,7 @@ export function EditEventModal({
               </p>
             </div>
           )}
-          
+
           <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-lg border border-gray-200/50">
             <Switch
               id="allDay"
@@ -226,7 +226,7 @@ export function EditEventModal({
               All day event
             </Label>
           </div>
-          
+
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <MapPin className="w-4 h-4" />
@@ -241,7 +241,7 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           {!isReadOnly && (
             <div>
               <Label className="text-sm font-medium text-gray-700">Color</Label>
@@ -250,11 +250,10 @@ export function EditEventModal({
                   <button
                     key={color.value}
                     type="button"
-                    className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
-                      formData.color === color.value
+                    className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${formData.color === color.value
                         ? "border-gray-800 scale-110 shadow-neu-lg"
                         : "border-gray-300 hover:scale-105"
-                    }`}
+                      }`}
                     style={{ backgroundColor: color.value }}
                     onClick={() => handleInputChange("color", color.value)}
                     aria-label={`Select ${color.label} color`}
@@ -264,7 +263,7 @@ export function EditEventModal({
               </div>
             </div>
           )}
-          
+
           {!isReadOnly && (
             <div>
               <Label htmlFor="reminder" className="text-sm font-medium text-gray-700">
@@ -290,7 +289,7 @@ export function EditEventModal({
               </Select>
             </div>
           )}
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <Tag className="w-4 h-4" />
@@ -343,19 +342,19 @@ export function EditEventModal({
               </div>
             )}
           </div>
-          
+
           {/* Show creator for local events */}
           {event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
               <User className="w-4 h-4 mr-1" />
-              Created By: 
-              {currentUser && currentUser.id === event.createdBy && currentUser.username 
-                  ? ` @${currentUser.username}`
-                  : event.createdBy
-                }
+              Created By:
+              {currentUser && currentUser.id === event.createdBy && currentUser.username
+                ? ` @${currentUser.username}`
+                : event.createdBy
+              }
             </div>
           )}
-          
+
           {/* Show read-only indicator for imported events */}
           {!event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
@@ -363,7 +362,7 @@ export function EditEventModal({
               Read-only event from external calendar
             </div>
           )}
-          
+
           <DialogFooter className="flex justify-between items-center pt-4">
             <div>
               {!isReadOnly && onDelete && (

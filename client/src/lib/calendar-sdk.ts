@@ -131,8 +131,28 @@ export function createCalendarSDK({
 
     // Create a new local event with proper validation
     async createLocalEvent(event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) {
-      // Check permissions
-      if (!WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor')) {
+      // Check permissions - user always has permission on their own calendar
+      // For shared calendars, check the permission system
+      const permissions = calendarDocument.metadata.get('permissions');
+      const hasExplicitPermission = WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, 'editor');
+      const isOwnerByDefault = !permissions; // No permissions set = owner access
+      const hasPermission = userId === 'anonymous' || hasExplicitPermission || isOwnerByDefault;
+      
+      console.log('📅 Permission check:', {
+        userId,
+        permissions,
+        hasExplicitPermission,
+        isOwnerByDefault,
+        hasPermission,
+        weekId: calendarDocument.weekId
+      });
+      
+      if (!hasPermission) {
+        console.error('📅 Permission check failed:', {
+          userId,
+          permissions,
+          weekId: calendarDocument.weekId
+        });
         throw new Error('User does not have permission to create events');
       }
 

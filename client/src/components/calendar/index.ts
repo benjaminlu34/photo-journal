@@ -9,3 +9,4 @@ export { CalendarSettings } from "./calendar-settings";
 export { DayColumn } from "./day-column";
 export { EventCard } from "./event-card";
 export { WeekHeader } from "./week-header";
+export { AllDayEvents } from "./all-day-events";

@@ -108,7 +108,8 @@ export function EventCard({
   return (
     <div
       ref={cardRef}
-      className={`relative rounded-xl text-sm transition-all duration-300 cursor-pointer z-10 select-none backdrop-blur-sm h-full flex flex-col ${
+      data-event-card="true"
+      className={`relative rounded-xl text-sm transition-all duration-300 cursor-pointer z-10 select-none backdrop-blur-sm h-full flex flex-col event-card ${
         isShortEvent ? 'p-2' : isMediumEvent ? 'p-3' : 'p-4'
       } ${
         isSelected

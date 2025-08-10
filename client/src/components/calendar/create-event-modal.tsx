@@ -43,16 +43,36 @@ export function CreateEventModal({
     linkedJournalEntryId: linkedJournalEntryId || undefined,
   });
 
-  // Update form data when initialDate or initialEndDate changes
+  // Reset form when modal opens
   useEffect(() => {
-    if (initialDate) {
+    if (isOpen) {
+      console.log('📅 Resetting form data for new event');
+      setFormData({
+        title: "",
+        description: "",
+        startTime: initialDate ? new Date(initialDate.getTime()) : new Date(),
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : (initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1)),
+        isAllDay: false,
+        location: "",
+        color: "#3B82F6",
+        reminderMinutes: 30,
+        tags: [] as string[],
+        linkedJournalEntryId: linkedJournalEntryId || undefined,
+      });
+      setTagInput("");
+    }
+  }, [isOpen, initialDate, initialEndDate, linkedJournalEntryId]);
+
+  // Update form data when initialDate or initialEndDate changes (for existing open modal)
+  useEffect(() => {
+    if (isOpen && initialDate) {
       setFormData(prev => ({
         ...prev,
         startTime: new Date(initialDate.getTime()),
         endTime: initialEndDate ? new Date(initialEndDate.getTime()) : addHours(initialDate, 1),
       }));
     }
-  }, [initialDate, initialEndDate]);
+  }, [initialDate, initialEndDate, isOpen]);
 
   const [tagInput, setTagInput] = useState("");
 
@@ -97,10 +117,11 @@ export function CreateEventModal({
     e.preventDefault();
 
     if (!formData.title.trim()) {
+      console.warn('📅 Event creation blocked: Empty title');
       return;
     }
 
-    onSubmit({
+    const eventData = {
       title: formData.title,
       description: formData.description,
       startTime: formData.startTime,
@@ -114,7 +135,18 @@ export function CreateEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
       pattern: undefined,
+    };
+
+    console.log('📅 Creating event:', {
+      title: eventData.title,
+      startTime: eventData.startTime.toISOString(),
+      endTime: eventData.endTime.toISOString(),
+      isAllDay: eventData.isAllDay,
+      color: eventData.color,
+      linkedJournalEntryId: eventData.linkedJournalEntryId
     });
+
+    onSubmit(eventData);
 
     // Close modal after successful submission
     onClose();

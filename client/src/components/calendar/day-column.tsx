@@ -1,6 +1,7 @@
 import { MinHeap } from '@/utils/min-heap';
 import { useMemo, useRef, useCallback, useState } from "react";
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns";
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { LocalEvent } from "@/types/calendar";
 import { EventCard } from "./event-card";
@@ -76,14 +77,22 @@ export function DayColumn({
   currentUser,
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
-  
+
+  // Debug: Log when drag-to-create callback is available
+  console.log('🎯 DayColumn rendered:', { 
+    date: date.toDateString(), 
+    hasOnDragToCreate: !!onDragToCreate,
+    eventsCount: events.length 
+  });
+
   // Drag-to-create state
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ y: number; time: Date } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ y: number; time: Date } | null>(null);
+  const [hasDragged, setHasDragged] = useState(false);
 
-  // Sweep-line algorithm for collision detection and positioning - O(N log N)
-  const positioned = useMemo<PositionedEvent[]>(() => {
+  // Position timed events only (all-day events are handled in the header)
+  const positioned = useMemo(() => {
     if (events.length === 0) return [];
 
     // Filter events that actually occur on this day
@@ -101,8 +110,11 @@ export function DayColumn({
 
     if (dayEvents.length === 0) return [];
 
-    // Step 1: Sort events by start time, then by duration (longer events first for stable layout)
-    const sortedEvents = [...dayEvents].sort((a, b) => {
+    // Filter to only timed events (all-day events are handled in the header)
+    const timedEvents = dayEvents.filter(event => !event.isAllDay);
+
+    // Step 1: Sort timed events by start time, then by duration (longer events first for stable layout)
+    const sortedTimedEvents = [...timedEvents].sort((a, b) => {
       const aStart = a.startTime.getTime();
       const bStart = b.startTime.getTime();
       if (aStart !== bStart) return aStart - bStart;
@@ -121,17 +133,17 @@ export function DayColumn({
     };
 
     const sweepEvents: SweepEvent[] = [];
-    sortedEvents.forEach((event) => {
+    sortedTimedEvents.forEach((event) => {
       // Clamp event times to the current day boundaries
       const eventStart = new Date(Math.max(event.startTime.getTime(), dayStart.getTime()));
       const eventEnd = new Date(Math.min(event.endTime.getTime(), dayEnd.getTime()));
-      
+
       const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
       const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes();
-      
+
       // For collision detection, use actual end time but ensure minimum duration for rendering
       const actualEndMinutes = Math.max(endMinutes, startMinutes + CALENDAR_CONFIG.EVENTS.MIN_DURATION);
-      
+
       sweepEvents.push({
         time: startMinutes,
         type: 'start',
@@ -179,13 +191,14 @@ export function DayColumn({
       }
     });
 
-    // Step 5: Build positioned events with computed layout
+    // Step 5: Build positioned timed events with computed layout
     const totalColumns = maxColumnUsed + 1;
-    const positioned: PositionedEvent[] = sortedEvents.map(event => {
+
+    const timedPositioned: PositionedEvent[] = sortedTimedEvents.map(event => {
       // For positioning, we need to determine what portion of the event appears on this day
       let displayStartMinutes: number;
       let displayEndMinutes: number;
-      
+
       // Check if event starts on this day
       if (event.startTime.toDateString() === date.toDateString()) {
         displayStartMinutes = event.startTime.getHours() * 60 + event.startTime.getMinutes();
@@ -193,7 +206,7 @@ export function DayColumn({
         // Event started on a previous day, show from start of day
         displayStartMinutes = 0;
       }
-      
+
       // Check if event ends on this day
       if (event.endTime.toDateString() === date.toDateString()) {
         displayEndMinutes = event.endTime.getHours() * 60 + event.endTime.getMinutes();
@@ -201,17 +214,18 @@ export function DayColumn({
         // Event continues to next day, show until end of day
         displayEndMinutes = 24 * 60; // End of day in minutes
       }
-      
+
       // Calculate the duration to display on this day
       const displayDuration = Math.max(
-        displayEndMinutes - displayStartMinutes, 
+        displayEndMinutes - displayStartMinutes,
         CALENDAR_CONFIG.EVENTS.MIN_DURATION
       );
-      
+
+      // Position timed events in the time grid (no offset for all-day area)
       const top = (displayStartMinutes / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
       const height = (displayDuration / 60) * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT;
       const column = eventColumns.get(event.id)!;
-      
+
       return {
         event,
         top,
@@ -223,7 +237,7 @@ export function DayColumn({
       };
     });
 
-    return positioned;
+    return timedPositioned;
   }, [events, date]);
 
   const slots = useMemo(() => {
@@ -231,11 +245,6 @@ export function DayColumn({
     const slotsPerDay = (24 * 60) / minutesPerSlot;
     return Array.from({ length: slotsPerDay }, (_, i) => i);
   }, []);
-
-  // Check if we need virtualization (for grids > 12 hours)
-  const needsVirtualization = useMemo(() => {
-    return slots.length > CALENDAR_CONFIG.TIME_GRID.VIRTUALIZATION_THRESHOLD * 2; // 2 slots per hour
-  }, [slots.length]);
 
   // Get DST gaps for this date
   const dstGaps = useMemo(() => getDSTGaps(date), [date]);
@@ -248,11 +257,28 @@ export function DayColumn({
     });
   }, [slots, dstGaps]);
 
-  const handleTimeSlotClick = useCallback((slotIndex: number) => {
+  // Check if we need virtualization (for grids > 12 hours)
+  const needsVirtualization = useMemo(() => {
+    return visibleSlots.length > CALENDAR_CONFIG.TIME_GRID.VIRTUALIZATION_THRESHOLD * 2; // 2 slots per hour
+  }, [visibleSlots.length]);
+
+  // Virtual scrolling setup for large time grids
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: visibleSlots.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT / 2, // 30px per slot (half hour)
+    overscan: 5, // Render 5 extra items above and below visible area
+    enabled: needsVirtualization,
+  });
+
+  // Simplified time slot click handler (no longer used directly, kept for compatibility)
+  const handleTimeSlotClick = useCallback((slotIndex: number, e: React.MouseEvent) => {
     const minutesOffset = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
     const slotDate = new Date(date);
     slotDate.setHours(0, 0, 0, 0);
     slotDate.setMinutes(minutesOffset);
+    console.log('🎯 Time slot clicked:', { slotIndex, slotDate: slotDate.toISOString() });
     onTimeSlotClick(slotDate);
   }, [date, onTimeSlotClick]);
 
@@ -263,128 +289,140 @@ export function DayColumn({
   // Helper function to convert mouse Y position to time
   const getTimeFromMouseY = useCallback((mouseY: number): Date => {
     if (!columnRef.current) return new Date(date);
-    
+
     const rect = columnRef.current.getBoundingClientRect();
     const relativeY = mouseY - rect.top;
-    const totalHeight = rect.height;
-    
-    // Calculate the time based on position
-    const minutesFromStart = (relativeY / totalHeight) * (24 * 60);
+
+    // Calculate the time based on position in the full time grid area
+    const minutesFromStart = (relativeY / rect.height) * (24 * 60);
     const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, minutesFromStart));
-    
+
     // Snap to 15-minute intervals
     const snappedMinutes = Math.round(clampedMinutes / 15) * 15;
-    
+
     const resultDate = new Date(date);
     resultDate.setHours(0, 0, 0, 0);
     resultDate.setMinutes(snappedMinutes);
-    
+
     return resultDate;
   }, [date]);
 
   // Drag-to-create event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start drag if clicking on empty space (not on an event)
-    if ((e.target as HTMLElement).closest('.absolute')) return;
-    
+    // Only start drag if clicking on empty space (not on an event card)
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-event-card]') || target.closest('.event-card')) {
+      console.log('🎯 Mouse down blocked - clicked on event card');
+      return;
+    }
+
     e.preventDefault();
     const startTime = getTimeFromMouseY(e.clientY);
-    
+
+    console.log('🎯 Mouse down - starting interaction:', { startTime, clientY: e.clientY });
     setIsDragging(true);
+    setHasDragged(false);
     setDragStart({ y: e.clientY, time: startTime });
     setDragEnd({ y: e.clientY, time: startTime });
   }, [getTimeFromMouseY]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !dragStart) return;
+
+    // Check if we've moved enough to consider this a drag
+    const dragThreshold = 3; // pixels - smaller threshold for better responsiveness
+    const deltaY = Math.abs(e.clientY - dragStart.y);
     
+    if (deltaY > dragThreshold && !hasDragged) {
+      console.log('🎯 Drag threshold reached:', { deltaY, threshold: dragThreshold });
+      setHasDragged(true);
+    }
+
     const endTime = getTimeFromMouseY(e.clientY);
     setDragEnd({ y: e.clientY, time: endTime });
-  }, [isDragging, dragStart, getTimeFromMouseY]);
+  }, [isDragging, dragStart, getTimeFromMouseY, hasDragged]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !dragStart || !dragEnd || !onDragToCreate) {
+    console.log('🎯 Mouse up:', { isDragging, hasDragged, dragStart: !!dragStart, dragEnd: !!dragEnd });
+    
+    if (!isDragging || !dragStart || !dragEnd) {
       setIsDragging(false);
+      setHasDragged(false);
       setDragStart(null);
       setDragEnd(null);
       return;
     }
 
-    // Ensure we have a minimum duration and correct order
-    const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
-    const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
-    
-    // Ensure minimum 30-minute duration
-    const minDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
-    if (endTime.getTime() - startTime.getTime() < minDuration) {
-      endTime.setTime(startTime.getTime() + minDuration);
+    // If we dragged, create an event with drag-to-create
+    if (hasDragged && onDragToCreate) {
+      // Ensure we have a minimum duration and correct order
+      const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
+      const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
+
+      // Ensure minimum 30-minute duration
+      const minDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
+      if (endTime.getTime() - startTime.getTime() < minDuration) {
+        endTime.setTime(startTime.getTime() + minDuration);
+      }
+
+      console.log('🎯 Creating event via drag:', { startTime, endTime });
+      onDragToCreate(startTime, endTime);
+    } else if (!hasDragged) {
+      // If we didn't drag, treat it as a simple click - use the start time
+      console.log('🎯 Creating event via click:', { clickTime: dragStart.time });
+      onTimeSlotClick(dragStart.time);
+    } else {
+      console.log('🎯 Not creating event:', { hasDragged, hasCallback: !!onDragToCreate });
     }
 
-    onDragToCreate(startTime, endTime);
-    
     // Reset drag state
     setIsDragging(false);
+    setHasDragged(false);
     setDragStart(null);
     setDragEnd(null);
-  }, [isDragging, dragStart, dragEnd, onDragToCreate]);
+  }, [isDragging, dragStart, dragEnd, hasDragged, onDragToCreate, onTimeSlotClick]);
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = useCallback((_e: React.MouseEvent) => {
     // Cancel drag if mouse leaves the column
     setIsDragging(false);
+    setHasDragged(false);
     setDragStart(null);
     setDragEnd(null);
   }, []);
 
   // Calculate drag preview position and height
   const dragPreview = useMemo(() => {
-    if (!isDragging || !dragStart || !dragEnd) return null;
-    
+    if (!isDragging || !dragStart || !dragEnd || !hasDragged) return null;
+
     const startY = Math.min(dragStart.y, dragEnd.y);
     const endY = Math.max(dragStart.y, dragEnd.y);
     const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
     const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
-    
+
     // Convert to column-relative positions
     if (!columnRef.current) return null;
     const rect = columnRef.current.getBoundingClientRect();
-    
-    const relativeStartY = startY - rect.top;
-    const relativeEndY = endY - rect.top;
+
+    // Calculate relative positions without all-day area offset
+    const relativeStartY = Math.max(0, startY - rect.top);
+    const relativeEndY = Math.max(0, endY - rect.top);
     const height = Math.max(relativeEndY - relativeStartY, 30); // Minimum 30px height
-    
+
     return {
       top: relativeStartY,
       height,
       startTime,
       endTime,
     };
-  }, [isDragging, dragStart, dragEnd]);
+  }, [isDragging, dragStart, dragEnd, hasDragged]);
 
-  return (
-    <div
-      ref={columnRef}
-      className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
-        } ${isDragging ? "cursor-grabbing" : "cursor-crosshair"}`}
-      role="gridcell"
-      aria-label={`Day column ${format(date, "EEEE MMM d")}${isToday ? " today" : ""}`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Time grid with half-hour divisions */}
-      {/* TODO: Add react-virtual for virtualization when slots > threshold */}
-      {needsVirtualization && (
-        <div className="absolute top-0 left-0 right-0 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 z-20">
-          Large time grid - consider installing react-virtual for better performance
-        </div>
-      )}
-      {dstGaps.length > 0 && (
-        <div className="absolute top-0 left-0 right-0 bg-blue-100 text-blue-800 text-xs px-2 py-1 z-20 mt-6">
-          DST transition detected - some hours may be skipped
-        </div>
-      )}
-      {visibleSlots.map((slotIndex) => {
+  // All-day events are now handled in the header, so no area height needed
+
+  // Render time slots - either virtualized or regular
+  const renderTimeSlots = () => {
+    if (!needsVirtualization) {
+      // Regular rendering for smaller grids
+      return visibleSlots.map((slotIndex) => {
         const hour = Math.floor((slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) / 60);
         const minute = (slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) % 60;
         const isHourBoundary = (slotIndex % (60 / CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL)) === 0;
@@ -395,42 +433,111 @@ export function DayColumn({
             className={`border-b border-r transition-colors ${isHourBoundary ? "border-gray-300" : "border-gray-200"
               } hover:bg-gray-100/60 cursor-pointer`}
             style={{ height: `${CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT / 2}px` }}
-            onClick={() => handleTimeSlotClick(slotIndex)}
+            data-slot-index={slotIndex}
             role="button"
             aria-label={`Add event at ${hour}:${minute.toString().padStart(2, '0')}`}
             tabIndex={-1}
           />
         );
-      })}
+      });
+    }
 
-      {/* Positioned events with collision detection */}
-      {positioned.map(({ event, top, height, width, left }) => (
+    // Virtualized rendering for large grids
+    return (
+      <div
+        ref={parentRef}
+        className="h-full overflow-auto"
+        style={{
+          height: `${visibleSlots.length * (CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT / 2)}px`,
+        }}
+      >
         <div
-          key={event.id}
-          className="absolute"
           style={{
-            top: `${top}px`,
-            height: `${height}px`,
-            left: `${left}%`,
-            width: `${width}%`,
-            paddingLeft: '2px',
-            paddingRight: '2px',
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
           }}
         >
-          <EventCard
-            event={event}
-            isLocal={Boolean(event.createdBy && event.createdBy !== 'external')}
-            isDragging={false}
-            isSelected={false}
-            onClick={() => handleEventClick(event)}
-            onDragStart={() => onEventDragStart(event.id)}
-            onDragEnd={onEventDragEnd}
-            onFocus={() => { }}
-            onBlur={() => { }}
-            currentUser={currentUser}
-          />
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const slotIndex = visibleSlots[virtualItem.index];
+            const hour = Math.floor((slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) / 60);
+            const minute = (slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL) % 60;
+            const isHourBoundary = (slotIndex % (60 / CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL)) === 0;
+
+            return (
+              <div
+                key={`slot-${date.toISOString()}-${slotIndex}`}
+                className={`absolute left-0 right-0 border-b border-r transition-colors ${isHourBoundary ? "border-gray-300" : "border-gray-200"
+                  } hover:bg-gray-100/60 cursor-pointer`}
+                style={{
+                  height: `${virtualItem.size}px`,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+                data-slot-index={slotIndex}
+                role="button"
+                aria-label={`Add event at ${hour}:${minute.toString().padStart(2, '0')}`}
+                tabIndex={-1}
+              />
+            );
+          })}
         </div>
-      ))}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={columnRef}
+      className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
+        } ${isDragging ? "cursor-grabbing bg-blue-50/30" : "cursor-crosshair"}`}
+      role="gridcell"
+      aria-label={`Day column ${format(date, "EEEE MMM d")}${isToday ? " today" : ""}`}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+    >
+
+
+      {/* Time grid with half-hour divisions */}
+      {dstGaps.length > 0 && (
+        <div className="absolute top-0 left-0 right-0 bg-blue-100 text-blue-800 text-xs px-2 py-1 z-20">
+          DST transition detected - some hours may be skipped
+        </div>
+      )}
+
+      {/* Render time slots - virtualized or regular based on size */}
+      {renderTimeSlots()}
+
+      {/* Positioned timed events with collision detection */}
+      {positioned.map(({ event, top, height, width, left }) => (
+          <div
+            key={event.id}
+            className="absolute"
+            style={{
+              top: `${top}px`,
+              height: `${height}px`,
+              left: `${left}%`,
+              width: `${width}%`,
+              paddingLeft: '2px',
+              paddingRight: '2px',
+            }}
+          >
+            <EventCard
+              event={event}
+              isLocal={Boolean(event.createdBy && event.createdBy !== 'external')}
+              isDragging={false}
+              isSelected={false}
+              onClick={() => handleEventClick(event)}
+              onDragStart={() => onEventDragStart(event.id)}
+              onDragEnd={onEventDragEnd}
+              onFocus={() => { }}
+              onBlur={() => { }}
+              currentUser={currentUser}
+            />
+          </div>
+        ))}
+
 
       {/* Drag-to-create preview */}
       {dragPreview && (

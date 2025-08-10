@@ -111,6 +111,33 @@ function HomeContent() {
     }
   }, [viewMode]);
 
+  // Update URL when date changes for daily view only (weekly calendar manages its own URL)
+  useEffect(() => {
+    if (!viewMode || viewMode !== 'daily') return;
+
+    const url = new URL(window.location.href);
+    const pathParts = url.pathname.split('/');
+
+    // Only update if we're on a user page with a date (format: /u/username/date)
+    if (pathParts.length >= 4 && pathParts[1] === 'u') {
+      const newDateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+      const currentDateStr = pathParts[3].split('?')[0]; // Remove query params
+
+      if (currentDateStr !== newDateStr) {
+        pathParts[3] = newDateStr;
+        url.pathname = pathParts.join('/');
+
+        console.log('📅 Updating URL for daily view:', {
+          oldDate: currentDateStr,
+          newDate: newDateStr,
+          currentDate
+        });
+
+        window.history.replaceState(null, '', url.toString());
+      }
+    }
+  }, [viewMode, currentDate]);
+
   const handleFriendRequest = async (searchUser: UserSearchResult) => {
     if (user && searchUser.id === user.id) {
       toast({

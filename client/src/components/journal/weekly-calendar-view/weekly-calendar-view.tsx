@@ -9,6 +9,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isToday } from "dat
 import { useCalendarResponsive } from "@/hooks/useCalendarResponsive";
 import type { WeeklyCalendarViewProps, LocalEvent, CalendarEvent, FriendCalendarEvent } from "@/types/calendar";
 import { CalendarFeedModal, CalendarSettings, DayColumn, WeekHeader, FriendCalendarSyncModal } from "@/components/calendar";
+import { AllDayEvents } from "@/components/calendar/all-day-events";
 import { CreateEventModal } from "@/components/calendar/create-event-modal";
 import { EditEventModal } from "@/components/calendar/edit-event-modal";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
@@ -284,6 +285,7 @@ export function WeeklyCalendarView({
     setSelectedEndDateForEvent(null);
   }, []);
   const handleTimeSlotClick = useCallback((slotDate: Date) => {
+    console.log('📅 Time slot clicked:', { slotDate: slotDate.toISOString() });
     setSelectedDateForEvent(slotDate);
     setSelectedEndDateForEvent(null); // Clear end date for regular click
     setIsCreateOpen(true);
@@ -291,10 +293,47 @@ export function WeeklyCalendarView({
   const handleEventDragStart = useCallback((_id: string) => { }, []);
   const handleEventDragEnd = useCallback(() => { }, []);
   const handleDragToCreate = useCallback((startTime: Date, endTime: Date) => {
+    console.log('📅 Drag-to-create triggered:', { 
+      startTime: startTime.toISOString(), 
+      endTime: endTime.toISOString() 
+    });
     setSelectedDateForEvent(startTime);
     setSelectedEndDateForEvent(endTime);
     setIsCreateOpen(true);
   }, []);
+
+  // Independent URL management for weekly calendar view
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    
+    // Only manage URL if we're in a weekly calendar view
+    if (!url.searchParams.get('view')?.includes('weekly-calendar')) return;
+    
+    const pathParts = url.pathname.split('/');
+    
+    // Only update if we're on a user page (format: /u/username/...)
+    if (pathParts.length >= 3 && pathParts[1] === 'u') {
+      const weekStart = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
+      const weekDateStr = weekStart.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      // Check if we need to update the URL
+      const currentPathDate = pathParts[3]?.split('?')[0];
+      
+      if (currentPathDate !== weekDateStr) {
+        // Update the URL to reflect the current week
+        pathParts[3] = weekDateStr;
+        url.pathname = pathParts.join('/');
+        
+        console.log('📅 Weekly calendar updating URL:', {
+          oldDate: currentPathDate,
+          newWeekDate: weekDateStr,
+          currentWeek: calendarCurrentWeek.toISOString()
+        });
+        
+        window.history.replaceState(null, '', url.toString());
+      }
+    }
+  }, [calendarCurrentWeek]);
 
   return (
     <div className="flex-1 bg-white flex flex-col min-h-0">
@@ -307,11 +346,7 @@ export function WeeklyCalendarView({
           setCurrentWeek(today);
           actions.setCurrentWeek(today);
         }}
-        onCreateEventClick={() => {
-          setSelectedDateForEvent(new Date());
-          setSelectedEndDateForEvent(null); // Clear end date for header button
-          setIsCreateOpen(true);
-        }}
+
         onSettingsClick={() => setIsSettingsOpen(true)}
         onFeedModalClick={() => setIsFeedModalOpen(true)}
         showRecurrenceBanner={CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI}
@@ -398,6 +433,16 @@ export function WeeklyCalendarView({
                     Today
                   </Badge>
                 )}
+                
+                {/* All-day events for this day */}
+                <div className="mt-2">
+                  <AllDayEvents
+                    date={day}
+                    events={(eventsByDayKey.get(format(day, 'yyyy-MM-dd')) ?? []).map(convertToLocalEventFormat)}
+                    onEventClick={handleEventClick}
+                    maxVisible={3}
+                  />
+                </div>
               </div>
             );
           })}
@@ -476,7 +521,13 @@ export function WeeklyCalendarView({
         initialDate={selectedDateForEvent || undefined}
         initialEndDate={selectedEndDateForEvent || undefined}
         onSubmit={async (payload) => {
-          await actions.createLocalEvent(payload);
+          console.log('📅 Weekly calendar creating event:', payload);
+          try {
+            await actions.createLocalEvent(payload);
+            console.log('📅 Event created successfully');
+          } catch (error) {
+            console.error('📅 Event creation failed:', error);
+          }
         }}
       />
 
