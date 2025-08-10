@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,16 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, MapPin, Tag, Lock, User } from "lucide-react";
-import { format } from "date-fns";
+import { Calendar, Clock, MapPin, Tag, Lock, User, Trash2 } from "lucide-react";
 import type { LocalEvent } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { SmartDateTimeInput } from "./smart-datetime-input";
+import { useSmartDuration } from "@/hooks/useSmartDuration";
 
 interface EditEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   event: LocalEvent;
   onSubmit: (id: string, updates: Partial<LocalEvent>) => void;
+  onDelete?: (id: string) => void;
   isReadOnly?: boolean;
   currentUser?: {
     id: string;
@@ -23,11 +25,12 @@ interface EditEventModalProps {
   } | null;
 }
 
-export function EditEventModal({ 
-  isOpen, 
-  onClose, 
+export function EditEventModal({
+  isOpen,
+  onClose,
   event,
   onSubmit,
+  onDelete,
   isReadOnly = false,
   currentUser
 }: EditEventModalProps) {
@@ -42,9 +45,9 @@ export function EditEventModal({
     reminderMinutes: event.reminderMinutes ?? 30,
     tags: 'tags' in event ? event.tags || [] : [],
   });
-  
+
   const [tagInput, setTagInput] = useState("");
-  
+
   useEffect(() => {
     setFormData({
       title: event.title,
@@ -57,19 +60,35 @@ export function EditEventModal({
       reminderMinutes: event.reminderMinutes ?? 30,
       tags: 'tags' in event ? event.tags || [] : [],
     });
-  }, [event.id]); // Only reset form when the event ID changes, not on every re-render
-  
+  }, [event]); // Reset form when any event fields change to avoid stale data
+
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-  
-  const handleDateChange = (field: 'startTime' | 'endTime', value: string) => {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      handleInputChange(field, date);
+
+  // Smart duration handling
+  const {
+    isValidDuration,
+    hasTimeConflict,
+    handleStartTimeChange,
+    handleEndTimeChange,
+    getMinEndTime
+  } = useSmartDuration({
+    startTime: formData.startTime,
+    endTime: formData.endTime,
+    onStartTimeChange: (date) => handleInputChange("startTime", date),
+    onEndTimeChange: (date) => handleInputChange("endTime", date)
+  });
+
+
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete(event.id);
+      onClose();
     }
   };
-  
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({
@@ -79,21 +98,21 @@ export function EditEventModal({
       setTagInput("");
     }
   };
-  
+
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
       return;
     }
-    
+
     onSubmit(event.id, {
       title: formData.title,
       description: formData.description,
@@ -105,11 +124,11 @@ export function EditEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
     });
-    
+
     // Close modal after successful submission
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -119,7 +138,7 @@ export function EditEventModal({
             {isReadOnly ? "View Event" : "Edit Event"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="title" className="text-sm font-medium text-gray-700">
@@ -135,7 +154,7 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           <div>
             <Label htmlFor="description" className="text-sm font-medium text-gray-700">
               Description
@@ -150,55 +169,64 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="startTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 Start Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="startTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.startTime, "yyyy-MM-dd")
-                  : format(formData.startTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("startTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.startTime}
+                onChange={handleStartTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
                 readOnly={isReadOnly}
+                label="Start"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="endTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 End Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="endTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.endTime, "yyyy-MM-dd")
-                  : format(formData.endTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("endTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.endTime}
+                onChange={handleEndTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
                 readOnly={isReadOnly}
+                minTime={getMinEndTime()}
+                startTime={formData.startTime}
+                label="End"
               />
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
+
+          {/* Duration validation warning */}
+          {hasTimeConflict && !isReadOnly && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-700">
+                ⚠️ End time must be after start time
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-lg border border-gray-200/50">
             <Switch
               id="allDay"
               checked={formData.isAllDay}
               onCheckedChange={(checked) => handleInputChange("isAllDay", checked)}
               disabled={isReadOnly}
             />
-            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700 cursor-pointer">
               All day event
             </Label>
           </div>
-          
+
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <MapPin className="w-4 h-4" />
@@ -213,7 +241,7 @@ export function EditEventModal({
               readOnly={isReadOnly}
             />
           </div>
-          
+
           {!isReadOnly && (
             <div>
               <Label className="text-sm font-medium text-gray-700">Color</Label>
@@ -222,11 +250,10 @@ export function EditEventModal({
                   <button
                     key={color.value}
                     type="button"
-                    className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
-                      formData.color === color.value
+                    className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${formData.color === color.value
                         ? "border-gray-800 scale-110 shadow-neu-lg"
                         : "border-gray-300 hover:scale-105"
-                    }`}
+                      }`}
                     style={{ backgroundColor: color.value }}
                     onClick={() => handleInputChange("color", color.value)}
                     aria-label={`Select ${color.label} color`}
@@ -236,7 +263,7 @@ export function EditEventModal({
               </div>
             </div>
           )}
-          
+
           {!isReadOnly && (
             <div>
               <Label htmlFor="reminder" className="text-sm font-medium text-gray-700">
@@ -262,7 +289,7 @@ export function EditEventModal({
               </Select>
             </div>
           )}
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <Tag className="w-4 h-4" />
@@ -315,19 +342,19 @@ export function EditEventModal({
               </div>
             )}
           </div>
-          
+
           {/* Show creator for local events */}
           {event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
               <User className="w-4 h-4 mr-1" />
-              Created By: 
-              {currentUser && currentUser.id === event.createdBy && currentUser.username 
-                  ? ` @${currentUser.username}`
-                  : event.createdBy
-                }
+              Created By:
+              {currentUser && currentUser.id === event.createdBy && currentUser.username
+                ? ` @${currentUser.username}`
+                : event.createdBy
+              }
             </div>
           )}
-          
+
           {/* Show read-only indicator for imported events */}
           {!event.createdBy && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
@@ -335,25 +362,40 @@ export function EditEventModal({
               Read-only event from external calendar
             </div>
           )}
-          
-          <DialogFooter className="flex justify-end space-x-2 pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              className="neu-card"
-            >
-              Close
-            </Button>
-            {!isReadOnly && (
+
+          <DialogFooter className="flex justify-between items-center pt-4">
+            <div>
+              {!isReadOnly && onDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleDelete}
+                  className="neu-card text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Event
+                </Button>
+              )}
+            </div>
+            <div className="flex space-x-2">
               <Button
-                type="submit"
-                disabled={!formData.title.trim()}
-                className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+                className="neu-card"
               >
-                Update Event
+                Close
               </Button>
-            )}
+              {!isReadOnly && (
+                <Button
+                  type="submit"
+                  disabled={!formData.title.trim() || !isValidDuration}
+                  className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Update Event
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

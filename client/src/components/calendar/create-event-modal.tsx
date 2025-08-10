@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,31 +6,35 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, MapPin, Tag, Link } from "lucide-react";
-import { format, addHours } from "date-fns";
+import { Calendar, Clock, MapPin, Tag } from "lucide-react";
+import { addHours } from "date-fns";
 import type { LocalEvent } from "@/types/calendar";
 import { availableColors } from "@shared/config/calendar-config";
+import { SmartDateTimeInput } from "./smart-datetime-input";
+import { useSmartDuration } from "@/hooks/useSmartDuration";
 
 interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => void;
   initialDate?: Date;
+  initialEndDate?: Date; // New prop for drag-to-create
   linkedJournalEntryId?: string;
 }
 
-export function CreateEventModal({ 
-  isOpen, 
-  onClose, 
+export function CreateEventModal({
+  isOpen,
+  onClose,
   onSubmit,
   initialDate,
+  initialEndDate,
   linkedJournalEntryId
 }: CreateEventModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     startTime: initialDate ? new Date(initialDate.getTime()) : new Date(),
-    endTime: initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1),
+    endTime: initialEndDate ? new Date(initialEndDate.getTime()) : (initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1)),
     isAllDay: false,
     location: "",
     color: "#3B82F6",
@@ -39,30 +43,66 @@ export function CreateEventModal({
     linkedJournalEntryId: linkedJournalEntryId || undefined,
   });
 
-  // Update form data when initialDate changes
+  // Track if modal just opened to avoid resetting user input
+  const wasOpenRef = useRef(false);
+
+  // Reset form completely only when modal opens (not on date changes)
   useEffect(() => {
-    if (initialDate) {
+    if (isOpen && !wasOpenRef.current) {
+      // Modal just opened - reset everything
+      setFormData({
+        title: "",
+        description: "",
+        startTime: initialDate ? new Date(initialDate.getTime()) : new Date(),
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : (initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1)),
+        isAllDay: false,
+        location: "",
+        color: "#3B82F6",
+        reminderMinutes: 30,
+        tags: [] as string[],
+        linkedJournalEntryId: linkedJournalEntryId || undefined,
+      });
+      setTagInput("");
+    }
+
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialDate, initialEndDate, linkedJournalEntryId]);
+
+  // Update only dates when they change (preserves user input in other fields)
+  useEffect(() => {
+    if (isOpen && wasOpenRef.current && (initialDate || initialEndDate)) {
       setFormData(prev => ({
         ...prev,
-        startTime: new Date(initialDate.getTime()),
-        endTime: addHours(initialDate, 1),
+        startTime: initialDate ? new Date(initialDate.getTime()) : prev.startTime,
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) :
+          (initialDate ? addHours(initialDate, 1) : prev.endTime),
+        linkedJournalEntryId: linkedJournalEntryId || prev.linkedJournalEntryId,
       }));
     }
-  }, [initialDate]);
-  
+  }, [initialDate, initialEndDate, linkedJournalEntryId, isOpen]);
+
   const [tagInput, setTagInput] = useState("");
-  
+
   const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-  
-  const handleDateChange = (field: 'startTime' | 'endTime', value: string) => {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      handleInputChange(field, date);
-    }
-  };
-  
+
+  // Smart duration handling
+  const {
+    isValidDuration,
+    hasTimeConflict,
+    handleStartTimeChange,
+    handleEndTimeChange,
+    getMinEndTime
+  } = useSmartDuration({
+    startTime: formData.startTime,
+    endTime: formData.endTime,
+    onStartTimeChange: (date) => handleInputChange("startTime", date),
+    onEndTimeChange: (date) => handleInputChange("endTime", date)
+  });
+
+
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({
@@ -72,22 +112,23 @@ export function CreateEventModal({
       setTagInput("");
     }
   };
-  
+
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
   };
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
+      console.warn('📅 Event creation blocked: Empty title');
       return;
     }
-    
-    onSubmit({
+
+    const eventData = {
       title: formData.title,
       description: formData.description,
       startTime: formData.startTime,
@@ -101,12 +142,16 @@ export function CreateEventModal({
       reminderMinutes: formData.reminderMinutes,
       tags: formData.tags,
       pattern: undefined,
-    });
-    
+    };
+
+
+
+    onSubmit(eventData);
+
     // Close modal after successful submission
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -116,7 +161,7 @@ export function CreateEventModal({
             Create Event
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="title" className="text-sm font-medium text-gray-700">
@@ -131,7 +176,7 @@ export function CreateEventModal({
               required
             />
           </div>
-          
+
           <div>
             <Label htmlFor="description" className="text-sm font-medium text-gray-700">
               Description
@@ -145,52 +190,61 @@ export function CreateEventModal({
               rows={3}
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="startTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 Start Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="startTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.startTime, "yyyy-MM-dd")
-                  : format(formData.startTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("startTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.startTime}
+                onChange={handleStartTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
+                label="Start"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="endTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 End Time
               </Label>
-              <Input
+              <SmartDateTimeInput
                 id="endTime"
-                type={formData.isAllDay ? "date" : "datetime-local"}
-                value={formData.isAllDay 
-                  ? format(formData.endTime, "yyyy-MM-dd")
-                  : format(formData.endTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => handleDateChange("endTime", e.target.value)}
-                className="mt-1 neu-inset"
+                value={formData.endTime}
+                onChange={handleEndTimeChange}
+                isAllDay={formData.isAllDay}
+                className={`mt-1 ${hasTimeConflict ? 'opacity-75' : ''}`}
+                minTime={getMinEndTime()}
+                startTime={formData.startTime}
+                label="End"
               />
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
+
+          {/* Duration validation warning */}
+          {hasTimeConflict && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-700">
+                ⚠️ End time must be after start time
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-lg border border-gray-200/50">
             <Switch
               id="allDay"
               checked={formData.isAllDay}
               onCheckedChange={(checked) => handleInputChange("isAllDay", checked)}
             />
-            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="allDay" className="text-sm font-medium text-gray-700 cursor-pointer">
               All day event
             </Label>
           </div>
-          
+
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <MapPin className="w-4 h-4" />
@@ -204,7 +258,7 @@ export function CreateEventModal({
               placeholder="Add location"
             />
           </div>
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700">Color</Label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -212,11 +266,10 @@ export function CreateEventModal({
                 <button
                   key={color.value}
                   type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${
-                    formData.color === color.value
-                      ? "border-gray-800 scale-110 shadow-neu-lg"
-                      : "border-gray-300 hover:scale-105"
-                  }`}
+                  className={`w-8 h-8 rounded-full border-2 transition-all shadow-neu hover:shadow-neu-lg ${formData.color === color.value
+                    ? "border-gray-800 scale-110 shadow-neu-lg"
+                    : "border-gray-300 hover:scale-105"
+                    }`}
                   style={{ backgroundColor: color.value }}
                   onClick={() => handleInputChange("color", color.value)}
                   aria-label={`Select ${color.label} color`}
@@ -224,7 +277,7 @@ export function CreateEventModal({
               ))}
             </div>
           </div>
-          
+
           <div>
             <Label htmlFor="reminder" className="text-sm font-medium text-gray-700">
               Reminder
@@ -247,7 +300,7 @@ export function CreateEventModal({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div>
             <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
               <Tag className="w-4 h-4" />
@@ -296,7 +349,7 @@ export function CreateEventModal({
               </div>
             )}
           </div>
-          
+
           <DialogFooter className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
@@ -308,8 +361,8 @@ export function CreateEventModal({
             </Button>
             <Button
               type="submit"
-              disabled={!formData.title.trim()}
-              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
+              disabled={!formData.title.trim() || !isValidDuration}
+              className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create Event
             </Button>

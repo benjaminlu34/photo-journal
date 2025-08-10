@@ -43,6 +43,16 @@ function hasTombstone(event: LocalEvent): event is TombstonedEvent {
   return typeof (event as TombstonedEvent).deletedAt === 'string';
 }
 
+// Public utility to check if an event is deleted (tombstoned)
+export function isEventDeleted(event: LocalEvent): boolean {
+  return hasTombstone(event) || event.title?.startsWith('[DELETED]') === true;
+}
+
+// Public utility to filter out deleted events
+export function filterActiveEvents(events: LocalEvent[]): LocalEvent[] {
+  return events.filter(event => !isEventDeleted(event));
+}
+
 // CRDT conflict resolution utilities
 export class CRDTConflictResolver {
   // Resolve field conflicts using last-writer-wins with timestamp

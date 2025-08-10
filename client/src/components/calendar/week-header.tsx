@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar, Plus, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Settings } from "lucide-react";
 import { format, startOfWeek, endOfWeek, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { useCalendar } from "@/contexts/calendar-context";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
@@ -9,7 +9,6 @@ interface WeekHeaderProps {
   currentWeek: Date;
   onWeekChange: (date: Date) => void;
   onTodayClick: () => void;
-  onCreateEventClick: () => void;
   onSettingsClick: () => void;
   onFeedModalClick: () => void;
   hasJournalEntries?: boolean[];
@@ -20,7 +19,6 @@ export function WeekHeader({
   currentWeek,
   onWeekChange,
   onTodayClick,
-  onCreateEventClick,
   onSettingsClick,
   onFeedModalClick,
   hasJournalEntries = [],
@@ -138,18 +136,7 @@ export function WeekHeader({
             <Settings className="w-4 h-4" />
           </Button>
 
-          {/* Create event button */}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onCreateEventClick}
-            onKeyDown={(e) => handleKeyDown(e, onCreateEventClick)}
-            className="neu-card bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent))] hover:from-[hsl(var(--primary))] hover:to-[hsl(var(--accent))] text-white shadow-neu hover:shadow-neu-lg transition-all"
-            aria-label="Create new event"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Event
-          </Button>
+          {/* Create event button removed - users can click/drag on calendar to create events */}
         </div>
       </div>
 
