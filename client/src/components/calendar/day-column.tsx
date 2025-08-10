@@ -79,11 +79,7 @@ export function DayColumn({
   const columnRef = useRef<HTMLDivElement>(null);
 
   // Debug: Log when drag-to-create callback is available
-  console.log('🎯 DayColumn rendered:', { 
-    date: date.toDateString(), 
-    hasOnDragToCreate: !!onDragToCreate,
-    eventsCount: events.length 
-  });
+
 
   // Drag-to-create state
   const [isDragging, setIsDragging] = useState(false);
@@ -278,7 +274,7 @@ export function DayColumn({
     const slotDate = new Date(date);
     slotDate.setHours(0, 0, 0, 0);
     slotDate.setMinutes(minutesOffset);
-    console.log('🎯 Time slot clicked:', { slotIndex, slotDate: slotDate.toISOString() });
+
     onTimeSlotClick(slotDate);
   }, [date, onTimeSlotClick]);
 
@@ -311,8 +307,8 @@ export function DayColumn({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only start drag if clicking on empty space (not on an event card)
     const target = e.target;
-    if (target instanceof HTMLElement && 
-        (target.closest('[data-event-card]') || target.closest('.event-card'))) {
+    if (target instanceof HTMLElement &&
+      (target.closest('[data-event-card]') || target.closest('.event-card'))) {
       return;
     }
 
@@ -331,7 +327,7 @@ export function DayColumn({
     // Check if we've moved enough to consider this a drag
     const DRAG_THRESHOLD_PX = 3;
     const deltaY = Math.abs(e.clientY - dragStart.y);
-    
+
     if (deltaY > DRAG_THRESHOLD_PX && !hasDragged) {
       setHasDragged(true);
     }
@@ -502,32 +498,32 @@ export function DayColumn({
 
       {/* Positioned timed events with collision detection */}
       {positioned.map(({ event, top, height, width, left }) => (
-          <div
-            key={event.id}
-            className="absolute"
-            style={{
-              top: `${top}px`,
-              height: `${height}px`,
-              left: `${left}%`,
-              width: `${width}%`,
-              paddingLeft: '2px',
-              paddingRight: '2px',
-            }}
-          >
-            <EventCard
-              event={event}
-              isLocal={Boolean(event.createdBy && event.createdBy !== 'external')}
-              isDragging={false}
-              isSelected={false}
-              onClick={() => handleEventClick(event)}
-              onDragStart={() => onEventDragStart(event.id)}
-              onDragEnd={onEventDragEnd}
-              onFocus={() => { }}
-              onBlur={() => { }}
-              currentUser={currentUser}
-            />
-          </div>
-        ))}
+        <div
+          key={event.id}
+          className="absolute"
+          style={{
+            top: `${top}px`,
+            height: `${height}px`,
+            left: `${left}%`,
+            width: `${width}%`,
+            paddingLeft: '2px',
+            paddingRight: '2px',
+          }}
+        >
+          <EventCard
+            event={event}
+            isLocal={Boolean(event.createdBy && event.createdBy !== 'external')}
+            isDragging={false}
+            isSelected={false}
+            onClick={() => handleEventClick(event)}
+            onDragStart={() => onEventDragStart(event.id)}
+            onDragEnd={onEventDragEnd}
+            onFocus={() => { }}
+            onBlur={() => { }}
+            currentUser={currentUser}
+          />
+        </div>
+      ))}
 
 
       {/* Drag-to-create preview */}

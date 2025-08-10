@@ -127,11 +127,7 @@ function HomeContent() {
         pathParts[3] = newDateStr;
         url.pathname = pathParts.join('/');
 
-        console.log('📅 Updating URL for daily view:', {
-          oldDate: currentDateStr,
-          newDate: newDateStr,
-          currentDate
-        });
+
 
         window.history.replaceState(null, '', url.toString());
       }

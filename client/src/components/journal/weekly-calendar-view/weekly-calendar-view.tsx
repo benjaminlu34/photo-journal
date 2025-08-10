@@ -285,7 +285,6 @@ export function WeeklyCalendarView({
     setSelectedEndDateForEvent(null);
   }, []);
   const handleTimeSlotClick = useCallback((slotDate: Date) => {
-    console.log('📅 Time slot clicked:', { slotDate: slotDate.toISOString() });
     setSelectedDateForEvent(slotDate);
     setSelectedEndDateForEvent(null); // Clear end date for regular click
     setIsCreateOpen(true);
@@ -293,10 +292,6 @@ export function WeeklyCalendarView({
   const handleEventDragStart = useCallback((_id: string) => { }, []);
   const handleEventDragEnd = useCallback(() => { }, []);
   const handleDragToCreate = useCallback((startTime: Date, endTime: Date) => {
-    console.log('📅 Drag-to-create triggered:', { 
-      startTime: startTime.toISOString(), 
-      endTime: endTime.toISOString() 
-    });
     setSelectedDateForEvent(startTime);
     setSelectedEndDateForEvent(endTime);
     setIsCreateOpen(true);
@@ -305,31 +300,27 @@ export function WeeklyCalendarView({
   // Independent URL management for weekly calendar view
   useEffect(() => {
     const url = new URL(window.location.href);
-    
+
     // Only manage URL if we're in a weekly calendar view
     if (!url.searchParams.get('view')?.includes('weekly-calendar')) return;
-    
+
     const pathParts = url.pathname.split('/');
-    
+
     // Only update if we're on a user page (format: /u/username/...)
     if (pathParts.length >= 3 && pathParts[1] === 'u') {
       const weekStart = startOfWeek(calendarCurrentWeek, { weekStartsOn: 0 });
       const weekDateStr = weekStart.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
+
       // Check if we need to update the URL
       const currentPathDate = pathParts[3]?.split('?')[0];
-      
+
       if (currentPathDate !== weekDateStr) {
         // Update the URL to reflect the current week
         pathParts[3] = weekDateStr;
         url.pathname = pathParts.join('/');
-        
-        console.log('📅 Weekly calendar updating URL:', {
-          oldDate: currentPathDate,
-          newWeekDate: weekDateStr,
-          currentWeek: calendarCurrentWeek.toISOString()
-        });
-        
+
+
+
         window.history.replaceState(null, '', url.toString());
       }
     }
@@ -433,7 +424,7 @@ export function WeeklyCalendarView({
                     Today
                   </Badge>
                 )}
-                
+
                 {/* All-day events for this day */}
                 <div className="mt-2">
                   <AllDayEvents
@@ -521,10 +512,8 @@ export function WeeklyCalendarView({
         initialDate={selectedDateForEvent || undefined}
         initialEndDate={selectedEndDateForEvent || undefined}
         onSubmit={async (payload) => {
-          console.log('📅 Weekly calendar creating event:', payload);
           try {
             await actions.createLocalEvent(payload);
-            console.log('📅 Event created successfully');
           } catch (error) {
             console.error('📅 Event creation failed:', error);
           }

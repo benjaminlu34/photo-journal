@@ -244,7 +244,6 @@ export function EventCard({
           onMouseDown={(e) => {
             e.stopPropagation();
             // TODO: Implement resize functionality
-            console.log('Resize started for event:', event.id);
           }}
           role="button"
           aria-label="Resize event"

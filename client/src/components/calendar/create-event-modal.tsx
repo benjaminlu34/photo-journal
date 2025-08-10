@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,10 +43,13 @@ export function CreateEventModal({
     linkedJournalEntryId: linkedJournalEntryId || undefined,
   });
 
-  // Reset form when modal opens
+  // Track if modal just opened to avoid resetting user input
+  const wasOpenRef = useRef(false);
+  
+  // Reset form completely only when modal opens (not on date changes)
   useEffect(() => {
-    if (isOpen) {
-      console.log('📅 Resetting form data for new event');
+    if (isOpen && !wasOpenRef.current) {
+      // Modal just opened - reset everything
       setFormData({
         title: "",
         description: "",
@@ -61,18 +64,22 @@ export function CreateEventModal({
       });
       setTagInput("");
     }
-  }, [isOpen, initialDate, initialEndDate, linkedJournalEntryId]);
+    
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
 
-  // Update form data when initialDate or initialEndDate changes (for existing open modal)
+  // Update only dates when they change (preserves user input in other fields)
   useEffect(() => {
-    if (isOpen && initialDate) {
+    if (isOpen && wasOpenRef.current && (initialDate || initialEndDate)) {
       setFormData(prev => ({
         ...prev,
-        startTime: new Date(initialDate.getTime()),
-        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : addHours(initialDate, 1),
+        startTime: initialDate ? new Date(initialDate.getTime()) : prev.startTime,
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : 
+                 (initialDate ? addHours(initialDate, 1) : prev.endTime),
+        linkedJournalEntryId: linkedJournalEntryId || prev.linkedJournalEntryId,
       }));
     }
-  }, [initialDate, initialEndDate, isOpen]);
+  }, [initialDate, initialEndDate, linkedJournalEntryId, isOpen]);
 
   const [tagInput, setTagInput] = useState("");
 
@@ -137,14 +144,7 @@ export function CreateEventModal({
       pattern: undefined,
     };
 
-    console.log('📅 Creating event:', {
-      title: eventData.title,
-      startTime: eventData.startTime.toISOString(),
-      endTime: eventData.endTime.toISOString(),
-      isAllDay: eventData.isAllDay,
-      color: eventData.color,
-      linkedJournalEntryId: eventData.linkedJournalEntryId
-    });
+
 
     onSubmit(eventData);
 
