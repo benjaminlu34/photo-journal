@@ -132,6 +132,7 @@ export function WeeklyCalendarView({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isFriendSyncModalOpen, setIsFriendSyncModalOpen] = useState(false);
+
   const initializationRef = useRef(false);
   // Note: CalendarContext doesn't expose friend sync APIs yet.
   // We keep the modal UX but wire actions to setError as placeholders.
@@ -199,6 +200,8 @@ export function WeeklyCalendarView({
   const handleRefreshFriend = useCallback(async (_friendUserId: string) => {
     actions.setError?.('Friend events refresh is not available in this build yet.');
   }, [actions]);
+
+
 
   // Consolidate all events with tags (ported)
   const allEvents = useMemo(() => {
@@ -337,10 +340,10 @@ export function WeeklyCalendarView({
           setCurrentWeek(today);
           actions.setCurrentWeek(today);
         }}
-
         onSettingsClick={() => setIsSettingsOpen(true)}
         onFeedModalClick={() => setIsFeedModalOpen(true)}
         showRecurrenceBanner={CALENDAR_CONFIG.FEATURES.ENABLE_RECURRENCE_UI}
+
       />
 
       {/* Pad navigation (journal feature) */}
@@ -439,7 +442,7 @@ export function WeeklyCalendarView({
           })}
         </div>
 
-        <div className="flex-1 overflow-auto min-h-0" style={{ maxHeight: 'calc(100vh - 260px)', scrollbarGutter: 'stable' }}>
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
           <div className="relative" style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleDays.length}, 1fr)`, height: `${24 * CALENDAR_CONFIG.TIME_GRID.HOUR_HEIGHT}px` }}>
             <div className="border-r border-gray-200 bg-white sticky left-0 z-10">
               {Array.from({ length: 24 }, (_, i) => (

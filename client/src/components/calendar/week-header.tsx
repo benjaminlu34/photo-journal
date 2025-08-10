@@ -47,6 +47,8 @@ export function WeekHeader({
     }
   };
 
+
+
   return (
     <div className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
       {/* Coming Soon banner for recurring events */}

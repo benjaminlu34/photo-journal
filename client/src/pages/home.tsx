@@ -226,8 +226,8 @@ function HomeContent() {
     <div className="flex h-screen">
       <JournalSidebar />
 
-      <div className="neu-card flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
+      <div className="neu-card flex-1 grid grid-rows-[auto_1fr] min-w-0">
+        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="grid grid-cols-[auto_1fr_auto] items-center w-full gap-4">
             {/* Left: Navigation at the very left */}
             <div className="flex items-center gap-1 shrink-0">
@@ -360,7 +360,7 @@ function HomeContent() {
         <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
           {/* Handle friendship events and refresh image URLs when permissions change */}
           <FriendshipImageHandler />
-          <div className="flex flex-1">
+          <div className="flex flex-1 min-h-0">
             <JournalWorkspace />
             <CollaborationPanel />
           </div>
