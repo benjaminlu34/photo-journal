@@ -68,6 +68,7 @@ export function SmartDateTimeInput({
       {/* Date picker button */}
       <div className="relative">
         <Button
+          id={id}
           ref={dateButtonRef}
           type="button"
           variant="outline"

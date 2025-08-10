@@ -159,7 +159,7 @@ export function CreateEventModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Label htmlFor="startTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 Start Time
               </Label>
@@ -174,7 +174,7 @@ export function CreateEventModal({
             </div>
 
             <div>
-              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Label htmlFor="endTime" className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 End Time
               </Label>

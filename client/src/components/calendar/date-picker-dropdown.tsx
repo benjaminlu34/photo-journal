@@ -88,7 +88,7 @@ export function DatePickerDropdown({
         left: '0',
         marginTop: '4px',
         minWidth: '280px',
-        borderRadius: '0.5rem 0.5rem 0 0', // Only round top corners
+        borderRadius: '0 0 0.5rem 0.5rem', // Round bottom corners for seamless connection
       }}
     >
       {/* Month navigation */}

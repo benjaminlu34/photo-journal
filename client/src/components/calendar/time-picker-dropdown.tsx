@@ -128,7 +128,7 @@ export function TimePickerDropdown({
         left: '0',
         marginTop: '4px',
         minWidth: '200px',
-        borderRadius: '0.5rem 0.5rem 0 0', // Only round top corners
+        borderRadius: '0 0 0.5rem 0.5rem', // Round bottom corners for seamless connection
       }}
     >
       <div className="py-2">
@@ -138,7 +138,7 @@ export function TimePickerDropdown({
           
           return (
             <button
-              key={index}
+              key={option.time.toISOString()}
               onClick={() => handleTimeSelect(option.time)}
               disabled={isInvalid}
               className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
