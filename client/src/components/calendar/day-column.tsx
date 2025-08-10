@@ -268,15 +268,7 @@ export function DayColumn({
     enabled: needsVirtualization,
   });
 
-  // Simplified time slot click handler (no longer used directly, kept for compatibility)
-  const handleTimeSlotClick = useCallback((slotIndex: number, e: React.MouseEvent) => {
-    const minutesOffset = slotIndex * CALENDAR_CONFIG.TIME_GRID.MINUTE_INTERVAL;
-    const slotDate = new Date(date);
-    slotDate.setHours(0, 0, 0, 0);
-    slotDate.setMinutes(minutesOffset);
 
-    onTimeSlotClick(slotDate);
-  }, [date, onTimeSlotClick]);
 
   const handleEventClick = useCallback((event: LocalEvent) => {
     onEventClick(event);

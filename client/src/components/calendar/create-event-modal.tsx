@@ -45,7 +45,7 @@ export function CreateEventModal({
 
   // Track if modal just opened to avoid resetting user input
   const wasOpenRef = useRef(false);
-  
+
   // Reset form completely only when modal opens (not on date changes)
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
@@ -64,7 +64,7 @@ export function CreateEventModal({
       });
       setTagInput("");
     }
-    
+
     wasOpenRef.current = isOpen;
   }, [isOpen]);
 
@@ -74,8 +74,8 @@ export function CreateEventModal({
       setFormData(prev => ({
         ...prev,
         startTime: initialDate ? new Date(initialDate.getTime()) : prev.startTime,
-        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : 
-                 (initialDate ? addHours(initialDate, 1) : prev.endTime),
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) :
+          (initialDate ? addHours(initialDate, 1) : prev.endTime),
         linkedJournalEntryId: linkedJournalEntryId || prev.linkedJournalEntryId,
       }));
     }
