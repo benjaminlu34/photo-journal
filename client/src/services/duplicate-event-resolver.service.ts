@@ -1,11 +1,19 @@
 /**
  * Duplicate event resolver service for handling multi-source event deduplication
  * Implements event key generation, sequence handling, and canonical ID assignment
+ *
+ * Color Policy:
+ * - All programmatic color assignment decisions are centralized via ColorPaletteManager.
+ * - No direct usage of availableColors for assignment decisions.
+ * - We seed existing assignments and route remaining selections through
+ *   colorPaletteManager.assignColors() to ensure deterministic, accessible colors.
+ * - Contrast is sanity-checked by the manager utilities.
  */
-
+ 
 import { LRUCache } from 'lru-cache';
 import type { CalendarEvent, FriendCalendarEvent } from '@/types/calendar';
-import { availableColors } from '@shared/config/calendar-config';
+import { colorPaletteManager } from './color-palette-manager';
+import type { ColorAssignment } from './color-palette-manager';
 
 // Interfaces
 interface DeduplicationResult {
@@ -64,7 +72,6 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
     max: 1000, // Limit to 1000 color assignments
     ttl: 24 * 60 * 60 * 1000, // 24 hour TTL to allow cache refresh
   });
-  private colorIndex = 0;
 
   // Core deduplication methods
   resolveEvents(events: CalendarEvent[]): DeduplicationResult {
@@ -143,29 +150,54 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
 
   // Color collision resolution
   resolveColorCollisions(events: CalendarEvent[]): Map<string, string> {
+    // Map of event.id -> hex color
     const colorAssignments = new Map<string, string>();
     const usedColors = new Set<string>();
 
-    // First pass: use cached and existing colors where possible
+    // First pass: retain cached and existing colors where possible
     for (const event of events) {
       const cachedColor = this.colorAssignmentCache.get(event.id);
       if (cachedColor && !usedColors.has(cachedColor)) {
         colorAssignments.set(event.id, cachedColor);
         usedColors.add(cachedColor);
-      } else if (event.color && !usedColors.has(event.color)) {
+        continue;
+      }
+
+      if (event.color && !usedColors.has(event.color)) {
         colorAssignments.set(event.id, event.color);
         usedColors.add(event.color);
         this.colorAssignmentCache.set(event.id, event.color);
       }
     }
 
-    // Second pass: assign new colors to events with collisions or no color
-    for (const event of events) {
-      if (!colorAssignments.has(event.id)) {
-        const newColor = this.getNextAvailableColor(usedColors);
-        colorAssignments.set(event.id, newColor);
-        usedColors.add(newColor);
-        this.colorAssignmentCache.set(event.id, newColor);
+    // Build existing assignment map for the palette manager
+    const existingAssignments = new Map<string, ColorAssignment>();
+    for (const [eventId, color] of colorAssignments.entries()) {
+      existingAssignments.set(
+        eventId,
+        colorPaletteManager.validateColorAssignment({ color })
+      );
+    }
+
+    // Determine which events still need color selection
+    const remainingItems = events
+      .filter((e) => !colorAssignments.has(e.id))
+      .map((e) => ({ id: e.id }));
+
+    if (remainingItems.length > 0) {
+      // Delegate selection to ColorPaletteManager to ensure determinism + accessibility
+      const assigned = colorPaletteManager.assignColors(remainingItems, existingAssignments);
+
+      // Persist colors returned by ColorPaletteManager as-is (may recycle when palette exhausted)
+      for (const item of remainingItems) {
+        const assignment = assigned.get(item.id);
+        if (assignment) {
+          const color = assignment.color;
+          colorAssignments.set(item.id, color);
+          this.colorAssignmentCache.set(item.id, color);
+          // Track used colors for completeness, but do not block recycled colors
+          usedColors.add(color);
+        }
       }
     }
 
@@ -366,25 +398,7 @@ export class DuplicateEventResolverImpl implements DuplicateEventResolver {
       event1.location !== event2.location;
   }
 
-  private getNextAvailableColor(usedColors: Set<string>): string {
-    // Cycle through available colors
-    for (let i = 0; i < availableColors.length; i++) {
-      const colorIndex = (this.colorIndex + i) % availableColors.length;
-      const color = availableColors[colorIndex].value;
-
-      if (!usedColors.has(color)) {
-        this.colorIndex = (colorIndex + 1) % availableColors.length;
-        return color;
-      }
-    }
-
-    // If all colors are used, cycle through them again
-    // This is more predictable than generating variations
-    const baseColor = availableColors[this.colorIndex % availableColors.length].value;
-    this.colorIndex = (this.colorIndex + 1) % availableColors.length;
-
-    return baseColor;
-  }
+  // Color selection delegated to ColorPaletteManager.assignColors()
 
   // Cache management
   getCacheStats(): { size: number; maxSize: number } {

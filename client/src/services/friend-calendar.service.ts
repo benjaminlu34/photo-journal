@@ -1,5 +1,10 @@
 /**
  * Friend calendar service for handling friend calendar synchronization
+ *
+ * Color Policy:
+ * - Deterministic per-friend color assignments are provided by ColorPaletteManager.
+ * - No direct usage of availableColors for programmatic assignment decisions.
+ * - Contrast is sanity-checked via manager helpers; palette is curated for WCAG AA+.
  */
 
 import type { FriendCalendarEvent, CalendarFeed, DateRange, CalendarEvent } from '@/types/calendar';
@@ -779,11 +784,17 @@ export class FriendCalendarServiceImpl implements FriendCalendarService {
 
   // Deterministic friend color via palette manager with fallback to legacy mapping
   private getFriendColorAssignment(friendId: string): ColorAssignment {
-    const assignment = colorPaletteManager.getColorAssignment(
+    let assignment = colorPaletteManager.getColorAssignment(
       friendId,
       this.friendColorAssignments,
       this.generateFriendColor(friendId)
     );
+
+    // Sanity-check contrast on white background; sanitize if needed
+    if (!colorPaletteManager.hasGoodContrast(assignment.color)) {
+      assignment = colorPaletteManager.validateColorAssignment({ color: assignment.color });
+    }
+
     // Persist for future lookups
     this.friendColorAssignments.set(friendId, assignment);
     return assignment;
