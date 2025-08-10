@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
+import type { ViewMode } from "@/types/journal";
 
 // Helper to check for weekly view modes
 const isWeeklyView = (mode: string | null): boolean =>
@@ -60,11 +61,16 @@ function HomeContent() {
     // Determine the view mode to use (URL param takes precedence over localStorage)
     const mode = (param || stored || viewMode || 'daily') as string;
 
+    // Narrow and validate incoming mode to ViewMode
+    const isValidViewMode = (m: string): m is ViewMode =>
+      m === 'daily' || m === 'weekly-calendar' || m === 'weekly-creative' || m === 'monthly';
+    const resolvedMode: ViewMode = isValidViewMode(mode) ? mode : 'daily';
+
     // Apply the view mode to the context
-    if (mode !== viewMode) {
+    if (resolvedMode !== viewMode) {
       // This will trigger the viewMode change in the context
       // which will then trigger the useEffect below to update URL and localStorage
-      setViewMode(mode as any);
+      setViewMode(resolvedMode);
     }
 
     // Apply date/week anchors based on the mode (use date-fns for stability)

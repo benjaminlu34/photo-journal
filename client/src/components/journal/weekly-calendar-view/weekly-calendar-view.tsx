@@ -78,7 +78,7 @@ function convertToLocalEventFormat(event: WithEventType): LocalEvent {
         pattern: event.pattern,
         location: event.location,
         attendees: event.attendees || [],
-        createdBy: (event as any).feedName,
+        createdBy: event.feedName,
         createdAt: event.startTime,
         updatedAt: event.startTime,
         linkedJournalEntryId: undefined,
