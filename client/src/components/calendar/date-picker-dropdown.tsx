@@ -11,12 +11,12 @@ interface DatePickerDropdownProps {
   anchorRef: React.RefObject<HTMLElement>;
 }
 
-export function DatePickerDropdown({ 
-  value, 
-  onChange, 
-  isOpen, 
-  onClose, 
-  anchorRef 
+export function DatePickerDropdown({
+  value,
+  onChange,
+  isOpen,
+  onClose,
+  anchorRef
 }: DatePickerDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date(value));
@@ -27,7 +27,7 @@ export function DatePickerDropdown({
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        dropdownRef.current && 
+        dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node) &&
         anchorRef.current &&
         !anchorRef.current.contains(event.target as Node)
@@ -101,11 +101,11 @@ export function DatePickerDropdown({
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
-        
+
         <h3 className="font-semibold text-gray-900">
           {format(currentMonth, 'MMMM yyyy')}
         </h3>
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -131,7 +131,7 @@ export function DatePickerDropdown({
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isSelected = isSameDay(day, value);
           const isTodayDate = isToday(day);
-          
+
           return (
             <button
               key={day.toISOString()}
@@ -139,9 +139,9 @@ export function DatePickerDropdown({
               className={`
                 p-2 text-sm rounded-md transition-all duration-200
                 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
-                ${isSelected 
-                  ? 'bg-blue-600 text-white font-medium' 
-                  : isTodayDate 
+                ${isSelected
+                  ? 'bg-blue-600 text-white font-medium'
+                  : isTodayDate
                     ? 'bg-blue-100 text-blue-900 font-semibold hover:bg-blue-200'
                     : 'hover:bg-gray-100 hover:text-gray-900 hover:font-medium hover:shadow-md'
                 }

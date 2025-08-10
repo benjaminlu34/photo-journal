@@ -1,5 +1,5 @@
 import { MinHeap } from '@/utils/min-heap';
-import { useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useCallback, useState } from "react";
 import { format, isSameDay } from "date-fns";
 import { CALENDAR_CONFIG } from "@shared/config/calendar-config";
 import type { LocalEvent } from "@/types/calendar";
@@ -41,6 +41,7 @@ interface DayColumnProps {
   onTimeSlotClick: (date: Date) => void;
   onEventDragStart: (eventId: string) => void;
   onEventDragEnd: () => void;
+  onDragToCreate?: (startTime: Date, endTime: Date) => void; // New prop for drag-to-create
   currentUser?: {
     id: string;
     username?: string;
@@ -71,9 +72,15 @@ export function DayColumn({
   onTimeSlotClick,
   onEventDragStart,
   onEventDragEnd,
+  onDragToCreate,
   currentUser,
 }: DayColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
+  
+  // Drag-to-create state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ y: number; time: Date } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ y: number; time: Date } | null>(null);
 
   // Sweep-line algorithm for collision detection and positioning - O(N log N)
   const positioned = useMemo<PositionedEvent[]>(() => {
@@ -253,13 +260,117 @@ export function DayColumn({
     onEventClick(event);
   }, [onEventClick]);
 
+  // Helper function to convert mouse Y position to time
+  const getTimeFromMouseY = useCallback((mouseY: number): Date => {
+    if (!columnRef.current) return new Date(date);
+    
+    const rect = columnRef.current.getBoundingClientRect();
+    const relativeY = mouseY - rect.top;
+    const totalHeight = rect.height;
+    
+    // Calculate the time based on position
+    const minutesFromStart = (relativeY / totalHeight) * (24 * 60);
+    const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, minutesFromStart));
+    
+    // Snap to 15-minute intervals
+    const snappedMinutes = Math.round(clampedMinutes / 15) * 15;
+    
+    const resultDate = new Date(date);
+    resultDate.setHours(0, 0, 0, 0);
+    resultDate.setMinutes(snappedMinutes);
+    
+    return resultDate;
+  }, [date]);
+
+  // Drag-to-create event handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start drag if clicking on empty space (not on an event)
+    if ((e.target as HTMLElement).closest('.absolute')) return;
+    
+    e.preventDefault();
+    const startTime = getTimeFromMouseY(e.clientY);
+    
+    setIsDragging(true);
+    setDragStart({ y: e.clientY, time: startTime });
+    setDragEnd({ y: e.clientY, time: startTime });
+  }, [getTimeFromMouseY]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !dragStart) return;
+    
+    const endTime = getTimeFromMouseY(e.clientY);
+    setDragEnd({ y: e.clientY, time: endTime });
+  }, [isDragging, dragStart, getTimeFromMouseY]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !dragStart || !dragEnd || !onDragToCreate) {
+      setIsDragging(false);
+      setDragStart(null);
+      setDragEnd(null);
+      return;
+    }
+
+    // Ensure we have a minimum duration and correct order
+    const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
+    const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
+    
+    // Ensure minimum 30-minute duration
+    const minDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
+    if (endTime.getTime() - startTime.getTime() < minDuration) {
+      endTime.setTime(startTime.getTime() + minDuration);
+    }
+
+    onDragToCreate(startTime, endTime);
+    
+    // Reset drag state
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  }, [isDragging, dragStart, dragEnd, onDragToCreate]);
+
+  const handleMouseLeave = useCallback(() => {
+    // Cancel drag if mouse leaves the column
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  }, []);
+
+  // Calculate drag preview position and height
+  const dragPreview = useMemo(() => {
+    if (!isDragging || !dragStart || !dragEnd) return null;
+    
+    const startY = Math.min(dragStart.y, dragEnd.y);
+    const endY = Math.max(dragStart.y, dragEnd.y);
+    const startTime = new Date(Math.min(dragStart.time.getTime(), dragEnd.time.getTime()));
+    const endTime = new Date(Math.max(dragStart.time.getTime(), dragEnd.time.getTime()));
+    
+    // Convert to column-relative positions
+    if (!columnRef.current) return null;
+    const rect = columnRef.current.getBoundingClientRect();
+    
+    const relativeStartY = startY - rect.top;
+    const relativeEndY = endY - rect.top;
+    const height = Math.max(relativeEndY - relativeStartY, 30); // Minimum 30px height
+    
+    return {
+      top: relativeStartY,
+      height,
+      startTime,
+      endTime,
+    };
+  }, [isDragging, dragStart, dragEnd]);
+
   return (
     <div
       ref={columnRef}
       className={`relative border-l border-gray-200 ${isWeekend ? "bg-rose-50/40" : ""} ${isToday ? "bg-[hsl(var(--accent))/0.18]" : ""
-        }`}
+        } ${isDragging ? "cursor-grabbing" : "cursor-crosshair"}`}
       role="gridcell"
       aria-label={`Day column ${format(date, "EEEE MMM d")}${isToday ? " today" : ""}`}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Time grid with half-hour divisions */}
       {/* TODO: Add react-virtual for virtualization when slots > threshold */}
@@ -320,6 +431,21 @@ export function DayColumn({
           />
         </div>
       ))}
+
+      {/* Drag-to-create preview */}
+      {dragPreview && (
+        <div
+          className="absolute left-0 right-0 bg-blue-200/60 border-2 border-blue-400 border-dashed rounded-md pointer-events-none z-10 flex items-center justify-center"
+          style={{
+            top: `${dragPreview.top}px`,
+            height: `${dragPreview.height}px`,
+          }}
+        >
+          <div className="text-blue-700 text-xs font-medium bg-white/80 px-2 py-1 rounded shadow-sm">
+            {format(dragPreview.startTime, 'h:mm a')} - {format(dragPreview.endTime, 'h:mm a')}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

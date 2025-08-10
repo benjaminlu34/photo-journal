@@ -18,6 +18,7 @@ interface CreateEventModalProps {
   onClose: () => void;
   onSubmit: (event: Omit<LocalEvent, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'collaborators'>) => void;
   initialDate?: Date;
+  initialEndDate?: Date; // New prop for drag-to-create
   linkedJournalEntryId?: string;
 }
 
@@ -26,13 +27,14 @@ export function CreateEventModal({
   onClose,
   onSubmit,
   initialDate,
+  initialEndDate,
   linkedJournalEntryId
 }: CreateEventModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     startTime: initialDate ? new Date(initialDate.getTime()) : new Date(),
-    endTime: initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1),
+    endTime: initialEndDate ? new Date(initialEndDate.getTime()) : (initialDate ? addHours(initialDate, 1) : addHours(new Date(), 1)),
     isAllDay: false,
     location: "",
     color: "#3B82F6",
@@ -41,16 +43,16 @@ export function CreateEventModal({
     linkedJournalEntryId: linkedJournalEntryId || undefined,
   });
 
-  // Update form data when initialDate changes
+  // Update form data when initialDate or initialEndDate changes
   useEffect(() => {
     if (initialDate) {
       setFormData(prev => ({
         ...prev,
         startTime: new Date(initialDate.getTime()),
-        endTime: addHours(initialDate, 1),
+        endTime: initialEndDate ? new Date(initialEndDate.getTime()) : addHours(initialDate, 1),
       }));
     }
-  }, [initialDate]);
+  }, [initialDate, initialEndDate]);
 
   const [tagInput, setTagInput] = useState("");
 

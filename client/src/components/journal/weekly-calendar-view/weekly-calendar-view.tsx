@@ -127,6 +127,7 @@ export function WeeklyCalendarView({
   const [isFeedModalOpen, setIsFeedModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDateForEvent, setSelectedDateForEvent] = useState<Date | null>(null);
+  const [selectedEndDateForEvent, setSelectedEndDateForEvent] = useState<Date | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isFriendSyncModalOpen, setIsFriendSyncModalOpen] = useState(false);
@@ -280,13 +281,20 @@ export function WeeklyCalendarView({
     setIsEditOpen(false);
     setSelectedEvent(null);
     setSelectedDateForEvent(null);
+    setSelectedEndDateForEvent(null);
   }, []);
   const handleTimeSlotClick = useCallback((slotDate: Date) => {
     setSelectedDateForEvent(slotDate);
+    setSelectedEndDateForEvent(null); // Clear end date for regular click
     setIsCreateOpen(true);
   }, []);
   const handleEventDragStart = useCallback((_id: string) => { }, []);
   const handleEventDragEnd = useCallback(() => { }, []);
+  const handleDragToCreate = useCallback((startTime: Date, endTime: Date) => {
+    setSelectedDateForEvent(startTime);
+    setSelectedEndDateForEvent(endTime);
+    setIsCreateOpen(true);
+  }, []);
 
   return (
     <div className="flex-1 bg-white flex flex-col min-h-0">
@@ -301,6 +309,7 @@ export function WeeklyCalendarView({
         }}
         onCreateEventClick={() => {
           setSelectedDateForEvent(new Date());
+          setSelectedEndDateForEvent(null); // Clear end date for header button
           setIsCreateOpen(true);
         }}
         onSettingsClick={() => setIsSettingsOpen(true)}
@@ -422,6 +431,7 @@ export function WeeklyCalendarView({
                   onTimeSlotClick={handleTimeSlotClick}
                   onEventDragStart={handleEventDragStart}
                   onEventDragEnd={handleEventDragEnd}
+                  onDragToCreate={handleDragToCreate}
                   currentUser={user}
                 />
               );
@@ -464,6 +474,7 @@ export function WeeklyCalendarView({
         isOpen={isCreateOpen}
         onClose={handleEventModalClose}
         initialDate={selectedDateForEvent || undefined}
+        initialEndDate={selectedEndDateForEvent || undefined}
         onSubmit={async (payload) => {
           await actions.createLocalEvent(payload);
         }}
