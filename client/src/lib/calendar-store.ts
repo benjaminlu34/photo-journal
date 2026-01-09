@@ -26,6 +26,7 @@ interface CalendarState {
   // SDK instance
   sdk?: ReturnType<typeof getCalendarSdk>;
   userId?: string;
+  currentWeekId?: string;
   
   // Initialization state
   isInitialized: boolean;
@@ -70,6 +71,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   isFriendSyncModalOpen: false,
   sdk: undefined,
   userId: undefined,
+  currentWeekId: undefined,
   isInitialized: false,
   
   actions: {
@@ -77,12 +79,15 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     init: async (weekId, userId = 'anonymous', userName = 'Anonymous', username?: string) => {
       const state = get();
       
-      // Prevent re-initialization
-      if (state.isInitialized && state.userId === userId) {
+      const isSameUser = state.userId === userId;
+      const isSameWeek = state.currentWeekId === weekId;
+      
+      // Prevent redundant re-initialization when nothing changed
+      if (state.isInitialized && isSameUser && isSameWeek && state.sdk) {
         return;
       }
       
-      // Cleanup existing SDK if any
+      // Cleanup existing SDK if any before switching weeks/users
       if (state.sdk) {
         await state.sdk.destroy();
       }
@@ -90,6 +95,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       const sdk = getCalendarSdk(weekId, userId, userName, username);
       set({
         userId,
+        currentWeekId: weekId,
         isInitialized: true,
         localEvents: Object.fromEntries((sdk.getLocalEvents() as LocalEvent[]).map((event: LocalEvent) => [event.id, event])),
         sdk
@@ -345,8 +351,14 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       const { sdk } = get();
       if (sdk) {
         await sdk.destroy();
-        set({ sdk: undefined, isInitialized: false });
       }
+      set({
+        sdk: undefined,
+        isInitialized: false,
+        currentWeekId: undefined,
+        userId: undefined,
+        localEvents: {},
+      });
     },
   },
 }));

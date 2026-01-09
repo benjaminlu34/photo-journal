@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useUser } from '@/hooks/useUser';
+import { supabase } from '@/lib/supabase';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -61,23 +62,43 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
   // Store handlers in a ref to avoid recreating connection on handler changes
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  const isConnectingRef = useRef(false);
+  const userIdRef = useRef<string | undefined>(user?.id);
 
-  const connect = useCallback(() => {
-    if (!user?.id) {
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
+
+  const connect = useCallback(async () => {
+    if (!user?.id || isConnectingRef.current) {
       return;
     }
 
     // Close existing connection if any
     if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        console.log('WebSocket already connected');
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.log('WebSocket already connected or connecting');
         return;
       }
       wsRef.current.close();
       wsRef.current = null;
     }
 
+    isConnectingRef.current = true;
+
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setConnectionStatus(prev => ({
+          ...prev,
+          connected: false,
+          authenticated: false,
+          error: 'Not authenticated'
+        }));
+        return;
+      }
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/ws/friendship-events`;
 
@@ -87,13 +108,12 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
       ws.onopen = () => {
         console.log('Friendship events WebSocket connected');
-        setConnectionStatus(prev => ({ ...prev, connected: true, reconnecting: false, error: undefined }));
+        setConnectionStatus(prev => ({ ...prev, connected: true, authenticated: false, reconnecting: false, error: undefined }));
 
-        // Authenticate with the server
         ws.send(JSON.stringify({
           type: 'authenticate',
           userId: user.id,
-          token: 'placeholder-token' // TODO: Use actual JWT token
+          token,
         }));
       };
 
@@ -107,6 +127,17 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
             return;
           }
 
+          if (data.type === 'auth_error') {
+            console.warn('Friendship events authentication failed');
+            setConnectionStatus(prev => ({
+              ...prev,
+              authenticated: false,
+              error: data.message || 'Authentication failed'
+            }));
+            ws.close(4001, 'Authentication failed');
+            return;
+          }
+
           if (data.type === 'friendship_event' && data.event) {
             const friendshipEvent: FriendshipEvent = {
               ...data.event,
@@ -115,10 +146,8 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
             console.log('Received friendship event:', friendshipEvent);
 
-            // Use handlers from ref to avoid dependency issues
             const currentHandlers = handlersRef.current;
 
-            // Call appropriate handler based on event type
             switch (friendshipEvent.type) {
               case 'friend_request_received':
                 currentHandlers.onFriendRequestReceived?.(friendshipEvent);
@@ -152,6 +181,7 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
       ws.onclose = (event) => {
         console.log('Friendship events WebSocket closed:', event.code, event.reason);
+        wsRef.current = null;
         setConnectionStatus(prev => ({
           ...prev,
           connected: false,
@@ -159,13 +189,12 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
           error: event.reason || 'Connection closed'
         }));
 
-        // Only attempt to reconnect if it wasn't a clean close and user is still authenticated
-        if (event.code !== 1000 && user?.id && !reconnectTimeoutRef.current) {
+        if (event.code !== 1000 && userIdRef.current && !reconnectTimeoutRef.current) {
           setConnectionStatus(prev => ({ ...prev, reconnecting: true }));
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log('Attempting to reconnect to friendship events...');
             reconnectTimeoutRef.current = null;
-            connect();
+            void connect();
           }, 3000);
         }
       };
@@ -186,8 +215,10 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
         error: 'Failed to create connection',
         reconnecting: false
       }));
+    } finally {
+      isConnectingRef.current = false;
     }
-  }, [user?.id]); // Removed handlers from dependency array
+  }, [user?.id]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -200,6 +231,8 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
       wsRef.current = null;
     }
 
+    isConnectingRef.current = false;
+
     setConnectionStatus({
       connected: false,
       authenticated: false,
@@ -209,21 +242,16 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
   // Connect when user is available
   useEffect(() => {
-    // TODO: WebSocket connections disabled to prevent connection loops
-    // The WebSocket server exists but creates too many connections
-    // Re-enable when connection management is improved
-    console.log('Friendship events WebSocket temporarily disabled to prevent connection loops');
-
-    // if (user?.id) {
-    //   connect();
-    // } else {
-    //   disconnect();
-    // }
+    if (user?.id) {
+      void connect();
+    } else {
+      disconnect();
+    }
 
     return () => {
       disconnect();
     };
-  }, [user?.id]); // Removed connect and disconnect from dependencies
+  }, [user?.id, connect, disconnect]);
 
   // Cleanup on unmount
   useEffect(() => {

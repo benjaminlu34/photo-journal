@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users,
   UserPlus,
@@ -12,7 +12,8 @@ import {
   UserX,
   Search,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -100,22 +101,27 @@ export function FriendList({
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [cursor, setCursor] = useState<string | undefined>();
 
   // Fetch friends list
   const {
-    data: friendsData,
+    data,
     isLoading,
-    error
-  } = useQuery({
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['friends', searchQuery, roleFilter],
-    queryFn: async (): Promise<FriendListResponse> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<FriendListResponse & { pageOffset: number }> => {
+      const offset = typeof pageParam === 'number' ? pageParam : 0;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
       const params = new URLSearchParams({
         limit: '20',
-        ...(cursor && { cursor }),
+        offset: String(offset),
         ...(searchQuery && { search: searchQuery }),
         ...(roleFilter !== 'all' && { role: roleFilter })
       });
@@ -131,7 +137,14 @@ export function FriendList({
         throw new Error('Failed to fetch friends');
       }
 
-      return response.json();
+      const result: FriendListResponse = await response.json();
+      return { ...result, pageOffset: offset };
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.pagination?.hasMore) {
+        return undefined;
+      }
+      return lastPage.pageOffset + lastPage.pagination.limit;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
@@ -216,7 +229,8 @@ export function FriendList({
     },
   });
 
-  const friends = friendsData?.friends || [];
+  const friendsPages = data?.pages ?? [];
+  const friends = friendsPages.flatMap(page => page.friends || []);
   const filteredFriends = friends.filter(friend => {
     const matchesSearch = !searchQuery ||
       friend.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -270,7 +284,7 @@ export function FriendList({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['friends'] })}
+            onClick={() => refetch()}
             className="mt-2"
           >
             Try Again
@@ -337,19 +351,21 @@ export function FriendList({
               />
             ))}
 
-            {friendsData?.pagination?.hasMore && (
+            {hasNextPage && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  // TODO: Implement pagination
-                  toast({
-                    title: "Pagination not implemented",
-                    description: "Load more functionality coming soon",
-                  });
-                }}
-                className="w-full"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="w-full flex items-center justify-center"
               >
-                Load More
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load More'
+                )}
               </Button>
             )}
           </div>

@@ -65,6 +65,8 @@ interface JournalContextType {
   isLoading: boolean;
   isCreatingBlock: boolean;
   isUpdatingBlock: boolean;
+  refreshEntry: () => Promise<void>;
+  isViewingSharedBoard: boolean;
 }
 
 const JournalContext = createContext<JournalContextType | undefined>(undefined);
@@ -140,7 +142,7 @@ export function JournalProvider({ children }: JournalProviderProps) {
     ? `/api/journal/user/${urlUsername}/${dateString}`
     : `/api/journal/${dateString}`;
 
-  const { data: currentEntry, isLoading } = useQuery<
+  const { data: currentEntry, isLoading, refetch: refetchEntry } = useQuery<
     JournalEntryData | null,
     Error,
     JournalEntryData | null
@@ -154,11 +156,17 @@ export function JournalProvider({ children }: JournalProviderProps) {
     refetchOnReconnect: false,
   });
 
+  const refreshEntry = useCallback(async () => {
+    await refetchEntry();
+  }, [refetchEntry]);
+
   // Fetch friends
   const { data: friends = [] } = useQuery<Friend[], Error, Friend[]>({
     queryKey: ["/api/friends"],
     retry: false,
   });
+
+  const isViewingSharedBoard = Boolean(urlUsername);
 
   // Create content block mutation
   const createBlockMutation = useMutation({
@@ -358,6 +366,8 @@ export function JournalProvider({ children }: JournalProviderProps) {
     isLoading,
     isCreatingBlock: createBlockMutation.isPending,
     isUpdatingBlock: updateBlockMutation.isPending,
+    refreshEntry,
+    isViewingSharedBoard,
   }), [
     currentDate,
     currentWeek,
@@ -375,7 +385,9 @@ export function JournalProvider({ children }: JournalProviderProps) {
     updateBlockPosition,
     createBlockMutation.isPending,
     updateBlockMutation.isPending,
-    isLoading
+    isLoading,
+    refreshEntry,
+    isViewingSharedBoard
   ]);
 
   return (
