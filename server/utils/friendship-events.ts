@@ -105,6 +105,12 @@ class FriendshipEventManager {
       }));
 
       console.log(`User ${message.userId} authenticated for friendship events`);
+    } else if (message.type === 'ping') {
+      // Handle ping message with pong response
+      console.log('Received ping from client');
+      ws.send(JSON.stringify({
+        type: 'pong'
+      }));
     }
   }
 

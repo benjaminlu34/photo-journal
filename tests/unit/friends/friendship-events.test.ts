@@ -480,3 +480,105 @@ describe('Friendship Events - Integration', () => {
     );
   });
 });
+
+describe('WebSocket Ping/Pong Handling', () => {
+  beforeEach(() => {
+    friendshipEventManager.initialize(mockServer);
+  });
+
+  it('should handle ping message and send pong response', () => {
+    // Get the message handler
+    const connectionHandler = mockWss.on.mock.calls.find(
+      (call: any) => call[0] === 'connection'
+    )?.[1];
+    
+    connectionHandler(mockWs, {});
+    
+    // Get the message handler function
+    const messageHandler = mockWs.on.mock.calls.find(
+      (call: any) => call[0] === 'message'
+    )?.[1];
+    
+    // Simulate receiving a ping message
+    const pingMessage = JSON.stringify({ type: 'ping' });
+    messageHandler(pingMessage);
+    
+    // Verify that pong was sent back
+    expect(mockWs.send).toHaveBeenCalledWith(JSON.stringify({
+      type: 'pong'
+    }));
+  });
+
+  it('should log ping messages for debugging', () => {
+    // Spy on console.log to verify ping logging
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    
+    // Get the message handler
+    const connectionHandler = mockWss.on.mock.calls.find(
+      (call: any) => call[0] === 'connection'
+    )?.[1];
+    
+    connectionHandler(mockWs, {});
+    
+    // Get the message handler function
+    const messageHandler = mockWs.on.mock.calls.find(
+      (call: any) => call[0] === 'message'
+    )?.[1];
+    
+    // Simulate receiving a ping message
+    const pingMessage = JSON.stringify({ type: 'ping' });
+    messageHandler(pingMessage);
+    
+    // Verify that ping was logged
+    expect(consoleSpy).toHaveBeenCalledWith('Received ping from client');
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle multiple ping messages', () => {
+    // Get the message handler
+    const connectionHandler = mockWss.on.mock.calls.find(
+      (call: any) => call[0] === 'connection'
+    )?.[1];
+    
+    connectionHandler(mockWs, {});
+    
+    // Get the message handler function
+    const messageHandler = mockWs.on.mock.calls.find(
+      (call: any) => call[0] === 'message'
+    )?.[1];
+    
+    // Simulate receiving multiple ping messages
+    const pingMessage1 = JSON.stringify({ type: 'ping' });
+    const pingMessage2 = JSON.stringify({ type: 'ping' });
+    
+    messageHandler(pingMessage1);
+    messageHandler(pingMessage2);
+    
+    // Verify that pong was sent twice
+    expect(mockWs.send).toHaveBeenCalledTimes(2);
+    expect(mockWs.send).toHaveBeenNthCalledWith(1, JSON.stringify({ type: 'pong' }));
+    expect(mockWs.send).toHaveBeenNthCalledWith(2, JSON.stringify({ type: 'pong' }));
+  });
+
+  it('should not send pong for unknown message types', () => {
+    // Get the message handler
+    const connectionHandler = mockWss.on.mock.calls.find(
+      (call: any) => call[0] === 'connection'
+    )?.[1];
+    
+    connectionHandler(mockWs, {});
+    
+    // Get the message handler function
+    const messageHandler = mockWs.on.mock.calls.find(
+      (call: any) => call[0] === 'message'
+    )?.[1];
+    
+    // Simulate receiving an unknown message
+    const unknownMessage = JSON.stringify({ type: 'unknown' });
+    messageHandler(unknownMessage);
+    
+    // Verify that send was not called for unknown message type
+    expect(mockWs.send).not.toHaveBeenCalled();
+  });
+});

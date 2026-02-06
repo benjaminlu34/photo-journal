@@ -64,10 +64,46 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
   handlersRef.current = handlers;
   const isConnectingRef = useRef(false);
   const userIdRef = useRef<string | undefined>(user?.id);
+  const reconnectAttemptsRef = useRef(0);
+  const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPingRef = useRef<number>(0);
 
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user?.id]);
+
+  const startPingInterval = useCallback((ws: WebSocket) => {
+    // Clear existing ping interval
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+    }
+
+    // Send ping every 30 seconds
+    pingIntervalRef.current = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN && !lastPingRef.current) {
+        console.log('Sending ping to server');
+        lastPingRef.current = Date.now();
+        ws.send(JSON.stringify({ type: 'ping' }));
+        
+        // If no pong received within 10 seconds, consider connection dead
+        setTimeout(() => {
+          if (lastPingRef.current && Date.now() - lastPingRef.current > 10000) {
+            console.warn('No pong received, closing connection');
+            ws.close(4000, 'No pong received');
+          }
+        }, 10000);
+      }
+    }, 30000);
+  }, []);
+
+  const stopPingInterval = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    lastPingRef.current = 0;
+  }, []);
 
   const connect = useCallback(async () => {
     if (!user?.id || isConnectingRef.current) {
@@ -110,11 +146,22 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
         console.log('Friendship events WebSocket connected');
         setConnectionStatus(prev => ({ ...prev, connected: true, authenticated: false, reconnecting: false, error: undefined }));
 
-        ws.send(JSON.stringify({
-          type: 'authenticate',
-          userId: user.id,
-          token,
-        }));
+        // Add auth timeout to prevent race condition
+        authTimeoutRef.current = setTimeout(() => {
+          console.error('Authentication timeout - closing connection');
+          ws.close(4002, 'Authentication timeout');
+        }, 5000);
+
+        // Send authentication with a slight delay to ensure connection is fully established
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'authenticate',
+              userId: user.id,
+              token,
+            }));
+          }
+        }, 100);
       };
 
       ws.onmessage = (event) => {
@@ -124,6 +171,17 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
           if (data.type === 'auth_success') {
             console.log('Friendship events authentication successful');
             setConnectionStatus(prev => ({ ...prev, authenticated: true }));
+            // Clear auth timeout on successful authentication
+            if (authTimeoutRef.current) {
+              clearTimeout(authTimeoutRef.current);
+              authTimeoutRef.current = null;
+            }
+            
+            // Start ping interval to keep connection alive
+            startPingInterval(ws);
+            
+            // Reset reconnect attempts on successful connection
+            reconnectAttemptsRef.current = 0;
             return;
           }
 
@@ -146,6 +204,7 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
             console.log('Received friendship event:', friendshipEvent);
 
+            // Always get the latest handlers from the ref to avoid stale closures
             const currentHandlers = handlersRef.current;
 
             switch (friendshipEvent.type) {
@@ -174,6 +233,12 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
                 console.warn('Unknown friendship event type:', friendshipEvent.type);
             }
           }
+
+          if (data.type === 'pong') {
+            console.log('Received pong from server');
+            lastPingRef.current = 0; // Reset last ping time
+            return;
+          }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
         }
@@ -182,6 +247,16 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
       ws.onclose = (event) => {
         console.log('Friendship events WebSocket closed:', event.code, event.reason);
         wsRef.current = null;
+        
+        // Clear auth timeout on close
+        if (authTimeoutRef.current) {
+          clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+        
+        // Stop ping interval on close
+        stopPingInterval();
+
         setConnectionStatus(prev => ({
           ...prev,
           connected: false,
@@ -191,11 +266,29 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
 
         if (event.code !== 1000 && userIdRef.current && !reconnectTimeoutRef.current) {
           setConnectionStatus(prev => ({ ...prev, reconnecting: true }));
+          
+          // Calculate exponential backoff with jitter
+          const maxBackoff = 60000; // Maximum 1 minute delay
+          const baseDelay = 1000; // Start with 1 second
+          const backoffDelay = Math.min(
+            baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+            maxBackoff
+          );
+          const jitter = Math.random() * 1000; // Add up to 1 second of jitter
+          const delay = backoffDelay + jitter;
+          
+          console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+          
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('Attempting to reconnect to friendship events...');
             reconnectTimeoutRef.current = null;
+            reconnectAttemptsRef.current++;
             void connect();
-          }, 3000);
+          }, delay);
+        } else {
+          // Reset reconnect attempts on successful connection
+          if (event.code === 1000) {
+            reconnectAttemptsRef.current = 0;
+          }
         }
       };
 
@@ -226,6 +319,9 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
       reconnectTimeoutRef.current = null;
     }
 
+    // Stop ping interval on disconnect
+    stopPingInterval();
+
     if (wsRef.current) {
       wsRef.current.close(1000, 'User disconnected');
       wsRef.current = null;
@@ -238,7 +334,7 @@ export function useFriendshipEvents(handlers: FriendshipEventHandlers = {}) {
       authenticated: false,
       reconnecting: false
     });
-  }, []);
+  }, [stopPingInterval]);
 
   // Connect when user is available
   useEffect(() => {
