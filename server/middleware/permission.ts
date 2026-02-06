@@ -27,6 +27,14 @@ declare global {
 }
 
 /**
+ * Check if an entry ID is a placeholder (used for new entries that don't exist yet)
+ * Placeholder IDs are generated for audit tracking when creating new entries
+ */
+export function isPlaceholderEntryId(entryId: string): boolean {
+  return entryId.startsWith('new-entry-');
+}
+
+/**
  * Middleware to resolve permissions for journal entry access
  * Populates req.permissionResult with effective permissions
  */
@@ -36,6 +44,10 @@ export async function resolveJournalPermissions(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Clear any stale permission context from previous requests (defensive programming)
+    delete req.permissionContext;
+    delete req.permissionResult;
+
     const currentUserId = req.user?.id;
 
     if (!currentUserId) {
@@ -73,6 +85,11 @@ export async function resolveJournalPermissions(
       
       const entry = await storage.getJournalEntry(entryOwnerId, date);
       if (!entry) {
+        // Generate a placeholder ID for new entries that don't exist yet.
+        // This allows permission resolution to proceed and is used for audit tracking.
+        // Note: Downstream code should use isPlaceholderEntryId() to detect this case
+        // and handle it appropriately (e.g., by creating the actual entry or by excluding
+        // from audit logs until the entry is persisted).
         actualEntryId = `new-entry-${uuidv4()}`;
       } else {
         actualEntryId = entry.id;
