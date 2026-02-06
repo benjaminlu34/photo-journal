@@ -408,14 +408,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJournalEntriesInRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]> {
+    // Normalize dates to handle timezone boundaries correctly
+    // Start of day in UTC for startDate
+    const normalizedStartDate = new Date(startDate);
+    normalizedStartDate.setUTCHours(0, 0, 0, 0);
+    
+    // End of day in UTC for endDate
+    const normalizedEndDate = new Date(endDate);
+    normalizedEndDate.setUTCHours(23, 59, 59, 999);
+    
     return await db
       .select()
       .from(journalEntries)
       .where(
         and(
           eq(journalEntries.userId, userId),
-          gte(journalEntries.date, startDate),
-          lte(journalEntries.date, endDate)
+          gte(journalEntries.date, normalizedStartDate),
+          lte(journalEntries.date, normalizedEndDate)
         )
       )
       .orderBy(desc(journalEntries.date));
@@ -631,28 +640,50 @@ export class DatabaseStorage implements IStorage {
       roleFriendToUser: 'viewer',
     };
 
-    const [newFriendship] = await db
-      .insert(friendships)
-      .values(friendshipData)
-      .returning();
+    // Use a transaction to ensure atomicity of friendship creation and audit logging
+    const result = await db.transaction(async (tx) => {
+      // Check for existing friendship within the transaction
+      const [existingFriendship] = await tx
+        .select()
+        .from(friendships)
+        .where(
+          and(
+            eq(friendships.userId, userId),
+            eq(friendships.friendId, friendId)
+          )
+        );
 
-    // Log the friendship creation
-    await this.logFriendshipChange({
-      friendshipId: newFriendship.id,
-      actorId: initiatorId,
-      oldStatus: null,
-      newStatus: 'pending',
-      oldRoleUserToFriend: null,
-      newRoleUserToFriend: 'viewer',
-      oldRoleFriendToUser: null,
-      newRoleFriendToUser: 'viewer',
+      if (existingFriendship) {
+        throw new Error('Friendship already exists');
+      }
+
+      const [newFriendship] = await tx
+        .insert(friendships)
+        .values(friendshipData)
+        .returning();
+
+      // Log the friendship creation within the same transaction
+      await tx
+        .insert(friendshipChanges)
+        .values({
+          friendshipId: newFriendship.id,
+          actorId: initiatorId,
+          oldStatus: null,
+          newStatus: 'pending',
+          oldRoleUserToFriend: null,
+          newRoleUserToFriend: 'viewer',
+          oldRoleFriendToUser: null,
+          newRoleFriendToUser: 'viewer',
+        });
+
+      return newFriendship;
     });
 
-    // Invalidate cache for both users
+    // Invalidate cache for both users after successful transaction
     this.invalidateUserCache(userA);
     this.invalidateUserCache(userB);
 
-    return newFriendship;
+    return result;
   }
 
   async updateFriendshipStatusWithAudit(friendshipId: string, newStatus: FriendshipStatus, actorId: string): Promise<Friendship> {
@@ -662,31 +693,43 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Friendship with ID ${friendshipId} not found`);
     }
 
+    // Validate that actorId is actually part of this friendship
+    if (actorId !== currentFriendship.userId && actorId !== currentFriendship.friendId) {
+      throw new Error('Actor is not a participant in this friendship');
+    }
+
     // Validate status transition
     if (!isValidStatusTransition(currentFriendship.status, newStatus, actorId, currentFriendship.initiatorId)) {
       throw new Error(`Invalid status transition from ${currentFriendship.status} to ${newStatus}`);
     }
 
-    // Update the friendship
-    const [updatedFriendship] = await db
-      .update(friendships)
-      .set({
-        status: newStatus,
-        updatedAt: new Date()
-      })
-      .where(eq(friendships.id, friendshipId))
-      .returning();
+    // Use a transaction to ensure atomicity of status update and audit logging
+    const updatedFriendship = await db.transaction(async (tx) => {
+      // Update the friendship
+      const [updated] = await tx
+        .update(friendships)
+        .set({
+          status: newStatus,
+          updatedAt: new Date()
+        })
+        .where(eq(friendships.id, friendshipId))
+        .returning();
 
-    // Log the status change
-    await this.logFriendshipChange({
-      friendshipId,
-      actorId,
-      oldStatus: currentFriendship.status,
-      newStatus,
-      oldRoleUserToFriend: null,
-      newRoleUserToFriend: null,
-      oldRoleFriendToUser: null,
-      newRoleFriendToUser: null,
+      // Log the status change within the same transaction
+      await tx
+        .insert(friendshipChanges)
+        .values({
+          friendshipId,
+          actorId,
+          oldStatus: currentFriendship.status,
+          newStatus,
+          oldRoleUserToFriend: null,
+          newRoleUserToFriend: null,
+          oldRoleFriendToUser: null,
+          newRoleFriendToUser: null,
+        });
+
+      return updated;
     });
 
     // Invalidate cache for both users
@@ -724,26 +767,33 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Actor is not part of this friendship');
     }
 
-    // Update the friendship
-    const [updatedFriendship] = await db
-      .update(friendships)
-      .set({
-        ...updateData,
-        updatedAt: new Date()
-      })
-      .where(eq(friendships.id, friendshipId))
-      .returning();
+    // Use a transaction to ensure atomicity of role update and audit logging
+    const updatedFriendship = await db.transaction(async (tx) => {
+      // Update the friendship
+      const [updated] = await tx
+        .update(friendships)
+        .set({
+          ...updateData,
+          updatedAt: new Date()
+        })
+        .where(eq(friendships.id, friendshipId))
+        .returning();
 
-    // Log the role change
-    await this.logFriendshipChange({
-      friendshipId,
-      actorId,
-      oldStatus: null,
-      newStatus: null,
-      oldRoleUserToFriend: oldRoleUserToFriend,
-      newRoleUserToFriend: newRoleUserToFriend,
-      oldRoleFriendToUser: oldRoleFriendToUser,
-      newRoleFriendToUser: newRoleFriendToUser,
+      // Log the role change within the same transaction
+      await tx
+        .insert(friendshipChanges)
+        .values({
+          friendshipId,
+          actorId,
+          oldStatus: null,
+          newStatus: null,
+          oldRoleUserToFriend: oldRoleUserToFriend,
+          newRoleUserToFriend: newRoleUserToFriend,
+          oldRoleFriendToUser: oldRoleFriendToUser,
+          newRoleFriendToUser: newRoleFriendToUser,
+        });
+
+      return updated;
     });
 
     // Invalidate cache for both users
