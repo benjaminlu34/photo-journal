@@ -78,6 +78,15 @@ export const CalendarProvider: React.FC<CalendarProviderProps> = ({
       setIsConnected(false);
       return;
     }
+
+    if (typeof sdk.onConnectionStatusChange === 'function') {
+      const unsubscribe = sdk.onConnectionStatusChange((status) => {
+        setIsConnected(status === 'connected');
+      });
+      return () => {
+        unsubscribe?.();
+      };
+    }
     
     const awareness = sdk.presence;
     

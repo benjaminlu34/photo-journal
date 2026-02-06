@@ -16,6 +16,8 @@ import {
 } from './weekly-calendar-document';
 import { validateCRDTEvent, createCRDTCompatibleEvent } from './calendar-validation';
 
+type ProviderStatus = 'connected' | 'disconnected';
+
 export type CalendarSDK = ReturnType<typeof createCalendarSDK>;
 
 // Singleton registry for CalendarSDK instances
@@ -104,6 +106,14 @@ export function createCalendarSDK({
 
   // Run initial garbage collection to clean up old tombstoned events
   WeeklyCalendarDocumentUtils.garbageCollectDeletedEvents(calendarDocument.localEvents);
+
+  // Connection status tracking for presence indicator
+  const connectionListeners = new Set<(status: ProviderStatus) => void>();
+  let lastConnectionStatus: ProviderStatus = 'disconnected';
+  provider.on('status', (event: { status: ProviderStatus }) => {
+    lastConnectionStatus = event.status;
+    connectionListeners.forEach(cb => cb(event.status));
+  });
 
   // Helper function to filter out tombstoned (deleted) events
   const filterActivEvents = filterActiveEvents;
@@ -263,6 +273,18 @@ export function createCalendarSDK({
       return WeeklyCalendarDocumentUtils.hasPermission(calendarDocument, userId, requiredPermission);
     },
 
+    onConnectionStatusChange(callback: (status: ProviderStatus) => void) {
+      connectionListeners.add(callback);
+      callback(lastConnectionStatus);
+      return () => {
+        connectionListeners.delete(callback);
+      };
+    },
+
+    getConnectionStatus(): ProviderStatus {
+      return lastConnectionStatus;
+    },
+
     // Presence information
     presence: awareness,
 
@@ -295,6 +317,7 @@ export function createCalendarSDK({
       provider.destroy();
       indexeddbProvider.destroy?.();
       doc.destroy();
+      connectionListeners.clear();
     },
   };
 }
