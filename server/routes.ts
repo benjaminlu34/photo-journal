@@ -478,6 +478,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return null;
   };
 
+  /* Enhanced file validation with magic number checking to prevent MIME type spoofing */
+  const validateFileUploadWithMagicNumber = async (req: Request, file: Express.Multer.File): Promise<string | null> => {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const maxFileSize = 2 * 1024 * 1024; // 2MB
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.';
+    }
+
+    if (file.size > maxFileSize) {
+      return 'File size must be less than 2MB.';
+    }
+
+    // Perform magic number validation to prevent MIME type spoofing
+    try {
+      const fileBuffer = await fs.promises.readFile(file.path);
+      const validationResult = await validateFileContent(file, fileBuffer);
+
+      if (!validationResult.isValid) {
+        return validationResult.error || 'File content validation failed.';
+      }
+    } catch (err) {
+      console.error('Error reading file for magic number validation:', err);
+      return 'Failed to validate file content.';
+    }
+
+    return null;
+  };
+
   /* Upload profile image - with enhanced security */
   app.post("/api/upload",
     uploadRateLimit,
@@ -492,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = getUserId(req);
 
         // Enhanced file validation
-        const validationError = validateFileUpload(req, req.file);
+        const validationError = await validateFileUploadWithMagicNumber(req, req.file);
         if (validationError) {
           await fs.promises.unlink(req.file.path); // Delete invalid file
           return res.status(400).json({ message: validationError });
@@ -653,6 +682,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Parse and validate storage path
         const pathInfo = parsePhotoPath(storagePath);
+        // Validate userId to prevent path traversal attacks
+        if (pathInfo.userId.includes("..") || pathInfo.userId.includes("/") || pathInfo.userId.includes("\\")) {
+          return res.status(400).json({ message: "Invalid storage path" });
+        }
         if (!pathInfo) {
           return res.status(400).json({ message: "Invalid storage path format" });
         }
