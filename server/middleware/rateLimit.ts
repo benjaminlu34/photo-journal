@@ -37,7 +37,11 @@ export const usernameCheckRateLimit = rateLimit({
   // Skip rate limiting for successful requests to avoid test interference
   skip: (req) => {
     // Skip rate limiting in test environment for basic functionality tests
-    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+    // More robust test environment detection
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -64,7 +68,10 @@ export const calendarOAuthRateLimit = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && (req.query.skipRateLimit === 'true');
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -93,7 +100,10 @@ export const userSearchRateLimit = rateLimit({
   },
   // Skip rate limiting for test environment
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -119,7 +129,10 @@ export const friendRequestRateLimit = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -145,7 +158,10 @@ export const friendManagementRateLimit = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -171,7 +187,10 @@ export const sharingRateLimit = rateLimit({
     });
   },
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true';
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    return isTest && req.query.skipRateLimit === 'true';
   },
 });
 
@@ -186,8 +205,11 @@ function createRedisRateLimit(
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Skip rate limiting in test environment
-      if (process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true') {
+      // Skip rate limiting in test environment with robust detection
+      const isTest = process.env.NODE_ENV === 'test' || 
+                     process.env.VITEST === 'true' ||
+                     process.env.JEST_WORKER_ID !== undefined;
+      if (isTest && req.query.skipRateLimit === 'true') {
         return next();
       }
 
@@ -420,8 +442,11 @@ export const blockedUserSecurityCheck = async (req: Request, res: Response, next
  */
 export const usernameChangeRateLimit = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Skip rate limiting in test environment
-    if (process.env.NODE_ENV === 'test' && req.query.skipRateLimit === 'true') {
+    // Skip rate limiting in test environment with robust detection
+    const isTest = process.env.NODE_ENV === 'test' || 
+                   process.env.VITEST === 'true' ||
+                   process.env.JEST_WORKER_ID !== undefined;
+    if (isTest && req.query.skipRateLimit === 'true') {
       return next();
     }
 
@@ -444,7 +469,9 @@ export const usernameChangeRateLimit = async (req: Request, res: Response, next:
         return aTime - bTime;
       })[0];
       
-      const nextAllowedChange = new Date(oldestChange.changedAt || new Date());
+      // Defensive null check for date calculation
+      const oldestChangeTime = oldestChange.changedAt ? new Date(oldestChange.changedAt) : new Date();
+      const nextAllowedChange = new Date(oldestChangeTime.getTime());
       nextAllowedChange.setDate(nextAllowedChange.getDate() + 30);
       
       const retryAfterSeconds = Math.ceil((nextAllowedChange.getTime() - Date.now()) / 1000);
@@ -468,8 +495,12 @@ export const usernameChangeRateLimit = async (req: Request, res: Response, next:
     res.set('RateLimit-Remaining', (2 - recentChanges.length).toString());
     
     // Calculate reset time (30 days from now or from oldest change)
+    // Defensive null check for date calculations
     const resetTime = recentChanges.length > 0 
-      ? new Date(Math.max(...recentChanges.map(c => new Date(c.changedAt || new Date()).getTime())) + 30 * 24 * 60 * 60 * 1000)
+      ? new Date(Math.max(...recentChanges.map(c => {
+          const changeDate = c.changedAt ? new Date(c.changedAt) : new Date();
+          return changeDate.getTime();
+        })) + 30 * 24 * 60 * 60 * 1000)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     
     res.set('RateLimit-Reset', Math.ceil(resetTime.getTime() / 1000).toString());

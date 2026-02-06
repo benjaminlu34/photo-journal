@@ -119,6 +119,9 @@ export const RATE_LIMIT_CONFIG = {
  */
 export class RedisRateLimiter {
   private fallbackMemory: Map<string, { count: number; resetTime: number }> = new Map();
+  private lastCleanup: number = Date.now();
+  private readonly CLEANUP_INTERVAL_MS = 60 * 1000; // Clean up every minute
+  private readonly MAX_MEMORY_ENTRIES = 10000; // Maximum entries before forced cleanup
 
   constructor(private bucket: RateLimitBucket) {}
 
@@ -161,26 +164,31 @@ export class RedisRateLimiter {
     resetTime: number,
     now: number
   ) {
-    // Use Redis pipeline for atomic operations
-    const pipeline = client.multi();
-    
-    // Increment counter and set expiry
-    pipeline.incr(bucketKey);
-    pipeline.expire(bucketKey, Math.ceil(config.windowMs / 1000));
-    
-    const results = await pipeline.exec();
-    const currentCount = (results?.[0] as unknown as number) || 0;
+    try {
+      // Use Redis pipeline for atomic operations
+      const pipeline = client.multi();
+      
+      // Increment counter and set expiry
+      pipeline.incr(bucketKey);
+      pipeline.expire(bucketKey, Math.ceil(config.windowMs / 1000));
+      
+      const results = await pipeline.exec();
+      const currentCount = (results?.[0] as unknown as number) || 0;
 
-    const remaining = Math.max(0, config.maxRequests - currentCount);
-    const allowed = currentCount <= config.maxRequests;
+      const remaining = Math.max(0, config.maxRequests - currentCount);
+      const allowed = currentCount <= config.maxRequests;
 
-    return {
-      allowed,
-      limit: config.maxRequests,
-      remaining,
-      resetTime,
-      retryAfter: allowed ? undefined : Math.ceil((resetTime - now) / 1000)
-    };
+      return {
+        allowed,
+        limit: config.maxRequests,
+        remaining,
+        resetTime,
+        retryAfter: allowed ? undefined : Math.ceil((resetTime - now) / 1000)
+      };
+    } catch (error) {
+      // If pipeline execution fails, throw to fall back to memory
+      throw error;
+    }
   }
 
   private checkMemoryRateLimit(
@@ -189,10 +197,13 @@ export class RedisRateLimiter {
     resetTime: number,
     now: number
   ) {
+    // Periodic cleanup of expired entries
+    this.cleanupExpiredEntries(now);
+
     const memoryKey = `${this.bucket}:${key}`;
     const existing = this.fallbackMemory.get(memoryKey);
 
-    // Clean up expired entries
+    // Clean up expired entry
     if (existing && existing.resetTime <= now) {
       this.fallbackMemory.delete(memoryKey);
     }
@@ -213,6 +224,41 @@ export class RedisRateLimiter {
       resetTime,
       retryAfter: allowed ? undefined : Math.ceil((resetTime - now) / 1000)
     };
+  }
+
+  /**
+   * Cleanup expired entries from memory fallback
+   * Implements both time-based and LRU-based eviction
+   */
+  private cleanupExpiredEntries(now: number): void {
+    // Only run cleanup periodically to avoid performance impact
+    if (now - this.lastCleanup < this.CLEANUP_INTERVAL_MS) {
+      // If we've exceeded max entries, force cleanup
+      if (this.fallbackMemory.size < this.MAX_MEMORY_ENTRIES) {
+        return;
+      }
+    }
+
+    this.lastCleanup = now;
+
+    // Remove all expired entries
+    for (const [key, entry] of this.fallbackMemory.entries()) {
+      if (entry.resetTime <= now) {
+        this.fallbackMemory.delete(key);
+      }
+    }
+
+    // If still too many entries, implement LRU eviction
+    // Remove oldest 25% of entries by resetTime
+    if (this.fallbackMemory.size > this.MAX_MEMORY_ENTRIES) {
+      const entries = Array.from(this.fallbackMemory.entries());
+      entries.sort((a, b) => a[1].resetTime - b[1].resetTime);
+      
+      const removeCount = Math.floor(this.fallbackMemory.size * 0.25);
+      for (let i = 0; i < removeCount; i++) {
+        this.fallbackMemory.delete(entries[i][0]);
+      }
+    }
   }
 
   /**
