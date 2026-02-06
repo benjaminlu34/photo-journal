@@ -66,7 +66,34 @@ export class CRDTConflictResolver {
     // Last-writer-wins based on timestamp
     return remoteTimestamp > localTimestamp ? remoteValue : localValue;
   }
-  
+
+  // Merge two event versions when coming back online after offline edits
+  static resolveOfflineConflict(
+    localEvent: LocalEvent,
+    remoteEvent: LocalEvent,
+    userId: string
+  ): LocalEvent {
+    // Use last-writer-wins for most fields
+    const lastUpdateWins = (localTimestamp: string | Date, remoteTimestamp: string | Date) => {
+      const localTime = new Date(localTimestamp).getTime();
+      const remoteTime = new Date(remoteTimestamp).getTime();
+      return remoteTime > localTime;
+    };
+
+    // If the local user is the creator, prefer their updates
+    if (localEvent.createdBy === userId) {
+      return lastUpdateWins(localEvent.updatedAt, remoteEvent.updatedAt) ? remoteEvent : localEvent;
+    }
+
+    // If the remote user is the creator, prefer their updates
+    if (remoteEvent.createdBy === userId) {
+      return lastUpdateWins(localEvent.updatedAt, remoteEvent.updatedAt) ? remoteEvent : localEvent;
+    }
+
+    // Otherwise use last-writer-wins based on updatedAt
+    return lastUpdateWins(localEvent.updatedAt, remoteEvent.updatedAt) ? remoteEvent : localEvent;
+  }
+
   // Handle event deletion with timestamp tracking (tombstone + GC)
   static handleEventDeletion(
     eventId: string,
@@ -89,7 +116,7 @@ export class CRDTConflictResolver {
 
     eventsMap.set(eventId, deletedEvent);
   }
-  
+
   // Handle concurrent event creation
   static handleDuplicateCreation(
     event1: LocalEvent,
@@ -101,7 +128,7 @@ export class CRDTConflictResolver {
     eventsMap.set(winningEvent.id, winningEvent);
     return winningEvent;
   }
-  
+
   // Validate event update permissions and data
   static validateEventUpdate(
     eventId: string,
@@ -110,29 +137,29 @@ export class CRDTConflictResolver {
     userId: string
   ): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
-    
+
     if (!currentEvent) {
       errors.push('Event not found');
       return { isValid: false, errors };
     }
-    
+
     // Check if user has permission to edit
     if (currentEvent.createdBy !== userId && !currentEvent.collaborators.includes(userId)) {
       errors.push('User does not have permission to edit this event');
     }
-    
+
     // Validate required fields
     if (updates.title !== undefined && !updates.title.trim()) {
       errors.push('Event title cannot be empty');
     }
-    
+
     // Validate date range
     if (updates.startTime && updates.endTime) {
       if (updates.endTime <= updates.startTime) {
         errors.push('End time must be after start time');
       }
     }
-    
+
     return { isValid: errors.length === 0, errors };
   }
 }

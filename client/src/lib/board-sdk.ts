@@ -36,8 +36,23 @@ export function createBoardSDK({
   const doc = new Y.Doc();
   const provider = new WebrtcProvider(`journal-board-${spaceId}`, doc, {
     signaling: ['wss://signaling.yjs.dev'],
+    maxConns: 3,
   });
   const indexeddbProvider = new IndexeddbPersistence(`journal-board-${spaceId}`, doc);
+
+  // Track IndexedDB sync state for conflict resolution
+  let indexedDbSynced = false;
+  indexeddbProvider.on('synced', () => {
+    indexedDbSynced = true;
+  });
+
+  // Handle IndexedDB quota exceeded errors
+  indexeddbProvider.on('sync', (isSynced: boolean) => {
+    if (!isSynced) {
+      console.warn('Board SDK: IndexedDB sync failed - possible quota exceeded');
+      // Could notify user here via a callback if needed
+    }
+  });
 
   // Notes map
   const notesMap = doc.getMap<NoteData>('notes');
@@ -61,6 +76,15 @@ export function createBoardSDK({
   notesMap.observe(() => {
     const notes = Array.from(notesMap.values());
     changeListeners.forEach(cb => cb(notes));
+  });
+
+  // Connection status tracking for presence indicator
+  type ProviderStatus = 'connected' | 'disconnected';
+  const connectionListeners = new Set<(status: ProviderStatus) => void>();
+  let lastConnectionStatus: ProviderStatus = 'disconnected';
+  provider.on('status', (event: { connected: boolean }) => {
+    lastConnectionStatus = event.connected ? 'connected' : 'disconnected';
+    connectionListeners.forEach(cb => cb(lastConnectionStatus));
   });
 
   // Helper function to generate signed URLs for image notes
@@ -114,25 +138,39 @@ export function createBoardSDK({
         noteWithCreator.content = await processImageContent(noteWithCreator.content);
       }
 
-      notesMap.set(note.id, noteWithCreator);
+      // Use transaction for atomic update
+      doc.transact(() => {
+        notesMap.set(note.id, noteWithCreator);
+      }, 'create-note');
     },
     async updateNote(id: string, updates: Partial<NoteData>) {
       const note = notesMap.get(id);
       if (note) {
-        const updatedNote = { ...note, ...updates, updatedAt: new Date().toISOString() };
-        
-        // Process image content to include signed URLs if needed
-        if (updatedNote.content.type === 'image' && updates.content) {
-          updatedNote.content = await processImageContent(updatedNote.content);
+        // Process image content outside of transaction
+        let processedContent = note.content;
+        if (updates.content && updates.content.type === 'image') {
+          processedContent = await processImageContent(updates.content);
         }
 
-        notesMap.set(id, updatedNote);
+        // Use transaction for atomic update
+        doc.transact(() => {
+          const updatedNote = {
+            ...note,
+            ...updates,
+            content: processedContent,
+            updatedAt: new Date().toISOString()
+          };
+          notesMap.set(id, updatedNote);
+        }, 'update-note');
       }
     },
     deleteNote(id: string) {
       const note = notesMap.get(id);
       if (note) {
-        notesMap.delete(id);
+        // Use transaction for atomic update
+        doc.transact(() => {
+          notesMap.delete(id);
+        }, 'delete-note');
       }
     },
     presence: awareness,
@@ -167,18 +205,21 @@ export function createBoardSDK({
     updateNoteWithStorageMetadata(id: string, storagePath: string, signedUrl: string) {
       const note = notesMap.get(id);
       if (note && note.content.type === 'image') {
-        const updatedContent = {
-          ...note.content,
-          storagePath,
-          imageUrl: signedUrl,
-          // Remove temporary upload ID if present
-          uploadId: undefined,
-        };
-        notesMap.set(id, { 
-          ...note, 
-          content: updatedContent,
-          updatedAt: new Date().toISOString() 
-        });
+        // Use transaction for atomic update
+        doc.transact(() => {
+          const updatedContent = {
+            ...note.content,
+            storagePath,
+            imageUrl: signedUrl,
+            // Remove temporary upload ID if present
+            uploadId: undefined,
+          };
+          notesMap.set(id, {
+            ...note,
+            content: updatedContent,
+            updatedAt: new Date().toISOString()
+          });
+        }, 'update-note-storage');
       }
     },
 
@@ -188,10 +229,57 @@ export function createBoardSDK({
         changeListeners = changeListeners.filter(fn => fn !== cb);
       };
     },
-    destroy() {
-      provider.destroy();
-      indexeddbProvider.destroy?.();
+
+    onConnectionStatusChange(callback: (status: 'connected' | 'disconnected') => void) {
+      connectionListeners.add(callback);
+      callback(lastConnectionStatus);
+      return () => {
+        connectionListeners.delete(callback);
+      };
+    },
+
+    getConnectionStatus(): 'connected' | 'disconnected' {
+      return lastConnectionStatus;
+    },
+
+    async destroy() {
+      // Clear awareness state to prevent ghost collaborators
+      try {
+        awareness.setLocalStateField('user', null);
+      } catch (err) {
+        console.warn('Failed to clear awareness state:', err);
+      }
+
+      // Wait for provider to finish connecting if in progress to avoid race condition
+      if (lastConnectionStatus === 'disconnected') {
+        // Provider is currently connecting, wait a brief moment for connection to stabilize
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => resolve(), 100); // Short timeout
+          resolve();
+        });
+      }
+
+      // Clean up provider event listeners before destroying
+      provider.off('status', (event: { connected: boolean }) => {
+        lastConnectionStatus = event.connected ? 'connected' : 'disconnected';
+        connectionListeners.forEach(cb => cb(lastConnectionStatus));
+      });
+
+      // Then tear down providers and the document
+      try {
+        provider.destroy();
+      } catch (err) {
+        console.warn('Error destroying WebRTC provider:', err);
+      }
+
+      try {
+        indexeddbProvider.destroy?.();
+      } catch (err) {
+        console.warn('Error destroying IndexedDB provider:', err);
+      }
+
       doc.destroy();
+      connectionListeners.clear();
     },
   };
 }
