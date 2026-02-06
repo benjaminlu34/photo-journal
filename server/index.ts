@@ -114,7 +114,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// Validate required environment variables at startup
+function validateEnvironment(): void {
+  const requiredVars = ['SUPABASE_JWT_SECRET'];
+  const missing: string[] = [];
+
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      missing.push(varName);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.error(`[FATAL] Missing required environment variables: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
+
 (async () => {
+  // Validate critical environment variables before starting
+  validateEnvironment();
+
   // Initialize Redis connection for rate limiting
   if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
     try {
