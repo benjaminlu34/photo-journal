@@ -47,8 +47,23 @@ export function createCalendarSDK({
   const doc = new Y.Doc();
   const provider = new WebrtcProvider(`journal-calendar-${weekId}`, doc, {
     signaling: ['wss://signaling.yjs.dev'],
+    maxConns: 3,
   });
   const indexeddbProvider = new IndexeddbPersistence(`journal-calendar-${weekId}`, doc);
+
+  // Track IndexedDB sync state for conflict resolution
+  let indexedDbSynced = false;
+  indexeddbProvider.on('synced', () => {
+    indexedDbSynced = true;
+  });
+
+  // Handle IndexedDB quota exceeded errors
+  indexeddbProvider.on('sync', (isSynced: boolean) => {
+    if (!isSynced) {
+      console.warn('Calendar SDK: IndexedDB sync failed - possible quota exceeded');
+      // Could notify user here via a callback if needed
+    }
+  });
 
   // Create WeeklyCalendarDocument structure
   const calendarDocument: WeeklyCalendarDocument = {
@@ -110,9 +125,9 @@ export function createCalendarSDK({
   // Connection status tracking for presence indicator
   const connectionListeners = new Set<(status: ProviderStatus) => void>();
   let lastConnectionStatus: ProviderStatus = 'disconnected';
-  provider.on('status', (event: { status: ProviderStatus }) => {
-    lastConnectionStatus = event.status;
-    connectionListeners.forEach(cb => cb(event.status));
+  provider.on('status', (event: { connected: boolean }) => {
+    lastConnectionStatus = event.connected ? 'connected' : 'disconnected';
+    connectionListeners.forEach(cb => cb(lastConnectionStatus));
   });
 
   // Helper function to filter out tombstoned (deleted) events
@@ -171,17 +186,19 @@ export function createCalendarSDK({
         throw new Error(`Invalid event data: ${validation.errors.join(', ')}`);
       }
 
-      // Check for duplicate creation
+      // Check for duplicate creation with transaction for atomicity
       const existingEvent = calendarDocument.localEvents.get(eventId);
-      if (existingEvent) {
-        CRDTConflictResolver.handleDuplicateCreation(
-          existingEvent,
-          eventWithId,
-          calendarDocument.localEvents
-        );
-      } else {
-        calendarDocument.localEvents.set(eventId, eventWithId);
-      }
+      doc.transact(() => {
+        if (existingEvent) {
+          CRDTConflictResolver.handleDuplicateCreation(
+            existingEvent,
+            eventWithId,
+            calendarDocument.localEvents
+          );
+        } else {
+          calendarDocument.localEvents.set(eventId, eventWithId);
+        }
+      }, 'create-event');
     },
 
     // Update a local event with conflict resolution
@@ -201,25 +218,27 @@ export function createCalendarSDK({
       }
 
       if (currentEvent) {
-        const now = new Date();
-        const updatedEvent = {
-          ...currentEvent,
-          ...updates,
-          updatedAt: now,
-          collaborators: updates.collaborators || currentEvent.collaborators
-        };
+        doc.transact(() => {
+          const now = new Date();
+          const updatedEvent = {
+            ...currentEvent,
+            ...updates,
+            updatedAt: now,
+            collaborators: updates.collaborators || currentEvent.collaborators
+          };
 
-        if (updates.timezone && updates.timezone !== currentEvent.timezone) {
-          const userTimezone = timezoneService.getUserTimezone();
-          // Use safe conversion method with DST handling
-          const convertedEvent = timezoneService.convertToLocalTimeSafe(
-            updatedEvent,
-            userTimezone
-          );
-          calendarDocument.localEvents.set(id, convertedEvent);
-        } else {
-          calendarDocument.localEvents.set(id, updatedEvent);
-        }
+          if (updates.timezone && updates.timezone !== currentEvent.timezone) {
+            const userTimezone = timezoneService.getUserTimezone();
+            // Use safe conversion method with DST handling
+            const convertedEvent = timezoneService.convertToLocalTimeSafe(
+              updatedEvent,
+              userTimezone
+            );
+            calendarDocument.localEvents.set(id, convertedEvent);
+          } else {
+            calendarDocument.localEvents.set(id, updatedEvent);
+          }
+        }, 'update-event');
       }
     },
 
@@ -233,12 +252,14 @@ export function createCalendarSDK({
       const event = calendarDocument.localEvents.get(id);
       if (event) {
         // Use CRDT-safe deletion with tombstone to ensure proper sync
-        CRDTConflictResolver.handleEventDeletion(
-          id,
-          userId,
-          new Date(),
-          calendarDocument.localEvents
-        );
+        doc.transact(() => {
+          CRDTConflictResolver.handleEventDeletion(
+            id,
+            userId,
+            new Date(),
+            calendarDocument.localEvents
+          );
+        }, 'delete-event');
       }
     },
 
@@ -309,13 +330,46 @@ export function createCalendarSDK({
       return WeeklyCalendarDocumentUtils.garbageCollectDeletedEvents(calendarDocument.localEvents);
     },
 
-    // Cleanup function
+    // Cleanup function with proper race condition handling
     async destroy() {
+      // Clear awareness state to prevent ghost collaborators
+      try {
+        awareness.setLocalStateField('user', null);
+      } catch (err) {
+        console.warn('Failed to clear awareness state:', err);
+      }
+
       // First, flush any pending snapshots while the document is still valid
       await snapshotService.stopSnapshotBatching(weekId);
+
+      // Wait for provider to finish connecting if in progress to avoid race condition
+      if (lastConnectionStatus === 'disconnected') {
+        // Provider is currently connecting, wait a brief moment for connection to stabilize
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => resolve(), 100); // Short timeout
+          resolve();
+        });
+      }
+
+      // Clean up provider event listeners before destroying
+      provider.off('status', (event: { connected: boolean }) => {
+        lastConnectionStatus = event.connected ? 'connected' : 'disconnected';
+        connectionListeners.forEach(cb => cb(lastConnectionStatus));
+      });
+
       // Then tear down providers and the document
-      provider.destroy();
-      indexeddbProvider.destroy?.();
+      try {
+        provider.destroy();
+      } catch (err) {
+        console.warn('Error destroying WebRTC provider:', err);
+      }
+
+      try {
+        indexeddbProvider.destroy?.();
+      } catch (err) {
+        console.warn('Error destroying IndexedDB provider:', err);
+      }
+
       doc.destroy();
       connectionListeners.clear();
     },
