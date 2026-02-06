@@ -62,11 +62,12 @@ export function resolveEffectivePermission(context: PermissionContext): Permissi
   // No friendship = no access (unless explicitly shared)
   if (!friendship || friendship.status !== 'accepted') {
     // Check if entry is explicitly shared without friendship
-    if (sharedEntry && sharedEntry.sharedWithId === userId) {
+    // Validate that sharedEntry exists and sharedWithId is properly set
+    if (sharedEntry && sharedEntry.sharedWithId && sharedEntry.sharedWithId === userId) {
       const entryRole = mapEntryPermissionToRole(sharedEntry.permissions);
       return buildPermissionResult(entryRole, 'Entry explicitly shared');
     }
-    
+
     return {
       hasAccess: false,
       effectiveRole: null,
@@ -82,12 +83,13 @@ export function resolveEffectivePermission(context: PermissionContext): Permissi
   const globalRole = getUserRoleInFriendship(friendship, userId) as GlobalRole;
 
   // If entry is explicitly shared, take the MIN of global and entry-specific roles
-  if (sharedEntry && sharedEntry.sharedWithId === userId) {
+  // Validate that sharedEntry exists and sharedWithId is properly set
+  if (sharedEntry && sharedEntry.sharedWithId && sharedEntry.sharedWithId === userId) {
     const globalRank = ROLE_RANKS[globalRole];
     const entryRank = ROLE_RANKS[sharedEntry.permissions];
     const effectiveRank = Math.min(globalRank, entryRank);
     const effectiveRole = mapRankToRole(effectiveRank);
-    
+
     return buildPermissionResult(
       effectiveRole,
       `Global role: ${globalRole}, Entry permission: ${sharedEntry.permissions}, Effective: ${effectiveRole}`
@@ -130,6 +132,11 @@ function buildPermissionResult(effectiveRole: GlobalRole, reason: string): Permi
 
 /**
  * Get specific permissions for a role
+ *
+ * IMPORTANT: Contributors have canEdit: false and canDelete: false at the global level,
+ * but CAN edit and delete their OWN content blocks. This is checked by the
+ * canEditContentBlock() and canDeleteContentBlock() functions. Always use those
+ * functions for content block operations, not the global canEdit/canDelete flags.
  */
 export function getPermissionsForRole(role: GlobalRole): {
   canView: boolean;
@@ -148,9 +155,9 @@ export function getPermissionsForRole(role: GlobalRole): {
     case 'contributor':
       return {
         canView: true,
-        canEdit: false,  // Can only edit own content blocks
+        canEdit: false,  // Global edit flag is false - use canEditContentBlock() for block-level checks
         canCreate: true,
-        canDelete: false, // Can only delete own content blocks
+        canDelete: false, // Global delete flag is false - use canDeleteContentBlock() for block-level checks
       };
     case 'viewer':
     default:

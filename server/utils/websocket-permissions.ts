@@ -1,9 +1,25 @@
 /**
  * WebSocket Permission Utilities for Yjs Collaboration
- * 
+ *
  * This module provides permission checking for WebSocket-based real-time collaboration
  * using Yjs operations. It ensures that users can only perform operations they have
  * permission for based on their directional friendship roles.
+ *
+ * IMPORTANT: These WebSocket permission checks MUST exactly match the HTTP permission
+ * checks in server/middleware/permission.ts. Any changes to permission logic here should
+ * be reflected there, and vice versa.
+ *
+ * Permission parity:
+ * - View operations: checked against canView flag
+ * - Create operations: checked against canCreate flag (contributors CAN create)
+ * - Edit/Delete operations:
+ *   - Editors: always allowed
+ *   - Contributors: only allowed for content blocks they created (requires contentBlockCreatedBy)
+ *   - Viewers: never allowed
+ *
+ * Note: Create operations don't require contentBlockCreatedBy because the block is being
+ * created by the current user. Edit/Delete operations for contributors DO require
+ * contentBlockCreatedBy to verify ownership.
  */
 
 import { checkJournalPermissions } from '../middleware/permission';
@@ -104,7 +120,7 @@ async function checkOperationPermission(
         if (!contentBlockId || !contentBlockCreatedBy) {
           return {
             allowed: false,
-            reason: 'Content block ownership information required for contributors',
+            reason: 'Content block ownership information required for contributors to edit',
           };
         }
 
@@ -134,7 +150,7 @@ async function checkOperationPermission(
         if (!contentBlockId || !contentBlockCreatedBy) {
           return {
             allowed: false,
-            reason: 'Content block ownership information required for contributors',
+            reason: 'Content block ownership information required for contributors to delete',
           };
         }
 
