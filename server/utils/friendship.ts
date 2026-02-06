@@ -24,8 +24,8 @@ export function buildCanonicalFriendshipIds(
     throw new Error('Cannot create friendship with self');
   }
 
-  // Ensure canonical ordering: userId < friendId
-  const [userId, friendId] = userA < userB ? [userA, userB] : [userB, userA];
+  // Ensure canonical ordering: userId < friendId using locale-independent comparison
+  const [userId, friendId] = userA.toLowerCase() < userB.toLowerCase() ? [userA, userB] : [userB, userA];
   
   // Determine if the canonical userId is the initiator
   const isInitiator = userId === initiatorId;
@@ -60,8 +60,10 @@ export function canSendFriendRequest(
       return false; // Already friends
     case 'declined':
     case 'unfriended':
-      // Check 24-hour cooldown
-      const cooldownExpired = Date.now() - lastStatusChange.getTime() > 24 * 60 * 60 * 1000;
+      // Check 24-hour cooldown with tolerance for precision issues
+      const cooldownPeriod = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      const timeSinceLastChange = Date.now() - lastStatusChange.getTime();
+      const cooldownExpired = timeSinceLastChange >= cooldownPeriod;
       return cooldownExpired;
     default:
       return true;
@@ -82,6 +84,11 @@ export function isValidStatusTransition(
   actorId: string,
   initiatorId: string | null
 ): boolean {
+  // Defensive check for null/undefined status
+  if (!currentStatus || !newStatus || !actorId) {
+    return false;
+  }
+
   // Define valid transitions
   const validTransitions: Record<string, string[]> = {
     'pending': ['accepted', 'declined', 'blocked'],

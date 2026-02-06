@@ -8,6 +8,32 @@ import {
 } from '../../../server/utils/friendship';
 
 describe('buildCanonicalFriendshipIds', () => {
+  it('should order UUIDs canonically with locale-independent comparison', () => {
+    // Test with UUIDs that have different cases and characters
+    const uuid1 = '12345678-1234-1234-1234-123456789abc';
+    const uuid2 = 'abcdefab-cdef-abcd-abcd-123456789def';
+    
+    const result1 = buildCanonicalFriendshipIds(uuid1, uuid2, uuid1);
+    expect(result1.userId).toBe(uuid1);
+    expect(result1.friendId).toBe(uuid2);
+    expect(result1.isInitiator).toBe(true);
+
+    const result2 = buildCanonicalFriendshipIds(uuid2, uuid1, uuid1);
+    expect(result2.userId).toBe(uuid1);
+    expect(result2.friendId).toBe(uuid2);
+    expect(result2.isInitiator).toBe(true);
+  });
+
+  it('should handle UUIDs with mixed case correctly', () => {
+    // Test with UUIDs that have uppercase and lowercase hex characters
+    const uuidLower = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const uuidUpper = 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB';
+    
+    const result1 = buildCanonicalFriendshipIds(uuidUpper, uuidLower, uuidLower);
+    expect(result1.userId).toBe(uuidLower);
+    expect(result1.friendId).toBe(uuidUpper);
+    expect(result1.isInitiator).toBe(true);
+  });
   it('should order user IDs canonically (userId < friendId)', () => {
     const result1 = buildCanonicalFriendshipIds('user-b', 'user-a', 'user-b');
     expect(result1.userId).toBe('user-a');
@@ -71,6 +97,29 @@ describe('canSendFriendRequest', () => {
     expect(canSendFriendRequest(oneHourAgo, 'unfriended')).toBe(false);
     expect(canSendFriendRequest(oneDayAgo, 'unfriended')).toBe(true);
   });
+
+  it('should handle exact 24-hour cooldown boundary correctly', () => {
+    const exact24HoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    expect(canSendFriendRequest(exact24HoursAgo, 'declined')).toBe(true);
+    expect(canSendFriendRequest(exact24HoursAgo, 'unfriended')).toBe(true);
+  });
+
+  it('should handle millisecond precision correctly', () => {
+    // Test with times that are very close to the boundary
+    // justBefore: 24 hours - 1 millisecond ago (should be false because it hasn't reached 24 hours)
+    const justBefore = new Date(now.getTime() - (24 * 60 * 60 * 1000) + 1);
+    // justAfter: 24 hours + 1 millisecond ago (should be true because it has passed 24 hours)
+    const justAfter = new Date(now.getTime() - (24 * 60 * 60 * 1000) - 1);
+    
+    // At 24 hours - 1ms: should NOT be allowed (false)
+    expect(canSendFriendRequest(justBefore, 'declined')).toBe(false);
+    // At 24 hours + 1ms: should be allowed (true)
+    expect(canSendFriendRequest(justAfter, 'declined')).toBe(true);
+    
+    // Also test the boundary exactly at 24 hours
+    const exact24Hours = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    expect(canSendFriendRequest(exact24Hours, 'declined')).toBe(true);
+  });
 });
 
 describe('isValidStatusTransition', () => {
@@ -102,6 +151,26 @@ describe('isValidStatusTransition', () => {
   it('should reject invalid transitions', () => {
     expect(isValidStatusTransition('pending', 'unfriended', 'user-a', 'user-a')).toBe(false);
     expect(isValidStatusTransition('accepted', 'pending', 'user-a', 'user-a')).toBe(false);
+  });
+
+  it('should reject transitions with null/undefined parameters', () => {
+    // Empty strings should be rejected
+    expect(isValidStatusTransition('', 'pending', 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', '', 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', 'accepted', '', 'user-a')).toBe(false);
+    
+    // Test with null/undefined (should be rejected by defensive checks)
+    expect(isValidStatusTransition(null as any, 'pending', 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', null as any, 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', 'accepted', null as any, 'user-a')).toBe(false);
+    
+    // Test with undefined (should be rejected by defensive checks)
+    expect(isValidStatusTransition(undefined as any, 'pending', 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', undefined as any, 'user-a', 'user-a')).toBe(false);
+    expect(isValidStatusTransition('pending', 'accepted', undefined as any, 'user-a')).toBe(false);
+    
+    // Valid transition should still work
+    expect(isValidStatusTransition('pending', 'accepted', 'user-b', 'user-a')).toBe(true);
   });
 });
 
