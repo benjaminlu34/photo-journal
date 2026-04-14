@@ -11,6 +11,7 @@ import { availableColors } from "@shared/config/calendar-config";
 import type { CalendarFeed, CalendarEvent } from "@/types/calendar";
 import { useCalendar } from "@/contexts/calendar-context";
 import { calendarFeedService } from "@/services/calendar-feed.service";
+import { colorPaletteManager } from "@/services/color-palette-manager";
 
 interface CalendarFeedModalProps {
   isOpen: boolean;
@@ -73,12 +74,18 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
 
     try {
       // Persist feed first in store
+      const existingColors = feeds.map(f => f.color);
+      const preferred = colorPaletteManager.validateColorAssignment({ color: icalFormData.color }).color;
+      const chosenColor = feeds.some(f => f.color.toLowerCase() === preferred.toLowerCase())
+        ? colorPaletteManager.getNextColor(existingColors)
+        : preferred;
+
       const newFeed: CalendarFeed = {
         id: feedId,
         name: icalFormData.name.trim(),
         type: 'ical',
         url: icalFormData.url.trim(),
-        color: icalFormData.color,
+        color: chosenColor,
         isEnabled: true,
         lastSyncAt: new Date(),
         syncError: undefined
@@ -177,12 +184,14 @@ export function CalendarFeedModal({ isOpen, onClose }: CalendarFeedModalProps) {
       const creds = await calendarFeedService.exchangeGoogleAuthCode(code, redirectUri);
 
       // Create feed and load initial window
+      const existingColors = feeds.map(f => f.color);
+      const chosenColor = colorPaletteManager.getNextColor(existingColors);
       const googleFeed: CalendarFeed = {
         id: crypto.randomUUID(),
         name: "Google Calendar",
         type: 'google',
         googleCalendarId: "primary",
-        color: "#4285F4",
+        color: chosenColor,
         isEnabled: true,
         lastSyncAt: new Date(),
         syncError: undefined,

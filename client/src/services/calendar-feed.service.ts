@@ -1,5 +1,13 @@
 /**
  * Calendar feed service for external calendar integration.
+ *
+ * Color Policy:
+ * - Programmatic color assignments must be delegated to ColorPaletteManager.
+ * - Feed-level color comes from user input or deterministic selection in UI (calendar-feed-modal)
+ *   via colorPaletteManager.getNextColor(existingFeedColors); this service never pulls from availableColors.
+ * - Event colors from sources (Google/iCal) are treated as placeholders; canonical events receive their
+ *   final colors via duplicateEventResolver.resolveEvents(), which delegates to ColorPaletteManager.
+ * - This maintains deterministic, accessible colors and avoids direct availableColors usage in logic.
  */
 
 import ICAL from 'ical.js';

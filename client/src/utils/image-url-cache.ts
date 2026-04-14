@@ -17,8 +17,8 @@ class LRUCache<K, V> extends Map<K, V> {
   
   set(key: K, value: V): this {
     // Update last accessed time
-    if (value && typeof value === 'object' && 'lastAccessed' in value) {
-      (value as any).lastAccessed = Date.now();
+    if (value && typeof value === 'object' && 'lastAccessed' in (value as Record<string, unknown>)) {
+      (value as { lastAccessed?: number }).lastAccessed = Date.now();
     }
     
     super.set(key, value);
@@ -35,8 +35,8 @@ class LRUCache<K, V> extends Map<K, V> {
     const value = super.get(key);
     
     // Update last accessed time when retrieving
-    if (value && typeof value === 'object' && 'lastAccessed' in value) {
-      (value as any).lastAccessed = Date.now();
+    if (value && typeof value === 'object' && 'lastAccessed' in (value as Record<string, unknown>)) {
+      (value as { lastAccessed?: number }).lastAccessed = Date.now();
     }
     
     return value;
@@ -46,8 +46,10 @@ class LRUCache<K, V> extends Map<K, V> {
     // Convert to array and sort by lastAccessed time
     const entries = Array.from(this.entries());
     entries.sort((a, b) => {
-      const aTime = (a[1] as any).lastAccessed || 0;
-      const bTime = (b[1] as any).lastAccessed || 0;
+      const aVal = a[1] as { lastAccessed?: number };
+      const bVal = b[1] as { lastAccessed?: number };
+      const aTime = aVal.lastAccessed ?? 0;
+      const bTime = bVal.lastAccessed ?? 0;
       return aTime - bTime;
     });
     

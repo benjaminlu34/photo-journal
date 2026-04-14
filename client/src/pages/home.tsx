@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { CalendarPlus, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import type { UserSearchResult } from "@/hooks/useFriendSearch";
+import type { ViewMode } from "@/types/journal";
 
 // Helper to check for weekly view modes
 const isWeeklyView = (mode: string | null): boolean =>
@@ -60,11 +61,16 @@ function HomeContent() {
     // Determine the view mode to use (URL param takes precedence over localStorage)
     const mode = (param || stored || viewMode || 'daily') as string;
 
+    // Narrow and validate incoming mode to ViewMode
+    const isValidViewMode = (m: string): m is ViewMode =>
+      m === 'daily' || m === 'weekly-calendar' || m === 'weekly-creative' || m === 'monthly';
+    const resolvedMode: ViewMode = isValidViewMode(mode) ? mode : 'daily';
+
     // Apply the view mode to the context
-    if (mode !== viewMode) {
+    if (resolvedMode !== viewMode) {
       // This will trigger the viewMode change in the context
       // which will then trigger the useEffect below to update URL and localStorage
-      setViewMode(mode as any);
+      setViewMode(resolvedMode);
     }
 
     // Apply date/week anchors based on the mode (use date-fns for stability)
@@ -220,8 +226,8 @@ function HomeContent() {
     <div className="flex h-screen">
       <JournalSidebar />
 
-      <div className="neu-card flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg flex-shrink-0">
+      <div className="neu-card flex-1 grid grid-rows-[auto_1fr] min-w-0">
+        <div className="bg-white border-b border-purple-100 px-8 py-4 shadow-lg">
           <div className="grid grid-cols-[auto_1fr_auto] items-center w-full gap-4">
             {/* Left: Navigation at the very left */}
             <div className="flex items-center gap-1 shrink-0">
@@ -354,7 +360,7 @@ function HomeContent() {
         <CRDTProvider spaceId={`workspace-${currentEntry?.id || 'new-journal-entry'}`}>
           {/* Handle friendship events and refresh image URLs when permissions change */}
           <FriendshipImageHandler />
-          <div className="flex flex-1">
+          <div className="flex flex-1 min-h-0">
             <JournalWorkspace />
             <CollaborationPanel />
           </div>

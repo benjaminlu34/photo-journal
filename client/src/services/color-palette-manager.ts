@@ -153,13 +153,13 @@ export class ColorPaletteManager {
   }
 
   /**
-   * Check if a color has good contrast for accessibility
-   * @param color - Color to check
-   * @param backgroundColor - Background color (default: white)
+   * Check if a background color has good contrast for accessibility
+   * @param backgroundColor - Background color (the surface on which text is rendered)
+   * @param textColor - Optional explicit text color; if omitted, optimal text is computed
    * @returns True if contrast meets WCAG AA standards
    */
-  public hasGoodContrast(color: string, backgroundColor: string = '#FFFFFF'): boolean {
-    const contrast = checkContrastCompliance(backgroundColor, color);
+  public hasGoodContrast(backgroundColor: string, textColor?: string): boolean {
+    const contrast = checkContrastCompliance(backgroundColor, textColor);
     return contrast.isCompliant;
   }
 
